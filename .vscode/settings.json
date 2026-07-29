@@ -1,0 +1,4 @@
+{
+    "debug.internalConsoleOptions": "neverOpen",
+    "python-envs.defaultEnvManager": "ms-python.python:system"
+}
