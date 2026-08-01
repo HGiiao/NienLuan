@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { useUser, UserButton } from '@clerk/clerk-react'
+import { useUser, UserButton, useClerk } from '@clerk/clerk-react'
 import { Plane, User, LogIn, LogOut, Menu, X, Home, BarChart4, Shield, Ticket, Route, Crown } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import NotificationBell from './NotificationBell'
@@ -8,6 +8,7 @@ import NotificationBell from './NotificationBell'
 const navLinks = [
   { to: '/', label: 'Trang chủ' },
   { to: '/flights', label: 'Chuyến bay' },
+  { to: '/buses', label: 'Xe khách' },
   { to: '/trains', label: 'Tàu hỏa' },
   { to: '/compare', label: 'So sánh' },
   { to: '/optimal-route', label: 'Lộ trình & Cảnh báo' },
@@ -21,7 +22,7 @@ const dropdownItems = (role) => [
 ]
 
 function getStoredUser() {
-  try { return JSON.parse(localStorage.getItem('user')) } catch { return null }
+  try { return JSON.parse(sessionStorage.getItem('user')) } catch { return null }
 }
 
 export default function Navbar() {
@@ -30,10 +31,12 @@ export default function Navbar() {
   const { pathname } = useLocation()
   const navigate = useNavigate()
   const { isSignedIn, user } = useUser()
+  const { signOut: clerkSignOut } = useClerk()
   const localUser = getStoredUser()
   const dropdownRef = useRef(null)
 
-  const isAuth = isSignedIn || !!localUser
+  const tabAuth = sessionStorage.getItem('ve247-auth')
+  const isAuth = (isSignedIn && tabAuth) || (!!localUser && localUser?.loginMethod !== 'clerk')
   const displayName = isSignedIn ? user?.fullName : localUser?.fullName
   const initials = displayName ? displayName.split(' ').map(w => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase() : 'U'
 
@@ -46,7 +49,15 @@ export default function Navbar() {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [handleClickOutside])
 
-  const handleLogout = () => { localStorage.removeItem('user'); setDropdownOpen(false); navigate('/auth') }
+  const handleLogout = async () => {
+    sessionStorage.removeItem('user')
+    sessionStorage.removeItem('ve247-auth')
+    setDropdownOpen(false)
+    if (isSignedIn) {
+      await clerkSignOut()
+    }
+    navigate('/auth')
+  }
 
   const handleNav = (to) => { setDropdownOpen(false); navigate(to) }
 

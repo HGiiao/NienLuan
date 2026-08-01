@@ -70,7 +70,7 @@ function LiveIndicator({ connected = true }) {
   )
 }
 
-function RouteTab({ form, setForm, handleSearch, routes, loading, directCheapest }) {
+function RouteTab({ form, setForm, handleSearch, routes, loading, directCheapest, onBook }) {
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}>
       {loading && (
@@ -133,7 +133,10 @@ function RouteTab({ form, setForm, handleSearch, routes, loading, directCheapest
                         const prevSeg = j > 0 ? segments[j - 1] : null
                         const transferTime = prevSeg ? (new Date(seg.departureTime) - new Date(prevSeg.arrivalTime)) / 60000 : 0
                         return (
-                          <div key={j} className="relative flex gap-4 pb-5 last:pb-0">
+                          <div key={j}
+                            onClick={seg.id != null ? () => onBook?.({ ...seg, type: seg.type }) : undefined}
+                            className={`relative flex gap-4 pb-5 last:pb-0 ${seg.id != null ? 'cursor-pointer rounded-lg -mx-1 px-1 transition-colors hover:bg-[var(--color-border)]/20' : ''}`}
+                          >
                             <div className="relative z-10 mt-1">
                               <div className="w-9 h-9 rounded-xl flex items-center justify-center text-sm shadow-sm bg-primary-500 text-white">
                                 {seg.type === 'flight' ? <Plane className="w-4 h-4" /> : <Train className="w-4 h-4" />}
@@ -204,7 +207,7 @@ function AlertsTab() {
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ routeFrom: '', routeTo: '', targetPrice: '' })
 
-  const stored = (() => { try { return JSON.parse(localStorage.getItem('user')) } catch { return null } })()
+  const stored = (() => { try { return JSON.parse(sessionStorage.getItem('user')) } catch { return null } })()
   const email = stored?.email || clerkUser?.primaryEmailAddress?.emailAddress || ''
   const isAuthed = !!email
 
@@ -532,6 +535,8 @@ export default function OptimalRoute() {
                 <option value="cheapest">Rẻ nhất</option>
                 <option value="fastest">Nhanh nhất</option>
                 <option value="balanced">Cân bằng</option>
+                <option value="fewest_stops">Ít dừng nhất</option>
+                <option value="earliest_arrival">Đến sớm nhất</option>
               </select>
             </div>
           </div>
@@ -587,11 +592,12 @@ export default function OptimalRoute() {
 
         <div className="p-4 md:p-5">
           <AnimatePresence mode="wait">
-            {tab === 'route' && <RouteTab key="route" form={form} setForm={setForm} handleSearch={handleSearch} routes={routes} loading={loading} directCheapest={directCheapest} />}
+            {tab === 'route' && <RouteTab key="route" form={form} setForm={setForm} handleSearch={handleSearch} routes={routes} loading={loading} directCheapest={directCheapest} onBook={(item) => navigate(`/booking/${item.type}/${item.id}`, { state: { item } })} />}
             {tab === 'alerts' && <AlertsTab key="alerts" />}
           </AnimatePresence>
         </div>
       </div>
+
     </motion.div>
   )
 }

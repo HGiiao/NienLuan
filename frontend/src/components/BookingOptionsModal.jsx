@@ -1,24 +1,84 @@
 import { motion, AnimatePresence } from 'framer-motion'
-import { Plane, Train, ExternalLink, ArrowRight, X, Building2, Globe } from 'lucide-react'
+import { Plane, Train, Bus, ExternalLink, ArrowRight, X, Building2, Globe, Calendar, Clock as ClockIcon } from 'lucide-react'
 import { formatCurrencyVnd } from '../utils/formatters'
 
 const airlineBookUrl = {
-  VN: { name: 'Vietnam Airlines', url: 'https://www.vietnamairlines.com/' },
-  VJ: { name: 'VietJet Air', url: 'https://www.vietjetair.com/' },
-  QH: { name: 'Bamboo Airways', url: 'https://www.bambooairways.com/' },
-  BL: { name: 'Pacific Airlines', url: 'https://www.pacificairlines.com/' },
-  VU: { name: 'Vietravel Airlines', url: 'https://www.vietravelairlines.com/' },
+  VN: { name: 'Vietnam Airlines', url: 'https://www.vietnamairlines.com/vn/vi/booking' },
+  VJ: { name: 'VietJet Air', url: 'https://www.vietjetair.com/vi/booking' },
+  QH: { name: 'Bamboo Airways', url: 'https://www.bambooairways.com/booking' },
+  BL: { name: 'Pacific Airlines', url: 'https://www.pacificairlines.com/vi/booking' },
+  VU: { name: 'Vietravel Airlines', url: 'https://www.vietravelairlines.com/booking' },
 }
 
-const trainBookUrl = { name: 'Đường sắt Việt Nam', url: 'https://dsvn.vn/' }
+const trainBookUrl = { name: 'Đường sắt Việt Nam', url: 'https://dsvn.vn/tra-cuu-ve' }
+
+const busBookUrls = {
+  'Mai Linh': { name: 'Mai Linh Express', url: 'https://mailinh.vn' },
+  'Kumho Samco': { name: 'Kumho Samco', url: 'https://kumhovietnam.com' },
+  'Hải Âu': { name: 'Hải Âu Bus', url: 'https://haiaubus.vn' },
+  'Sao Việt': { name: 'Sao Việt', url: 'https://saovietbus.com' },
+  'Phương Trang': { name: 'Phương Trang', url: 'https://futabus.vn' },
+}
+
+function formatDate(d) {
+  const date = new Date(d)
+  return date.toISOString().split('T')[0]
+}
+
+function buildDeepUrl(type, item) {
+  const isFlight = type === 'flight'
+  const from = item.departureLocation || ''
+  const to = item.arrivalLocation || ''
+  const date = item.flightDate || item.trainDate || item.busDate || formatDate(item.departureTime)
+  const code = isFlight ? item.airlineCode : ''
+
+  if (isFlight) {
+    const base = airlineBookUrl[code]?.url
+    if (!base) return '#'
+    const params = new URLSearchParams({
+      from: from,
+      to: to,
+      date: date,
+      code: `${code}${(item.id % 900) + 100}`,
+    })
+    return `${base}?${params.toString()}`
+  }
+
+  if (type === 'bus') {
+    const base = busBookUrls[item.busCompany]?.url
+    if (!base) return '#'
+    const params = new URLSearchParams({
+      from: from,
+      to: to,
+      date: date,
+      bus: item.busCode || '',
+    })
+    return `${base}?${params.toString()}`
+  }
+
+  const params = new URLSearchParams({
+    from: from,
+    to: to,
+    date: date,
+    train: item.trainCode || '',
+  })
+  return `${trainBookUrl.url}?${params.toString()}`
+}
 
 export default function BookingOptionsModal({ item, type, onClose, onBookAtVe247 }) {
   const isFlight = type === 'flight'
+  const isBus = type === 'bus'
   const external = isFlight
     ? airlineBookUrl[item.airlineCode] || { name: item.airlineName, url: '#' }
-    : trainBookUrl
+    : isBus
+      ? busBookUrls[item.busCompany] || { name: item.busCompany, url: '#' }
+      : trainBookUrl
 
+  const deepUrl = buildDeepUrl(type, item)
   const fmt = (d) => new Date(d).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  const fmtDate = (d) => new Date(d).toLocaleDateString('vi-VN', { weekday: 'short', day: 'numeric', month: 'numeric', year: 'numeric' })
+  const typeIcon = isFlight ? <Plane className="w-5 h-5" /> : isBus ? <Bus className="w-5 h-5" /> : <Train className="w-5 h-5" />
+  const typeLabel = isFlight ? `${item.airlineCode}${(item.id % 900) + 100}` : isBus ? item.busCode : item.trainCode
 
   return (
     <AnimatePresence>
@@ -37,22 +97,15 @@ export default function BookingOptionsModal({ item, type, onClose, onBookAtVe247
           onClick={e => e.stopPropagation()}
           className="bg-[var(--color-bg-card)] rounded-3xl border border-[var(--color-border)] shadow-2xl w-full max-w-md overflow-hidden"
         >
-          {/* Header */}
           <div className="flex items-center justify-between p-5 pb-3">
             <div className="flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                isFlight
-                  ? 'bg-primary-500/10 text-primary-500'
-                  : 'bg-primary-500/10 text-primary-500'
-              }`}>
-                {isFlight ? <Plane className="w-5 h-5" /> : <Train className="w-5 h-5" />}
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-primary-500/10 text-primary-500">
+                {typeIcon}
               </div>
               <div>
                 <h3 className="font-bold text-[var(--color-text-primary)]">Chọn nơi đặt vé</h3>
                 <p className="text-xs text-[var(--color-text-tertiary)]">
-                  {isFlight
-                    ? `${item.airlineCode}${(item.id % 900) + 100} • ${item.departureLocation} → ${item.arrivalLocation}`
-                    : `${item.trainCode} • ${item.departureLocation} → ${item.arrivalLocation}`}
+                  {typeLabel} • {item.departureLocation} → {item.arrivalLocation}
                 </p>
               </div>
             </div>
@@ -64,21 +117,25 @@ export default function BookingOptionsModal({ item, type, onClose, onBookAtVe247
             </button>
           </div>
 
-          {/* Info bar */}
-          <div className="mx-5 p-3 rounded-xl bg-[var(--color-bg)] border border-[var(--color-border)] flex items-center justify-between text-sm">
-            <div className="flex items-center gap-2">
-              <span className="text-[var(--color-text-secondary)]">{fmt(item.departureTime)}</span>
-              <ArrowRight className="w-3 h-3 text-[var(--color-text-tertiary)]" />
-              <span className="text-[var(--color-text-secondary)]">{fmt(item.arrivalTime)}</span>
+          <div className="mx-5 p-3 rounded-xl bg-[var(--color-bg)] border border-[var(--color-border)] space-y-1.5 text-sm">
+            <div className="flex items-center gap-2 text-[var(--color-text-tertiary)]">
+              <Calendar className="w-3.5 h-3.5" />
+              <span>{fmtDate(item.flightDate || item.trainDate || item.busDate || item.departureTime)}</span>
             </div>
-            <span className="font-bold text-primary-500">{formatCurrencyVnd(item.price)}</span>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <ClockIcon className="w-3.5 h-3.5 text-[var(--color-text-tertiary)]" />
+                <span className="text-[var(--color-text-secondary)]">{fmt(item.departureTime)}</span>
+                <ArrowRight className="w-3 h-3 text-[var(--color-text-tertiary)]" />
+                <span className="text-[var(--color-text-secondary)]">{fmt(item.arrivalTime)}</span>
+              </div>
+              <span className="font-bold text-primary-500">{formatCurrencyVnd(item.price)}</span>
+            </div>
           </div>
 
-          {/* Options */}
           <div className="p-5 pt-4 space-y-3">
-            {/* Option 1: Book at carrier */}
             <a
-              href={external.url}
+              href={deepUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-4 p-4 rounded-2xl border-2 border-[var(--color-border)] hover:border-primary-500/40 hover:bg-primary-500/5 transition-all group cursor-pointer"
@@ -90,12 +147,11 @@ export default function BookingOptionsModal({ item, type, onClose, onBookAtVe247
                   <div className="font-bold text-[var(--color-text-primary)] group-hover:text-primary-400 transition-colors">
                   Đặt tại {external.name}
                 </div>
-                <div className="text-xs text-[var(--color-text-tertiary)] truncate mt-0.5">Website chính thức • Giá niêm yết</div>
+                <div className="text-xs text-[var(--color-text-tertiary)] truncate mt-0.5">Website chính thức • Deep link tới chuyến</div>
               </div>
               <ExternalLink className="w-5 h-5 text-[var(--color-text-tertiary)] group-hover:text-primary-500 shrink-0 transition-colors" />
             </a>
 
-            {/* Option 2: Book at Ve247 */}
             <button
               onClick={() => onBookAtVe247?.(item)}
               className="w-full flex items-center gap-4 p-4 rounded-2xl border-2 border-[var(--color-border)] hover:border-primary-500/40 hover:bg-primary-500/5 transition-all group text-left"

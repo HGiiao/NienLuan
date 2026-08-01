@@ -3,6 +3,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Plane, Search, CalendarDays, AlertCircle, Sparkles, Bell, Filter, Star } from 'lucide-react'
 import FlightCard from '../components/FlightCard'
+import TicketDetailModal from '../components/TicketDetailModal'
 import PriceFilter from '../components/PriceFilter'
 import BookingOptionsModal from '../components/BookingOptionsModal'
 
@@ -50,6 +51,7 @@ export default function SearchFlights() {
   const initialLoad = useRef(true)
 
   const [bookingItem, setBookingItem] = useState(null)
+  const [detailItem, setDetailItem] = useState(null)
   const [prediction, setPrediction] = useState(null)
   const [buyNowFilter, setBuyNowFilter] = useState(false)
   const [watchMsg, setWatchMsg] = useState('')
@@ -176,7 +178,7 @@ export default function SearchFlights() {
   }, [items, buyNowFilter, prediction])
 
   const handleWatch = async (flight) => {
-    const stored = (() => { try { return JSON.parse(localStorage.getItem('user')) } catch { return null } })()
+    const stored = (() => { try { return JSON.parse(sessionStorage.getItem('user')) } catch { return null } })()
     if (!stored?.email) { navigate('/auth?redirect=/flights'); return }
     try {
       if (watchedIds.has(flight.id)) return
@@ -193,7 +195,7 @@ export default function SearchFlights() {
   const renderFlightList = (flightList, badgeMap, emptyMsg, pred) => (
     <div className="space-y-3">
       {flightList.map((f, i) => (
-        <FlightCard key={f.id} flight={f} onBook={(flight) => setBookingItem(flight)} onWatch={handleWatch} watched={watchedIds.has(f.id)} badge={badgeMap[f.id]} index={i} prediction={pred} />
+        <FlightCard key={f.id} flight={f} onBook={(flight) => setBookingItem(flight)} onDetail={(flight) => setDetailItem(flight)} onWatch={handleWatch} watched={watchedIds.has(f.id)} badge={badgeMap[f.id]} index={i} prediction={pred} />
       ))}
       {!loading && flightList.length === 0 && hasSearched && (
         <EmptyState icon={Plane} title={emptyMsg} desc="Thử thay đổi điểm đi, điểm đến hoặc ngày khởi hành" />
@@ -301,7 +303,7 @@ export default function SearchFlights() {
       </SearchForm>
 
       <div className="flex items-center justify-between gap-3 mt-4 mb-4">
-        <PriceFilter onChange={setFilters} />
+        <PriceFilter type="flight" onChange={setFilters} />
         <div className="flex items-center gap-2">
           {prediction && prediction.confidence > 0.3 && !isRoundTrip && (
             <button onClick={() => setBuyNowFilter(f => !f)}
@@ -385,6 +387,14 @@ export default function SearchFlights() {
             setBookingItem(null)
             navigate(`/booking/flight/${flight.id}`, { state: { item: flight } })
           }}
+        />
+      )}
+
+      {detailItem && (
+        <TicketDetailModal
+          item={detailItem}
+          type="flight"
+          onClose={() => setDetailItem(null)}
         />
       )}
     </motion.div>

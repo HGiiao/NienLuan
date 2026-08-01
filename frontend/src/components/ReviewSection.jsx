@@ -44,7 +44,7 @@ export default function ReviewSection({ flightId, trainId }) {
 
   const handleSubmit = async () => {
     if (!form.comment.trim()) return
-    const stored = (() => { try { return JSON.parse(localStorage.getItem('user')) } catch { return null } })()
+    const stored = (() => { try { return JSON.parse(sessionStorage.getItem('user')) } catch { return null } })()
     setSubmitting(true)
     try {
       const res = await createReview({

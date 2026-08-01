@@ -24,8 +24,13 @@ public class TrainsController : ControllerBase
         [FromQuery] string? tripType,
         [FromQuery] DateOnly? returnDate,
         [FromQuery] string? sortBy,
-        [FromQuery] decimal? minPrice,
-        [FromQuery] decimal? maxPrice,
+        [FromQuery] string? minPrice,
+        [FromQuery] string? maxPrice,
+        [FromQuery] string? coachClass,
+        [FromQuery] string? trainType,
+        [FromQuery] string? timeFrom,
+        [FromQuery] string? timeTo,
+        [FromQuery] int? minSeats,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20)
     {
@@ -36,10 +41,9 @@ public class TrainsController : ControllerBase
                 .Where(t => t.DepartureLocation == from && t.ArrivalLocation == to);
             if (date.HasValue)
                 outboundQuery = outboundQuery.Where(t => t.TrainDate == date.Value);
-            if (minPrice.HasValue)
-                outboundQuery = outboundQuery.Where(t => t.Price >= minPrice.Value);
-            if (maxPrice.HasValue)
-                outboundQuery = outboundQuery.Where(t => t.Price <= maxPrice.Value);
+
+            outboundQuery = ApplyPriceFilter(outboundQuery, minPrice, maxPrice);
+            outboundQuery = ApplyTrainFilter(outboundQuery, coachClass, trainType, timeFrom, timeTo, minSeats);
             outboundQuery = ApplySort(outboundQuery, sortBy);
             var outboundTotal = await outboundQuery.CountAsync();
             var outboundItems = await outboundQuery.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
@@ -47,10 +51,9 @@ public class TrainsController : ControllerBase
             var returnQuery = _db.Trains.AsNoTracking()
                 .Where(t => t.DepartureLocation == to && t.ArrivalLocation == from)
                 .Where(t => t.TrainDate == returnDate.Value);
-            if (minPrice.HasValue)
-                returnQuery = returnQuery.Where(t => t.Price >= minPrice.Value);
-            if (maxPrice.HasValue)
-                returnQuery = returnQuery.Where(t => t.Price <= maxPrice.Value);
+
+            returnQuery = ApplyPriceFilter(returnQuery, minPrice, maxPrice);
+            returnQuery = ApplyTrainFilter(returnQuery, coachClass, trainType, timeFrom, timeTo, minSeats);
             returnQuery = ApplySort(returnQuery, sortBy);
             var returnTotal = await returnQuery.CountAsync();
             var returnItems = await returnQuery.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
@@ -70,17 +73,42 @@ public class TrainsController : ControllerBase
             query = query.Where(t => t.ArrivalLocation == to);
         if (date.HasValue)
             query = query.Where(t => t.TrainDate == date.Value);
-        if (minPrice.HasValue)
-            query = query.Where(t => t.Price >= minPrice.Value);
-        if (maxPrice.HasValue)
-            query = query.Where(t => t.Price <= maxPrice.Value);
 
+        query = ApplyPriceFilter(query, minPrice, maxPrice);
+        query = ApplyTrainFilter(query, coachClass, trainType, timeFrom, timeTo, minSeats);
         query = ApplySort(query, sortBy);
 
         var total = await query.CountAsync();
         var items = await query.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
 
         return Ok(new { items, total, page, pageSize });
+    }
+
+    private static IQueryable<Train> ApplyPriceFilter(IQueryable<Train> query, string? minPrice, string? maxPrice)
+    {
+        if (decimal.TryParse(minPrice, out var min) && min > 0)
+            query = query.Where(t => t.Price >= min);
+        if (decimal.TryParse(maxPrice, out var max) && max > 0)
+            query = query.Where(t => t.Price <= max);
+        return query;
+    }
+
+    private static IQueryable<Train> ApplyTrainFilter(
+        IQueryable<Train> query,
+        string? coachClass, string? trainType,
+        string? timeFrom, string? timeTo, int? minSeats)
+    {
+        if (!string.IsNullOrEmpty(coachClass) && coachClass != "all")
+            query = query.Where(t => t.CoachClass == coachClass);
+        if (!string.IsNullOrEmpty(trainType) && trainType != "all")
+            query = query.Where(t => t.TrainName == trainType);
+        if (TimeSpan.TryParse(timeFrom, out var fromTime))
+            query = query.Where(t => t.DepartureTime.TimeOfDay >= fromTime);
+        if (TimeSpan.TryParse(timeTo, out var toTime))
+            query = query.Where(t => t.DepartureTime.TimeOfDay <= toTime);
+        if (minSeats.HasValue && minSeats > 0)
+            query = query.Where(t => t.Seats >= minSeats.Value);
+        return query;
     }
 
     private static IQueryable<Train> ApplySort(IQueryable<Train> query, string? sortBy)

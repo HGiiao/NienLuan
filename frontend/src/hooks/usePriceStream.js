@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import * as signalR from '@microsoft/signalr'
+import { getCurrentPrices } from '../services/api'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
+const POLL_INTERVAL = 30000
 
 export default function usePriceStream(from, to) {
   const [connected, setConnected] = useState(false)
@@ -11,12 +13,27 @@ export default function usePriceStream(from, to) {
   const connectionRef = useRef(null)
   const prevRouteRef = useRef({ from: '', to: '' })
   const rejoinedRef = useRef(false)
+  const pollRef = useRef(null)
 
   const disconnect = useCallback(async () => {
+    if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
     if (connectionRef.current) {
       try { await connectionRef.current.stop() } catch {}
       connectionRef.current = null
     }
+  }, [])
+
+  const startPolling = useCallback((f, t) => {
+    if (pollRef.current) clearInterval(pollRef.current)
+    const poll = async () => {
+      try {
+        const res = await getCurrentPrices(f, t)
+        const data = res.data
+        setLastUpdate({ routeFrom: f, routeTo: t, minPrice: data.minPrice, maxPrice: data.maxPrice, avgPrice: data.avgPrice, timestamp: new Date().toISOString(), _poll: true })
+      } catch {}
+    }
+    poll()
+    pollRef.current = setInterval(poll, POLL_INTERVAL)
   }, [])
 
   useEffect(() => {
@@ -39,35 +56,37 @@ export default function usePriceStream(from, to) {
 
       connection.on('ReceivePriceUpdate', (data) => {
         if (data.routeFrom === from && data.routeTo === to) {
+          if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
           setLastUpdate(data)
         }
       })
 
-      connection.onreconnecting((err) => {
+      connection.onreconnecting(() => {
         setConnected(false)
         setReconnectError(false)
-        console.warn('[SignalR] reconnecting', err?.message || err)
+        startPolling(from, to)
       })
       connection.onreconnected(() => {
         setConnected(true)
         setReconnectError(false)
         rejoinedRef.current = true
-        console.log('[SignalR] reconnected')
+        if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
       })
-      connection.onclose((err) => {
+      connection.onclose(() => {
         setConnected(false)
         setReconnectError(true)
-        console.warn('[SignalR] closed', err?.message || err)
+        startPolling(from, to)
       })
 
       try {
         await connection.start()
         setConnected(true)
         await connection.invoke('JoinRoute', from, to)
+        if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
       } catch (err) {
         setConnected(false)
         setReconnectError(true)
-        console.error('[SignalR] start failed', err)
+        startPolling(from, to)
       } finally {
         setIsConnecting(false)
       }
@@ -78,7 +97,7 @@ export default function usePriceStream(from, to) {
     connect()
 
     return () => { disconnect() }
-  }, [from, to, disconnect])
+  }, [from, to, disconnect, startPolling])
 
   return { connected, isConnecting, lastUpdate, reconnectError }
 }

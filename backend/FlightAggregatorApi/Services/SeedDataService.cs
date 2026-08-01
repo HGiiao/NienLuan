@@ -69,16 +69,205 @@ public class SeedDataService
 
     private static readonly string[] CoachClasses = ["Soft Sleeper", "Hard Sleeper", "Seat", "Soft Seat"];
 
+    // Khoảng cách đường sắt Bắc-Nam (km) — khớp giá thực tế 2026 (vetau247, đường sắt VN):
+    //   HAN-SGN 1726km: ghế mềm 895k-1.15M, khoang 6 1.2M-1.54M, khoang 4 1.4M-1.68M
+    //   HAN-DAD 791km: ghế mềm 629k-731k, khoang 6 823k-1.015M, khoang 4 995k-1.26M
+    private static readonly Dictionary<(string, string), double> TrainRouteDistancesKm = new()
+    {
+        { ("HAN", "HCM"), 1726 }, { ("HCM", "HAN"), 1726 },
+        { ("HAN", "DAD"), 791 },  { ("DAD", "HAN"), 791 },
+        { ("DAD", "HCM"), 935 },  { ("HCM", "DAD"), 935 },
+        { ("HAN", "HUI"), 688 },  { ("HUI", "HAN"), 688 },
+        { ("HUI", "HCM"), 1038 }, { ("HCM", "HUI"), 1038 },
+        { ("HAN", "CXR"), 1315 }, { ("CXR", "HAN"), 1315 },
+        { ("DAD", "CXR"), 524 },  { ("CXR", "DAD"), 524 },
+        { ("VII", "HCM"), 1407 }, { ("HCM", "VII"), 1407 },
+        { ("HAN", "VII"), 319 },  { ("VII", "HAN"), 319 },
+        { ("DAD", "QNG"), 170 },  { ("QNG", "DAD"), 170 },
+        { ("CXR", "HCM"), 411 },  { ("HCM", "CXR"), 411 },
+        { ("HUI", "DAD"), 103 },  { ("DAD", "HUI"), 103 },
+    };
+
+    // Giá tàu = phí cố định + đồng/km theo hạng chỗ (khớp giá thực tế 2026)
+    private static readonly Dictionary<string, double> TrainPricePerKm = new()
+    {
+        ["Seat"] = 380,
+        ["Soft Seat"] = 480,
+        ["Soft Sleeper"] = 600,
+        ["Hard Sleeper"] = 680,
+    };
+
+    private const double TrainBaseFee = 300_000;
+
     private static readonly string[] TrainCodePrefixes = ["SE", "TN", "LP"];
+
+    private static readonly string[] BusCompanies = [
+        "Mai Linh", "Kumho Samco", "Hải Âu", "Sao Việt", "Phương Trang"
+    ];
+
+    private static readonly string[] BusCoachClasses = [
+        "Giường nằm", "Ghế ngồi", "Limousine", "VIP"
+    ];
+
+    private static readonly string[] BusPickupPoints = [
+        "Bến xe Miền Đông", "Bến xe Giáp Bát", "Bến xe Trung tâm", "Bến xe Nước Ngầm", "Bến xe Trung tâm"
+    ];
+
+    private static readonly string[] BusDropoffPoints = [
+        "Bến xe Trung tâm", "Bến xe Miền Tây", "Bến xe An Sương", "Bến xe Hà Nội", "Bến xe Đà Nẵng"
+    ];
+
+    private static readonly Dictionary<(string, string), double> BusRouteDistancesKm = new()
+    {
+        { ("HAN", "SGN"), 1610 }, { ("SGN", "HAN"), 1610 },
+        { ("HAN", "DAD"), 760 },  { ("DAD", "HAN"), 760 },
+        { ("SGN", "DAD"), 960 },  { ("DAD", "SGN"), 960 },
+        { ("HAN", "HUI"), 230 },  { ("HUI", "HAN"), 230 },
+        { ("SGN", "HUI"), 900 },  { ("HUI", "SGN"), 900 },
+        { ("HAN", "CXR"), 1280 }, { ("CXR", "HAN"), 1280 },
+        { ("SGN", "CXR"), 400 },  { ("CXR", "SGN"), 400 },
+        { ("DAD", "HUI"), 100 },  { ("HUI", "DAD"), 100 },
+        { ("HAN", "HPH"), 100 },  { ("HPH", "HAN"), 100 },
+        { ("SGN", "HPH"), 1600 }, { ("HPH", "SGN"), 1600 },
+        { ("HAN", "VII"), 290 },  { ("VII", "HAN"), 290 },
+        { ("SGN", "VII"), 300 },  { ("VII", "SGN"), 300 },
+        { ("DAD", "CXR"), 500 },  { ("CXR", "DAD"), 500 },
+        { ("HAN", "PQC"), 1100 }, { ("PQC", "HAN"), 1100 },
+        { ("SGN", "PQC"), 300 },  { ("PQC", "SGN"), 300 },
+        { ("SGN", "UIH"), 350 },  { ("UIH", "SGN"), 350 },
+    };
+
+    // Giá cơ bản theo hạng ghế (đồng/km), tỉ lệ với độ dài tuyến
+    // Điều chỉnh theo giá thực tế 2026 (Phương Trang, redbus, vexere):
+    //   HAN-DAD 760km: giường nằm 400-500k (~560đ/km), limousine 750k-1.05M (~950đ/km)
+    //   HAN-SGN 1610km: giường nằm ~1.04M, limousine ~1.35M
+    //   SGN-CXR 400km: giường nằm ~310k
+    private static readonly Dictionary<string, double> BusPricePerKm = new()
+    {
+        ["Ghế ngồi"] = 420,
+        ["Giường nằm"] = 560,
+        ["Limousine"] = 950,
+        ["VIP"] = 1150,
+    };
+
+    private static readonly (string From, string To, double Weight)[] BusRoutes = [
+        ("HAN", "SGN", 18), ("SGN", "HAN", 18),
+        ("HAN", "DAD", 14), ("DAD", "HAN", 14),
+        ("SGN", "DAD", 12), ("DAD", "SGN", 12),
+        ("HAN", "HUI", 10), ("HUI", "HAN", 10),
+        ("SGN", "HUI", 6),  ("HUI", "SGN", 6),
+        ("HAN", "CXR", 8),  ("CXR", "HAN", 8),
+        ("SGN", "CXR", 7),  ("CXR", "SGN", 7),
+        ("DAD", "HUI", 6),  ("HUI", "DAD", 6),
+        ("HAN", "HPH", 8),  ("HPH", "HAN", 8),
+        ("SGN", "HPH", 4),  ("HPH", "SGN", 4),
+        ("HAN", "VII", 4),  ("VII", "HAN", 4),
+        ("SGN", "VII", 3),  ("VII", "SGN", 3),
+        ("DAD", "CXR", 5),  ("CXR", "DAD", 5),
+        ("HAN", "PQC", 3),  ("PQC", "HAN", 3),
+        ("SGN", "PQC", 3),  ("PQC", "SGN", 3),
+        ("SGN", "UIH", 2),  ("UIH", "SGN", 2),
+    ];
+
+    private static readonly Dictionary<string, string> RouteTiers = new()
+    {
+        ["HAN-SGN"] = "long", ["SGN-HAN"] = "long",
+        ["SGN-DAD"] = "medium", ["DAD-SGN"] = "medium",
+        ["HAN-DAD"] = "medium", ["DAD-HAN"] = "medium",
+        ["SGN-PQC"] = "medium", ["PQC-SGN"] = "medium",
+        ["HAN-CXR"] = "medium", ["CXR-HAN"] = "medium",
+        ["HAN-HUI"] = "medium", ["HUI-HAN"] = "medium",
+        ["SGN-HUI"] = "medium", ["HUI-SGN"] = "medium",
+        ["DAD-CXR"] = "medium", ["CXR-DAD"] = "medium",
+        ["SGN-UIH"] = "medium", ["UIH-SGN"] = "medium",
+        ["SGN-VCA"] = "medium", ["VCA-SGN"] = "medium",
+        ["HAN-VCA"] = "medium", ["VCA-HAN"] = "medium",
+        ["HAN-HPH"] = "short", ["HPH-HAN"] = "short",
+        ["SGN-HPH"] = "short", ["HPH-SGN"] = "short",
+        ["DAD-HPH"] = "short", ["HPH-DAD"] = "short",
+        ["SGN-VII"] = "short", ["VII-SGN"] = "short",
+        ["HAN-VII"] = "short", ["VII-HAN"] = "short",
+        ["DAD-HUI"] = "short", ["HUI-DAD"] = "short",
+        ["HAN-PQC"] = "long", ["PQC-HAN"] = "long",
+        ["SGN-CXR"] = "medium", ["CXR-SGN"] = "medium",
+    };
+
+    // (EconomyMin, EconomyMax, PremiumMin, PremiumMax, BusinessMin, BusinessMax)
+    // Điều chỉnh theo giá thực tế 2026 (vietjetair, vietnamairlines):
+    //   HAN-SGN (long ~1700km): VJ eco 506-868k, VN eco 1.04-1.5M, Bamboo 750k-2.5M
+    //   HAN-DAD (medium ~620km): VJ eco từ 611k, VN eco từ 1.088M
+    //   Short (~100-300km): eco 300k-900k
+    private static readonly Dictionary<string, (int EcoMin, int EcoMax, int PremMin, int PremMax, int BusMin, int BusMax)> SeatPriceRanges = new()
+    {
+        ["long"] = (500_000, 1_600_000, 1_800_000, 3_200_000, 3_500_000, 6_500_000),
+        ["medium"] = (450_000, 1_300_000, 1_400_000, 2_600_000, 2_800_000, 5_500_000),
+        ["short"] = (300_000, 900_000, 1_000_000, 1_800_000, 2_000_000, 3_500_000),
+    };
+
+    // Airline price factor: base × airlineFactor → final price
+    // Điều chỉnh theo giá thực tế 2026: VJ rẻ hơn VN ~40-50% (HAN-SGN VJ 506-868k vs VN 1.04-1.5M)
+    private static readonly Dictionary<string, double> AirlinePriceFactors = new()
+    {
+        ["VN"] = 1.12, ["VJ"] = 0.68, ["QH"] = 0.95, ["VU"] = 0.85, ["BL"] = 0.72,
+    };
 
     private static readonly Dictionary<string, (int Min, int Max)> RoutePriceRange = new()
     {
-        ["HAN-SGN"] = (1_800_000, 3_500_000), ["SGN-HAN"] = (1_800_000, 3_500_000),
-        ["HAN-DAD"] = (1_000_000, 2_200_000), ["DAD-HAN"] = (1_000_000, 2_200_000),
-        ["SGN-DAD"] = (1_000_000, 2_200_000), ["DAD-SGN"] = (1_000_000, 2_200_000),
-        ["SGN-PQC"] = (1_200_000, 2_800_000), ["PQC-SGN"] = (1_200_000, 2_800_000),
-        ["HAN-CXR"] = (1_500_000, 3_000_000), ["CXR-HAN"] = (1_500_000, 3_000_000),
+        ["HAN-SGN"] = (500_000, 6_500_000), ["SGN-HAN"] = (500_000, 6_500_000),
+        ["HAN-DAD"] = (450_000, 5_500_000), ["DAD-HAN"] = (450_000, 5_500_000),
+        ["SGN-DAD"] = (450_000, 5_500_000), ["DAD-SGN"] = (450_000, 5_500_000),
+        ["SGN-PQC"] = (450_000, 5_500_000), ["PQC-SGN"] = (450_000, 5_500_000),
+        ["HAN-CXR"] = (450_000, 5_500_000), ["CXR-HAN"] = (450_000, 5_500_000),
+        ["HAN-HUI"] = (450_000, 5_500_000), ["HUI-HAN"] = (450_000, 5_500_000),
+        ["SGN-HUI"] = (450_000, 5_500_000), ["HUI-SGN"] = (450_000, 5_500_000),
+        ["DAD-CXR"] = (450_000, 5_500_000), ["CXR-DAD"] = (450_000, 5_500_000),
+        ["SGN-UIH"] = (450_000, 5_500_000), ["UIH-SGN"] = (450_000, 5_500_000),
+        ["SGN-VCA"] = (450_000, 5_500_000), ["VCA-SGN"] = (450_000, 5_500_000),
+        ["HAN-VCA"] = (450_000, 5_500_000), ["VCA-HAN"] = (450_000, 5_500_000),
+        ["HAN-HPH"] = (300_000, 3_500_000), ["HPH-HAN"] = (300_000, 3_500_000),
+        ["SGN-HPH"] = (300_000, 3_500_000), ["HPH-SGN"] = (300_000, 3_500_000),
+        ["DAD-HPH"] = (300_000, 3_500_000), ["HPH-DAD"] = (300_000, 3_500_000),
+        ["SGN-VII"] = (300_000, 3_500_000), ["VII-SGN"] = (300_000, 3_500_000),
+        ["HAN-VII"] = (300_000, 3_500_000), ["VII-HAN"] = (300_000, 3_500_000),
+        ["DAD-HUI"] = (300_000, 3_500_000), ["HUI-DAD"] = (300_000, 3_500_000),
+        ["HAN-PQC"] = (500_000, 6_500_000), ["PQC-HAN"] = (500_000, 6_500_000),
+        ["SGN-CXR"] = (450_000, 5_500_000), ["CXR-SGN"] = (450_000, 5_500_000),
     };
+
+    private static string PickSeatClass(string routeKey)
+    {
+        var tier = RouteTiers.GetValueOrDefault(routeKey, "medium");
+        var roll = Random.Shared.NextDouble();
+        return tier switch
+        {
+            "long" => roll switch { < 0.25 => "Business", < 0.55 => "Premium Economy", _ => "Economy" },
+            "medium" => roll switch { < 0.12 => "Business", < 0.38 => "Premium Economy", _ => "Economy" },
+            _ => roll switch { < 0.04 => "Business", < 0.22 => "Premium Economy", _ => "Economy" },
+        };
+    }
+
+    private static decimal GenerateSeatPrice(string routeKey, string seatClass, double airlineFactor, double weekendMultiplier)
+    {
+        var tier = RouteTiers.GetValueOrDefault(routeKey, "medium");
+        var range = SeatPriceRanges[tier];
+
+        var (min, max) = seatClass switch
+        {
+            "Business" => (range.BusMin, range.BusMax),
+            "Premium Economy" => (range.PremMin, range.PremMax),
+            _ => (range.EcoMin, range.EcoMax),
+        };
+
+        var price = min + Random.Shared.NextDouble() * (max - min);
+        price *= airlineFactor;
+        price *= weekendMultiplier;
+
+        var variation = 1.0 + (Random.Shared.NextDouble() - 0.5) * 0.08;
+        price *= variation;
+
+        price = Math.Round(price / 1000) * 1000;
+        return (decimal)Math.Clamp(price, 100_000, 8_000_000);
+    }
 
     public async Task SeedAsync()
     {
@@ -107,21 +296,25 @@ public class SeedDataService
 
         var flights = new List<Flight>();
         var trains = new List<Train>();
+        var buses = new List<Bus>();
         var usedTrainCodes = new HashSet<string>();
+        var usedBusCodes = new HashSet<string>();
 
         for (var date = today; date <= endDate; date = date.AddDays(1))
         {
             var isWeekend = date.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday;
-            var weekendMultiplier = isWeekend ? 1.1 + Random.Shared.NextDouble() * 0.2 : 1.0;
+            var weekendMultiplier = isWeekend ? 1.05 + Random.Shared.NextDouble() * 0.1 : 1.0;
 
             GenerateFlightsForDate(date, weekendMultiplier, flights);
             GenerateTrainsForDate(date, weekendMultiplier, trains, usedTrainCodes);
+            GenerateBusesForDate(date, weekendMultiplier, buses, usedBusCodes);
         }
 
-        _logger.LogInformation("Generated {Flights} flights and {Trains} trains", flights.Count, trains.Count);
+        _logger.LogInformation("Generated {Flights} flights, {Trains} trains and {Buses} buses", flights.Count, trains.Count, buses.Count);
 
         await _db.Flights.AddRangeAsync(flights);
         await _db.Trains.AddRangeAsync(trains);
+        await _db.Buses.AddRangeAsync(buses);
 
         await SeedPriceHistoryAsync(today, endDate);
 
@@ -159,25 +352,26 @@ public class SeedDataService
         var today = DateOnly.FromDateTime(DateTime.Today);
         var daysUntilDeparture = date.DayNumber - today.DayNumber;
 
-        // 5 cặp khứ hồi (10 chuyến) — chung 1 hãng bay cho cả ngày
         var rtAirline = PickWeightedAirline();
+        var rtAirlineFactor = AirlinePriceFactors[rtAirline.Code] + (Random.Shared.NextDouble() - 0.5) * 0.06;
         var pairIdx = 0;
 
         foreach (var (from, to) in RoundTripPairs)
         {
             var groupId = date.DayNumber * 10L + pairIdx;
+            var routeKey = $"{from}-{to}";
 
-            // Chuyến đi (outbound) — buổi sáng
             var outboundHour = Random.Shared.Next(6, 11);
             var outboundMinute = Random.Shared.Next(0, 12) * 5;
             var outboundDeparture = date.ToDateTime(new TimeOnly(outboundHour, outboundMinute));
             var outboundDuration = Random.Shared.Next(50, 181);
             var outboundArrival = outboundDeparture.AddMinutes(outboundDuration);
 
-            var outboundBasePrice = 800_000 + Random.Shared.NextDouble() * (4_500_000 - 800_000);
-            outboundBasePrice *= weekendMultiplier;
-            var outboundPrice = (decimal)Math.Round(outboundBasePrice / 10000) * 10000;
-            if (outboundPrice < 500_000m) outboundPrice = 500_000m;
+            var outboundSeatClass = PickSeatClass(routeKey);
+            var outboundPrice = GenerateSeatPrice(routeKey, outboundSeatClass, rtAirlineFactor, weekendMultiplier);
+
+            if (Random.Shared.NextDouble() < 0.15)
+                outboundPrice = (decimal)((double)outboundPrice * (0.75 + Random.Shared.NextDouble() * 0.15));
 
             var outboundSeats = daysUntilDeparture switch
             {
@@ -197,24 +391,24 @@ public class SeedDataService
                 ArrivalTime = outboundArrival,
                 Price = outboundPrice,
                 Seats = outboundSeats,
+                SeatClass = outboundSeatClass,
                 FlightDate = date,
                 RoundTripGroupId = groupId,
                 CreatedAt = DateTime.UtcNow,
             });
 
-            // Chuyến về (return) — buổi chiều
             var returnHour = Random.Shared.Next(14, 20);
             var returnMinute = Random.Shared.Next(0, 12) * 5;
             var returnDeparture = date.ToDateTime(new TimeOnly(returnHour, returnMinute));
             var returnDuration = Random.Shared.Next(50, 181);
             var returnArrival = returnDeparture.AddMinutes(returnDuration);
 
-            var returnBasePrice = 800_000 + Random.Shared.NextDouble() * (4_500_000 - 800_000);
-            returnBasePrice *= weekendMultiplier;
-            if (Random.Shared.NextDouble() < 0.18)
-                returnBasePrice *= 0.7 + Random.Shared.NextDouble() * 0.15;
-            var returnPrice = (decimal)Math.Round(returnBasePrice / 10000) * 10000;
-            if (returnPrice < 500_000m) returnPrice = 500_000m;
+            var returnRouteKey = $"{to}-{from}";
+            var returnSeatClass = PickSeatClass(returnRouteKey);
+            var returnPrice = GenerateSeatPrice(returnRouteKey, returnSeatClass, rtAirlineFactor, weekendMultiplier);
+
+            if (Random.Shared.NextDouble() < 0.15)
+                returnPrice = (decimal)((double)returnPrice * (0.75 + Random.Shared.NextDouble() * 0.15));
 
             var returnSeats = daysUntilDeparture switch
             {
@@ -234,6 +428,7 @@ public class SeedDataService
                 ArrivalTime = returnArrival,
                 Price = returnPrice,
                 Seats = returnSeats,
+                SeatClass = returnSeatClass,
                 FlightDate = date,
                 RoundTripGroupId = groupId,
                 CreatedAt = DateTime.UtcNow,
@@ -242,11 +437,12 @@ public class SeedDataService
             pairIdx++;
         }
 
-        // 10 chuyến 1 chiều ngẫu nhiên
         for (var i = 0; i < 10; i++)
         {
             var (from, to) = PickWeighted(FlightRoutes);
             var airline = PickWeightedAirline();
+            var airlineFactor = AirlinePriceFactors[airline.Code] + (Random.Shared.NextDouble() - 0.5) * 0.06;
+            var routeKey = $"{from}-{to}";
 
             var hour = GetWeightedHour();
             var minute = Random.Shared.Next(0, 12) * 5;
@@ -255,15 +451,11 @@ public class SeedDataService
             var durationMinutes = Random.Shared.Next(50, 181);
             var arrivalTime = departureTime.AddMinutes(durationMinutes);
 
-            var basePrice = 800_000 + Random.Shared.NextDouble() * (4_500_000 - 800_000);
-            basePrice *= weekendMultiplier;
+            var seatClass = PickSeatClass(routeKey);
+            var price = GenerateSeatPrice(routeKey, seatClass, airlineFactor, weekendMultiplier);
 
-            var isDeal = Random.Shared.NextDouble() < 0.18;
-            if (isDeal)
-                basePrice *= 0.7 + Random.Shared.NextDouble() * 0.15;
-
-            var price = (decimal)Math.Round(basePrice / 10000) * 10000;
-            if (price < 500_000m) price = 500_000m;
+            if (Random.Shared.NextDouble() < 0.15)
+                price = (decimal)((double)price * (0.75 + Random.Shared.NextDouble() * 0.15));
 
             var seats = daysUntilDeparture switch
             {
@@ -283,6 +475,7 @@ public class SeedDataService
                 ArrivalTime = arrivalTime,
                 Price = price,
                 Seats = seats,
+                SeatClass = seatClass,
                 FlightDate = date,
                 CreatedAt = DateTime.UtcNow,
             });
@@ -294,22 +487,31 @@ public class SeedDataService
         for (var i = 0; i < 5; i++)
         {
             var (from, to) = PickWeighted(TrainRoutes);
+            var distanceKm = TrainRouteDistancesKm.GetValueOrDefault((from, to), 500.0);
 
             var hour = Random.Shared.Next(0, 24);
             var minute = Random.Shared.Next(0, 12) * 5;
             var departureTime = date.ToDateTime(new TimeOnly(hour, minute));
 
-            var durationMinutes = Random.Shared.Next(180, 1201);
+            // Thời gian di chuyển tỉ lệ với khoảng cách (tốc độ 40-55 km/h gồm dừng ga), + thời gian chờ
+            var speedKmh = 40 + Random.Shared.NextDouble() * 15;
+            var travelHours = distanceKm / speedKmh;
+            var durationMinutes = (int)Math.Round(travelHours * 60) + Random.Shared.Next(20, 90);
+
             var arrivalTime = departureTime.AddMinutes(durationMinutes);
 
-            var basePrice = 250_000 + Random.Shared.NextDouble() * (1_800_000 - 250_000);
+            var coachClass = CoachClasses[Random.Shared.Next(CoachClasses.Length)];
+
+            // Giá = phí cố định + km * hệ số hạng chỗ, điều chỉnh cuối tuần
+            var ratePerKm = TrainPricePerKm.GetValueOrDefault(coachClass, 480);
+            var basePrice = TrainBaseFee + distanceKm * ratePerKm;
             basePrice *= weekendMultiplier;
 
             if (Random.Shared.NextDouble() < 0.15)
-                basePrice *= 0.75 + Random.Shared.NextDouble() * 0.15;
+                basePrice *= 0.85 + Random.Shared.NextDouble() * 0.15;
 
             var price = (decimal)Math.Round(basePrice / 10000) * 10000;
-            if (price < 150_000m) price = 150_000m;
+            if (price < 100_000m) price = 100_000m;
 
             var prefix = TrainCodePrefixes[Random.Shared.Next(TrainCodePrefixes.Length)];
             var number = Random.Shared.Next(1, 100);
@@ -319,8 +521,6 @@ public class SeedDataService
                 number = Random.Shared.Next(1, 100);
                 trainCode = $"{prefix}{number}";
             }
-
-            var coachClass = CoachClasses[Random.Shared.Next(CoachClasses.Length)];
 
             var seats = coachClass switch
             {
@@ -354,8 +554,110 @@ public class SeedDataService
         }
     }
 
-    private async Task SeedPriceHistoryAsync(DateOnly startDate, DateOnly endDate)
+    private void GenerateBusesForDate(DateOnly date, double weekendMultiplier, List<Bus> buses, HashSet<string> usedCodes)
     {
+        var tripsPerDay = Random.Shared.Next(8, 13);
+        for (var i = 0; i < tripsPerDay; i++)
+        {
+            var (from, to) = PickWeighted(BusRoutes);
+            var distanceKm = BusRouteDistancesKm.GetValueOrDefault((from, to), 500.0);
+
+            var hour = Random.Shared.Next(4, 24);
+            var minute = Random.Shared.Next(0, 12) * 5;
+            var departureTime = date.ToDateTime(new TimeOnly(hour, minute));
+
+            var company = BusCompanies[Random.Shared.Next(BusCompanies.Length)];
+            var coachClass = BusCoachClasses[Random.Shared.Next(BusCoachClasses.Length)];
+
+            // Thời gian di chuyển tỉ lệ với khoảng cách (tốc độ 45-60 km/h), + thời gian dừng nghỉ
+            var speedKmh = 45 + Random.Shared.NextDouble() * 15;
+            var travelHours = distanceKm / speedKmh;
+            var durationMinutes = (int)Math.Round(travelHours * 60) + Random.Shared.Next(30, 90);
+
+            // Giá cơ bản theo km * hạng ghế + phụ phí cố định, điều chỉnh cuối tuần
+            var ratePerKm = BusPricePerKm.GetValueOrDefault(coachClass, 280);
+            var basePrice = distanceKm * ratePerKm + 40_000;
+            basePrice *= weekendMultiplier;
+
+            // 15% chuyến có giá khuyến mãi nhẹ
+            if (Random.Shared.NextDouble() < 0.15)
+                basePrice *= 0.75 + Random.Shared.NextDouble() * 0.15;
+
+            var price = (decimal)Math.Round(basePrice / 10000) * 10000;
+            if (price < 80_000m) price = 80_000m;
+
+            var arrivalTime = departureTime.AddMinutes(durationMinutes);
+
+            var busCode = $"{company[..Math.Min(2, company.Length)].ToUpperInvariant()}{Random.Shared.Next(100, 999)}";
+            var guard = 0;
+            while (!usedCodes.Add(busCode))
+            {
+                busCode = $"{company[..Math.Min(2, company.Length)].ToUpperInvariant()}{Random.Shared.Next(100, 999)}";
+                if (++guard > 20) { busCode = $"{company[..Math.Min(2, company.Length)].ToUpperInvariant()}{Random.Shared.Next(100, 999)}{Random.Shared.Next(10, 99)}"; break; }
+            }
+
+            var seats = coachClass switch
+            {
+                "VIP" => Random.Shared.Next(20, 41),
+                "Limousine" => Random.Shared.Next(16, 30),
+                "Giường nằm" => Random.Shared.Next(34, 46),
+                _ => Random.Shared.Next(40, 50),
+            };
+
+            buses.Add(new Bus
+            {
+                BusCode = busCode,
+                BusCompany = company,
+                DepartureLocation = from,
+                ArrivalLocation = to,
+                DepartureTime = departureTime,
+                ArrivalTime = arrivalTime,
+                Price = price,
+                Seats = seats,
+                CoachClass = coachClass,
+                PickupPoint = BusPickupPoints[Random.Shared.Next(BusPickupPoints.Length)],
+                DropoffPoint = BusDropoffPoints[Random.Shared.Next(BusDropoffPoints.Length)],
+                BusDate = date,
+                CreatedAt = DateTime.UtcNow,
+            });
+        }
+    }
+
+    public async Task SeedBusesOnlyAsync()
+    {
+        try
+        {
+            var hasBuses = await _db.Buses.AnyAsync();
+            if (hasBuses)
+            {
+                _logger.LogInformation("SeedBusesOnly skipped: database already has buses.");
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "SeedBusesOnly failed checking existing buses.");
+            throw;
+        }
+
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        var endDate = new DateOnly(2026, 8, 30);
+        var buses = new List<Bus>();
+        var usedBusCodes = new HashSet<string>();
+
+        for (var date = today; date <= endDate; date = date.AddDays(1))
+        {
+            var isWeekend = date.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday;
+            var weekendMultiplier = isWeekend ? 1.05 + Random.Shared.NextDouble() * 0.1 : 1.0;
+            GenerateBusesForDate(date, weekendMultiplier, buses, usedBusCodes);
+        }
+
+        await _db.Buses.AddRangeAsync(buses);
+        await _db.SaveChangesAsync();
+        _logger.LogInformation("SeedBusesOnly: {Count} buses added.", buses.Count);
+    }
+
+    private async Task SeedPriceHistoryAsync(DateOnly startDate, DateOnly endDate)    {
         var historyStart = startDate.AddDays(-30);
         var priceHistory = new List<PriceHistory>();
 

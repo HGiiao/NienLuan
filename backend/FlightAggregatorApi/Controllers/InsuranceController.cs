@@ -85,16 +85,16 @@ public class InsuranceController : ControllerBase
         {
             new InsurancePackage
             {
-                Name = "Bảo hiểm chuyến đi Cơ bản",
+                Name = "Cơ Bản",
                 Provider = "Bảo Việt",
-                Description = "Bảo vệ trước các rủi ro như hủy chuyến, mất hành lý, tai nạn cá nhân trong suốt chuyến đi.",
+                Description = "Bảo vệ trước các rủi ro hủy chuyến, mất hành lý, tai nạn cá nhân trong suốt chuyến đi.",
                 Price = 45000,
                 Coverage = "Hủy chuyến, mất hành lý, tai nạn",
                 MaxCoverageDays = 7
             },
             new InsurancePackage
             {
-                Name = "Bảo hiểm chuyến đi Cao cấp",
+                Name = "Cao Cấp",
                 Provider = "Bảo Minh",
                 Description = "Bảo vệ toàn diện: hủy chuyến, thất lạc hành lý, tai nạn, chi phí y tế khẩn cấp, hỗ trợ 24/7.",
                 Price = 99000,
@@ -103,11 +103,11 @@ public class InsuranceController : ControllerBase
             },
             new InsurancePackage
             {
-                Name = "Bảo hiểm toàn diện Gia đình",
+                Name = "Toàn Diện",
                 Provider = "BIC",
-                Description = "Dành cho nhóm 4 người: bảo vệ tất cả thành viên với chi phí y tế tối đa 200 triệu đồng/người.",
+                Description = "Bảo vệ toàn diện với chi phí y tế tối đa 200 triệu đồng, hủy chuyến, thất lạc hành lý và hỗ trợ 24/7.",
                 Price = 199000,
-                Coverage = "Toàn diện: y tế 200tr, hủy chuyến, hành lý, hỗ trợ 24/7",
+                Coverage = "Y tế 200tr, hủy chuyến, thất lạc hành lý, hỗ trợ 24/7",
                 MaxCoverageDays = 30
             },
         };

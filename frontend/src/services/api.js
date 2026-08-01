@@ -18,6 +18,8 @@ export const getFlights = (params) => api.get('/api/flights', { params })
 export const getFlight = (id) => api.get(`/api/flights/${id}`)
 export const getTrains = (params) => api.get('/api/trains', { params })
 export const getTrain = (id) => api.get(`/api/trains/${id}`)
+export const getBuses = (params) => api.get('/api/buses', { params })
+export const getBus = (id) => api.get(`/api/buses/${id}`)
 export const getPriceTrends = (params) => api.get('/api/prices/trends', { params })
 export const getCurrentPrices = (params) => api.get('/api/prices/current', { params })
 export const compareRoutes = (params) => api.get('/api/prices/compare', { params })
@@ -28,7 +30,10 @@ export const getBookings = (params) => api.get('/api/bookings', { params })
 export const getBooking = (id) => api.get(`/api/bookings/${id}`)
 export const createBooking = (data) => api.post('/api/bookings', data)
 export const cancelBooking = (id) => api.patch(`/api/bookings/${id}/cancel`)
-export const processPayment = (id) => api.post(`/api/bookings/${id}/pay`)
+export const processPayment = (id, data) => api.post(`/api/bookings/${id}/pay`, data)
+export const verifyVnPayReturn = (params) => api.post('/api/payments/vnpay-return', params)
+export const verifyMoMoReturn = (params) => api.post('/api/payments/momo-return', params)
+export const verifyZaloPayReturn = (params) => api.post('/api/payments/zalopay-return', params)
 
 export const register = (data) => api.post('/api/auth/register', data)
 export const login = (data) => api.post('/api/auth/login', data)
@@ -44,7 +49,7 @@ export const searchLocations = (q) => api.get('/api/locations/search', { params:
 // Admin API
 const adminHeaders = () => {
   try {
-    const u = JSON.parse(localStorage.getItem('user'))
+    const u = JSON.parse(sessionStorage.getItem('user'))
     return u?.email ? { 'X-Admin-Email': u.email } : {}
   } catch { return {} }
 }
@@ -63,6 +68,10 @@ export const updateAdminTrain = (id, data) => api.put(`/api/admin/trains/${id}`,
 export const deleteAdminTrain = (id) => api.delete(`/api/admin/trains/${id}`, { headers: adminHeaders() })
 
 export const getAdminStats = (params) => api.get('/api/admin/stats', { params, headers: adminHeaders() })
+export const importAdminFlights = (data) => api.post('/api/admin/flights/import', data, { headers: adminHeaders() })
+export const exportAdminFlights = (params) => api.get('/api/admin/flights/export', { params, headers: adminHeaders(), responseType: 'blob' })
+export const importAdminTrains = (data) => api.post('/api/admin/trains/import', data, { headers: adminHeaders() })
+export const exportAdminTrains = () => api.get('/api/admin/trains/export', { headers: adminHeaders(), responseType: 'blob' })
 
 // Reviews
 export const getReviews = (params) => api.get('/api/reviews', { params })
@@ -74,6 +83,10 @@ export const getCommunityTips = (params) => api.get('/api/community-tips', { par
 export const createCommunityTip = (data) => api.post('/api/community-tips', data)
 export const upvoteTip = (id) => api.post(`/api/community-tips/${id}/upvote`)
 
+// Promo Codes
+export const getPublicPromoCodes = () => api.get('/api/promo-codes/public')
+export const validatePromoCode = (data) => api.post('/api/promo-codes/validate', data)
+
 // Notifications
 export const getNotifications = (params) => api.get('/api/notifications', { params })
 export const getUnreadCount = (params) => api.get('/api/notifications/unread-count', { params })
@@ -83,10 +96,6 @@ export const deleteNotification = (id) => api.delete(`/api/notifications/${id}`)
 
 // Carbon Footprint
 export const getCarbonFootprint = (params) => api.get('/api/prices/carbon', { params })
-
-// Seats
-export const getSeatMap = (type, id) => api.get(`/api/seats/map?type=${type}&referenceId=${id}`)
-export const bookSeats = (data) => api.post('/api/seats/book', data)
 
 // Calendar Export
 export const getCalendarExport = (bookingId) => api.get(`/api/bookings/${bookingId}/calendar`, { responseType: 'blob' })

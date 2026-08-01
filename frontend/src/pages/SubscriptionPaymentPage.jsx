@@ -4,9 +4,11 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { CreditCard, Wallet, Building2, CheckCircle, XCircle, Crown, ArrowRight, Home, RefreshCw, Shield, Ban, Loader } from 'lucide-react'
 import { subscribeToPlan } from '../services/api'
 import { formatCurrencyVnd } from '../utils/formatters'
+import BankTransferPanel from '../components/BankTransferPanel'
+import CardPaymentPanel from '../components/CardPaymentPanel'
 
 function getStoredUser() {
-  try { return JSON.parse(localStorage.getItem('user')) } catch { return null }
+  try { return JSON.parse(sessionStorage.getItem('user')) } catch { return null }
 }
 
 const paymentMethods = [
@@ -29,6 +31,17 @@ export default function SubscriptionPaymentPage() {
   const [error, setError] = useState('')
   const [transactionId, setTransactionId] = useState('')
   const [selectedMethod, setSelectedMethod] = useState('credit_card')
+  const [transferRef, setTransferRef] = useState('')
+  const [cardInfo, setCardInfo] = useState(null)
+
+  const selectMethod = (id) => {
+    setSelectedMethod(id)
+    if (id === 'bank_transfer' && !transferRef) {
+      const d = new Date()
+      const p = (n) => String(n).padStart(2, '0')
+      setTransferRef(`VE247VIP${planId}${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`)
+    }
+  }
 
   useEffect(() => {
     if (!localUser) {
@@ -118,7 +131,7 @@ export default function SubscriptionPaymentPage() {
                   return (
                     <button
                       key={pm.id}
-                      onClick={() => setSelectedMethod(pm.id)}
+                      onClick={() => selectMethod(pm.id)}
                       className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-medium transition-all ${
                         active
                           ? 'border-primary-500 bg-primary-500/10 text-primary-500'
@@ -133,7 +146,19 @@ export default function SubscriptionPaymentPage() {
               </div>
             </div>
 
-            <div className="flex flex-col sm:flex-row gap-3">
+            {selectedMethod === 'bank_transfer' && (
+              <div className="mt-2">
+                <BankTransferPanel amount={price} content={transferRef} />
+              </div>
+            )}
+
+            {selectedMethod === 'credit_card' && (
+              <div className="mt-2">
+                <CardPaymentPanel onChange={setCardInfo} />
+              </div>
+            )}
+
+            <div className="mt-4 flex flex-col sm:flex-row gap-3">
               <button
                 onClick={() => navigate('/vip')}
                 className="flex-1 flex items-center justify-center gap-2 bg-[var(--color-bg-card)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] py-3.5 rounded-xl font-medium transition-all"

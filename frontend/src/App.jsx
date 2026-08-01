@@ -8,6 +8,7 @@ import ErrorBoundary from './components/ErrorBoundary'
 import Home from './pages/Home'
 import SearchFlights from './pages/SearchFlights'
 import SearchTrains from './pages/SearchTrains'
+import SearchBuses from './pages/SearchBuses'
 import PriceComparison from './pages/PriceComparison'
 import OptimalRoute from './pages/OptimalRoute'
 import Bookings from './pages/Bookings'
@@ -17,6 +18,8 @@ import BookingConfirmation from './pages/BookingConfirmation'
 import BookingPage from './pages/BookingPage'
 import PaymentPage from './pages/PaymentPage'
 import VnPayReturn from './pages/VnPayReturn'
+import MoMoReturn from './pages/MoMoReturn'
+import ZaloPayReturn from './pages/ZaloPayReturn'
 import VipPlans from './pages/VipPlans'
 import SubscriptionPaymentPage from './pages/SubscriptionPaymentPage'
 import NotFound from './pages/NotFound'
@@ -56,7 +59,10 @@ function ClerkSync() {
   const { isSignedIn, user } = useUser()
 
   useEffect(() => {
+    const tabAuth = sessionStorage.getItem('ve247-auth')
+
     if (isSignedIn && user) {
+      if (!tabAuth) return
       fetch(`${import.meta.env.VITE_API_URL || ''}/api/auth/clerk-sync`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -67,14 +73,14 @@ function ClerkSync() {
         }),
       })
         .then(r => r.json())
-        .then(d => localStorage.setItem('user', JSON.stringify({ ...d, loginMethod: 'clerk' })))
+        .then(d => sessionStorage.setItem('user', JSON.stringify({ ...d, loginMethod: 'clerk' })))
         .catch(() => {})
     } else {
-      const stored = localStorage.getItem('user')
+      const stored = sessionStorage.getItem('user')
       if (stored) {
         try {
           const u = JSON.parse(stored)
-          if (u?.loginMethod === 'clerk') localStorage.removeItem('user')
+          if (u?.loginMethod === 'clerk') sessionStorage.removeItem('user')
         } catch {}
       }
     }
@@ -84,7 +90,7 @@ function ClerkSync() {
 }
 
 function AdminGuard({ children }) {
-  const stored = (() => { try { return JSON.parse(localStorage.getItem('user')) } catch { return null } })()
+  const stored = (() => { try { return JSON.parse(sessionStorage.getItem('user')) } catch { return null } })()
   if (!stored || stored.role !== 'Admin') return <Navigate to="/admin/login" replace />
   return children
 }
@@ -111,6 +117,7 @@ function AppLayout() {
           <Route path="/" element={<Home />} />
           <Route path="/flights" element={<SearchFlights />} />
           <Route path="/trains" element={<SearchTrains />} />
+          <Route path="/buses" element={<SearchBuses />} />
           <Route path="/compare" element={<PriceComparison />} />
           <Route path="/trends" element={<Navigate to="/compare" replace />} />
           <Route path="/optimal-route" element={<OptimalRoute />} />
@@ -120,6 +127,8 @@ function AppLayout() {
           <Route path="/payment/:bookingId" element={<PaymentPage />} />
           <Route path="/payment/subscription/:planId" element={<SubscriptionPaymentPage />} />
           <Route path="/payment/vnpay-return" element={<VnPayReturn />} />
+          <Route path="/payment/momo-return" element={<MoMoReturn />} />
+          <Route path="/payment/zalopay-return" element={<ZaloPayReturn />} />
           <Route path="/booking-confirmation/:id" element={<BookingConfirmation />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/vip" element={<VipPlans />} />
@@ -144,6 +153,8 @@ function App() {
     window.onunhandledrejection = (e) => {
       console.error('[Unhandled Rejection]', e.reason?.message, e.reason?.stack)
     }
+    localStorage.removeItem('user')
+    localStorage.removeItem('loginMethod')
   }, [])
 
   return (

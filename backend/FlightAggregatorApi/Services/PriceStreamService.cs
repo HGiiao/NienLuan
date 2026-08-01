@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using FlightAggregatorApi.Data;
@@ -12,6 +13,7 @@ public class PriceStreamService : BackgroundService
     private readonly IHubContext<PriceHub> _hub;
     private readonly ILogger<PriceStreamService> _logger;
     private static readonly Random _rng = new();
+    private static readonly ConcurrentDictionary<long, decimal> _basePrices = new();
 
     private static readonly (string From, string To)[] PopularRoutes =
     [
@@ -49,10 +51,11 @@ public class PriceStreamService : BackgroundService
         using var scope = _services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
-        var activeRoutes = await db.Flights
-            .GroupBy(f => new { f.DepartureLocation, f.ArrivalLocation })
-            .Select(g => new { g.Key.DepartureLocation, g.Key.ArrivalLocation })
-            .ToListAsync();
+        var month = today.Month;
+
+        var configs = await db.PriceConfigs
+            .Where(pc => pc.IsActive && pc.Month == month)
+            .ToDictionaryAsync(pc => (pc.RouteFrom, pc.RouteTo));
 
         foreach (var (from, to) in PopularRoutes)
         {
@@ -62,11 +65,22 @@ public class PriceStreamService : BackgroundService
 
             if (flights.Count == 0) continue;
 
+            configs.TryGetValue((from, to), out var config);
+            var multiplier = config?.Multiplier ?? 1.0m;
+            var volPct = config?.BaseVolatilityPct ?? 5;
+
             foreach (var flight in flights)
             {
-                var change = (decimal)(_rng.NextDouble() * 0.10 - 0.05);
-                var newPrice = Math.Round(flight.Price * (1 + change), 0);
+                if (!_basePrices.ContainsKey(flight.Id))
+                {
+                    _basePrices[flight.Id] = flight.Price;
+                }
+
+                var targetPrice = _basePrices[flight.Id] * multiplier;
+                var change = (decimal)(_rng.NextDouble() * volPct * 2 / 100.0 - volPct / 100.0);
+                var newPrice = Math.Round(targetPrice * (1 + change), 0);
                 newPrice = Math.Max(newPrice, 200000);
+                newPrice = Math.Min(newPrice, 8_000_000m);
                 flight.Price = newPrice;
             }
 

@@ -40,6 +40,8 @@ public class LocationsController : ControllerBase
             .Union(_db.Flights.Select(f => f.ArrivalLocation))
             .Union(_db.Trains.Select(t => t.DepartureLocation))
             .Union(_db.Trains.Select(t => t.ArrivalLocation))
+            .Union(_db.Buses.Select(b => b.DepartureLocation))
+            .Union(_db.Buses.Select(b => b.ArrivalLocation))
             .Distinct()
             .ToListAsync();
 

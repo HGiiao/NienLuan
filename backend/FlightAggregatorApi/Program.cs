@@ -20,9 +20,13 @@ builder.Services.AddScoped<PricePredictionService>();
 builder.Services.AddScoped<RouteOptimizerService>();
 builder.Services.AddScoped<EmailService>();
 builder.Services.AddScoped<VnPayService>();
+builder.Services.AddScoped<MoMoService>();
+builder.Services.AddScoped<ZaloPayService>();
 builder.Services.AddScoped<SeedDataService>();
 
-builder.Services.AddScoped<SeatMapService>();
+builder.Services.Configure<VietQrOptions>(
+    builder.Configuration.GetSection("VietQr"));
+builder.Services.AddHttpClient<VietQrService>();
 
 builder.Services.AddSignalR();
 builder.Services.AddHostedService<PriceStreamService>();
@@ -59,7 +63,7 @@ using (var scope = app.Services.CreateScope())
     cmd.CommandText = @"
 IF OBJECT_ID('Flights', 'U') IS NULL
 BEGIN
-CREATE TABLE Flights (Id BIGINT PRIMARY KEY IDENTITY(1,1), AirlineCode NVARCHAR(10) NOT NULL, AirlineName NVARCHAR(100) NOT NULL, DepartureLocation NVARCHAR(50) NOT NULL, ArrivalLocation NVARCHAR(50) NOT NULL, DepartureTime DATETIME2 NOT NULL, ArrivalTime DATETIME2 NOT NULL, Price DECIMAL(18,2) NOT NULL, Seats INT NOT NULL, FlightDate DATE NOT NULL, RoundTripGroupId BIGINT NULL, CreatedAt DATETIME2 DEFAULT GETUTCDATE());
+CREATE TABLE Flights (Id BIGINT PRIMARY KEY IDENTITY(1,1), AirlineCode NVARCHAR(10) NOT NULL, AirlineName NVARCHAR(100) NOT NULL, DepartureLocation NVARCHAR(50) NOT NULL, ArrivalLocation NVARCHAR(50) NOT NULL, DepartureTime DATETIME2 NOT NULL, ArrivalTime DATETIME2 NOT NULL, Price DECIMAL(18,2) NOT NULL, Seats INT NOT NULL, SeatClass NVARCHAR(50) NOT NULL DEFAULT 'Economy', FlightDate DATE NOT NULL, RoundTripGroupId BIGINT NULL, CreatedAt DATETIME2 DEFAULT GETUTCDATE());
 CREATE INDEX IX_Flights_Route_Date ON Flights (DepartureLocation, ArrivalLocation, FlightDate);
 CREATE INDEX IX_Flights_Price ON Flights (Price);
 END
@@ -69,6 +73,13 @@ BEGIN
 CREATE TABLE Trains (Id BIGINT PRIMARY KEY IDENTITY(1,1), TrainCode NVARCHAR(10) NOT NULL, TrainName NVARCHAR(100) NOT NULL, DepartureLocation NVARCHAR(50) NOT NULL, ArrivalLocation NVARCHAR(50) NOT NULL, DepartureTime DATETIME2 NOT NULL, ArrivalTime DATETIME2 NOT NULL, Price DECIMAL(18,2) NOT NULL, Seats INT NOT NULL, CoachClass NVARCHAR(50) NOT NULL DEFAULT '', TrainDate DATE NOT NULL, CreatedAt DATETIME2 DEFAULT GETUTCDATE());
 CREATE INDEX IX_Trains_Route_Date ON Trains (DepartureLocation, ArrivalLocation, TrainDate);
 CREATE INDEX IX_Trains_Price ON Trains (Price);
+END
+
+IF OBJECT_ID('Buses', 'U') IS NULL
+BEGIN
+CREATE TABLE Buses (Id BIGINT PRIMARY KEY IDENTITY(1,1), BusCode NVARCHAR(20) NOT NULL, BusCompany NVARCHAR(100) NOT NULL, DepartureLocation NVARCHAR(50) NOT NULL, ArrivalLocation NVARCHAR(50) NOT NULL, DepartureTime DATETIME2 NOT NULL, ArrivalTime DATETIME2 NOT NULL, Price DECIMAL(18,2) NOT NULL, Seats INT NOT NULL, CoachClass NVARCHAR(50) NOT NULL DEFAULT '', PickupPoint NVARCHAR(100) NOT NULL DEFAULT '', DropoffPoint NVARCHAR(100) NOT NULL DEFAULT '', BusDate DATE NOT NULL, ShareCount INT NOT NULL DEFAULT 0, CreatedAt DATETIME2 DEFAULT GETUTCDATE());
+CREATE INDEX IX_Buses_Route_Date ON Buses (DepartureLocation, ArrivalLocation, BusDate);
+CREATE INDEX IX_Buses_Price ON Buses (Price);
 END
 
 IF OBJECT_ID('PriceHistories', 'U') IS NULL
@@ -86,7 +97,7 @@ END
 
 IF OBJECT_ID('Bookings', 'U') IS NULL
 BEGIN
-CREATE TABLE Bookings (Id BIGINT PRIMARY KEY IDENTITY(1,1), UserId BIGINT NOT NULL, FlightId BIGINT NULL, TrainId BIGINT NULL, BookingDate DATETIME2 DEFAULT GETUTCDATE(), Status NVARCHAR(50) NOT NULL DEFAULT 'Pending', TotalPrice DECIMAL(18,2) NOT NULL, Passengers INT NOT NULL DEFAULT 1, Address NVARCHAR(500) NULL, PaymentMethod NVARCHAR(50) NULL, TransactionId NVARCHAR(100) NULL, VnPayTransactionNo NVARCHAR(50) NULL, CONSTRAINT FK_Bookings_User FOREIGN KEY (UserId) REFERENCES Users(Id), CONSTRAINT FK_Bookings_Flight FOREIGN KEY (FlightId) REFERENCES Flights(Id) ON DELETE SET NULL, CONSTRAINT FK_Bookings_Train FOREIGN KEY (TrainId) REFERENCES Trains(Id) ON DELETE SET NULL);
+CREATE TABLE Bookings (Id BIGINT PRIMARY KEY IDENTITY(1,1), UserId BIGINT NOT NULL, FlightId BIGINT NULL, TrainId BIGINT NULL, BusId BIGINT NULL, BookingDate DATETIME2 DEFAULT GETUTCDATE(), Status NVARCHAR(50) NOT NULL DEFAULT 'Pending', TotalPrice DECIMAL(18,2) NOT NULL, Passengers INT NOT NULL DEFAULT 1, Address NVARCHAR(500) NULL, PaymentMethod NVARCHAR(50) NULL, TransactionId NVARCHAR(100) NULL, VnPayTransactionNo NVARCHAR(50) NULL, CONSTRAINT FK_Bookings_User FOREIGN KEY (UserId) REFERENCES Users(Id), CONSTRAINT FK_Bookings_Flight FOREIGN KEY (FlightId) REFERENCES Flights(Id) ON DELETE SET NULL, CONSTRAINT FK_Bookings_Train FOREIGN KEY (TrainId) REFERENCES Trains(Id) ON DELETE SET NULL, CONSTRAINT FK_Bookings_Bus FOREIGN KEY (BusId) REFERENCES Buses(Id) ON DELETE SET NULL);
 CREATE INDEX IX_Bookings_UserId ON Bookings (UserId);
 CREATE INDEX IX_Bookings_Status ON Bookings (Status);
 END
@@ -100,15 +111,31 @@ DROP TABLE IF EXISTS PriceFreezes;
 IF COL_LENGTH('InsurancePackages', 'Coverage') = 100 ALTER TABLE InsurancePackages ALTER COLUMN Coverage NVARCHAR(500) NOT NULL;
 
 IF COL_LENGTH('Bookings', 'TransactionId') IS NULL ALTER TABLE Bookings ADD TransactionId NVARCHAR(100) NULL;
+IF COL_LENGTH('Bookings', 'BusId') IS NULL
+BEGIN
+ALTER TABLE Bookings ADD BusId BIGINT NULL;
+ALTER TABLE Bookings ADD CONSTRAINT FK_Bookings_Bus FOREIGN KEY (BusId) REFERENCES Buses(Id) ON DELETE SET NULL;
+END
 IF COL_LENGTH('Bookings', 'VnPayTransactionNo') IS NULL ALTER TABLE Bookings ADD VnPayTransactionNo NVARCHAR(50) NULL;
+IF COL_LENGTH('Bookings', 'PaymentProvider') IS NULL ALTER TABLE Bookings ADD PaymentProvider NVARCHAR(50) NULL;
 IF COL_LENGTH('Users', 'PasswordHash') IS NULL ALTER TABLE Users ADD PasswordHash NVARCHAR(255) NOT NULL DEFAULT '';
 IF COL_LENGTH('Users', 'EmailVerificationCode') IS NULL ALTER TABLE Users ADD EmailVerificationCode NVARCHAR(6) NULL;
 IF COL_LENGTH('Users', 'IsEmailVerified') IS NULL ALTER TABLE Users ADD IsEmailVerified BIT NOT NULL DEFAULT 0;
 IF COL_LENGTH('Users', 'Address') IS NULL ALTER TABLE Users ADD Address NVARCHAR(500) NULL;
 IF COL_LENGTH('Users', 'PaymentMethod') IS NULL ALTER TABLE Users ADD PaymentMethod NVARCHAR(50) NULL;
-IF COL_LENGTH('Flights', 'RoundTripGroupId') IS NULL ALTER TABLE Flights ADD RoundTripGroupId BIGINT NULL;
-IF COL_LENGTH('Flights', 'ShareCount') IS NULL ALTER TABLE Flights ADD ShareCount INT NOT NULL DEFAULT 0;
+IF COL_LENGTH('Flights', 'RoundTripGroupId') IS NULL ALTER TABLE Flights ADD RoundTripGroupId BIGINT NULL;IF COL_LENGTH('Flights', 'ShareCount') IS NULL ALTER TABLE Flights ADD ShareCount INT NOT NULL DEFAULT 0;
+IF COL_LENGTH('Flights', 'SeatClass') IS NULL ALTER TABLE Flights ADD SeatClass NVARCHAR(50) NOT NULL DEFAULT 'Economy';
 IF COL_LENGTH('Trains', 'ShareCount') IS NULL ALTER TABLE Trains ADD ShareCount INT NOT NULL DEFAULT 0;
+IF COL_LENGTH('Buses', 'ShareCount') IS NULL ALTER TABLE Buses ADD ShareCount INT NOT NULL DEFAULT 0;
+IF COL_LENGTH('Bookings', 'DateOfBirth') IS NULL ALTER TABLE Bookings ADD DateOfBirth DATETIME2 NULL;
+IF COL_LENGTH('Bookings', 'Gender') IS NULL ALTER TABLE Bookings ADD Gender NVARCHAR(10) NULL;
+IF COL_LENGTH('Bookings', 'Nationality') IS NULL ALTER TABLE Bookings ADD Nationality NVARCHAR(100) NULL;
+IF COL_LENGTH('Bookings', 'IdNumber') IS NULL ALTER TABLE Bookings ADD IdNumber NVARCHAR(50) NULL;
+IF COL_LENGTH('Bookings', 'EmergencyContactName') IS NULL ALTER TABLE Bookings ADD EmergencyContactName NVARCHAR(100) NULL;
+IF COL_LENGTH('Bookings', 'EmergencyContactPhone') IS NULL ALTER TABLE Bookings ADD EmergencyContactPhone NVARCHAR(20) NULL;
+IF COL_LENGTH('Bookings', 'SpecialRequests') IS NULL ALTER TABLE Bookings ADD SpecialRequests NVARCHAR(500) NULL;
+IF COL_LENGTH('Bookings', 'PromoCode') IS NULL ALTER TABLE Bookings ADD PromoCode NVARCHAR(50) NULL;
+IF COL_LENGTH('Bookings', 'DiscountAmount') IS NULL ALTER TABLE Bookings ADD DiscountAmount DECIMAL(18,2) NULL;
 
 IF OBJECT_ID('Reviews', 'U') IS NULL
 CREATE TABLE Reviews (Id BIGINT PRIMARY KEY IDENTITY(1,1), FlightId BIGINT NULL, TrainId BIGINT NULL, UserId BIGINT NULL, Email NVARCHAR(255) NOT NULL, AuthorName NVARCHAR(255) NOT NULL, Rating INT NOT NULL, Comment NVARCHAR(2000) NOT NULL, CreatedAt DATETIME2 NOT NULL DEFAULT GETUTCDATE(), CONSTRAINT FK_Reviews_Flight FOREIGN KEY (FlightId) REFERENCES Flights(Id) ON DELETE SET NULL, CONSTRAINT FK_Reviews_Train FOREIGN KEY (TrainId) REFERENCES Trains(Id) ON DELETE SET NULL);
@@ -122,14 +149,6 @@ CREATE TABLE Notifications (Id BIGINT PRIMARY KEY IDENTITY(1,1), Email NVARCHAR(
 CREATE INDEX IX_Notifications_Email ON Notifications (Email);
 CREATE INDEX IX_Notifications_Email_IsRead ON Notifications (Email, IsRead);
 END
-
-IF OBJECT_ID('Seats', 'U') IS NULL
-BEGIN
-CREATE TABLE Seats (Id BIGINT PRIMARY KEY IDENTITY(1,1), ReferenceType NVARCHAR(10) NOT NULL, ReferenceId BIGINT NOT NULL, SeatNumber NVARCHAR(10) NOT NULL, [Row] NVARCHAR(10) NOT NULL, [Column] NVARCHAR(10) NOT NULL, Deck NVARCHAR(20) NOT NULL DEFAULT 'main', Class NVARCHAR(20) NOT NULL DEFAULT 'economy', Status NVARCHAR(20) NOT NULL DEFAULT 'available', BookedBy BIGINT NULL, IsExitRow BIT NOT NULL DEFAULT 0, IsWindow BIT NOT NULL DEFAULT 0, IsAisle BIT NOT NULL DEFAULT 0, Price DECIMAL(18,2) NOT NULL DEFAULT 0, CreatedAt DATETIME2 NOT NULL DEFAULT GETUTCDATE());
-CREATE INDEX IX_Seats_Reference ON Seats (ReferenceType, ReferenceId);
-CREATE INDEX IX_Seats_Status ON Seats (Status);
-END
-
 IF OBJECT_ID('InsurancePackages', 'U') IS NULL
 CREATE TABLE InsurancePackages (Id BIGINT PRIMARY KEY IDENTITY(1,1), Name NVARCHAR(255) NOT NULL, Provider NVARCHAR(100) NOT NULL, Description NVARCHAR(2000) NOT NULL, Price DECIMAL(18,2) NOT NULL, Coverage NVARCHAR(500) NOT NULL, MaxCoverageDays INT NOT NULL DEFAULT 30, IsActive BIT NOT NULL DEFAULT 1, CreatedAt DATETIME2 NOT NULL DEFAULT GETUTCDATE());
 
@@ -176,6 +195,29 @@ IF OBJECT_ID('HotelBookings', 'U') IS NULL
 BEGIN
 CREATE TABLE HotelBookings (Id BIGINT PRIMARY KEY IDENTITY(1,1), HotelId BIGINT NOT NULL, BookingId BIGINT NULL, CheckIn DATETIME2 NOT NULL, CheckOut DATETIME2 NOT NULL, Rooms INT NOT NULL DEFAULT 1, Guests INT NOT NULL DEFAULT 2, TotalPrice DECIMAL(18,2) NOT NULL, Status NVARCHAR(50) NOT NULL DEFAULT 'pending', CONSTRAINT FK_HB_Hotel FOREIGN KEY (HotelId) REFERENCES Hotels(Id) ON DELETE CASCADE, CONSTRAINT FK_HB_Booking FOREIGN KEY (BookingId) REFERENCES Bookings(Id) ON DELETE SET NULL);
 CREATE INDEX IX_HB_BookingId ON HotelBookings (BookingId);
+END
+
+IF OBJECT_ID('PriceConfigs', 'U') IS NULL
+BEGIN
+CREATE TABLE PriceConfigs (Id BIGINT PRIMARY KEY IDENTITY(1,1), RouteFrom NVARCHAR(50) NOT NULL, RouteTo NVARCHAR(50) NOT NULL, Month INT NOT NULL, Multiplier DECIMAL(5,2) NOT NULL DEFAULT 1.0, BaseVolatilityPct INT NOT NULL DEFAULT 5, IsActive BIT NOT NULL DEFAULT 1, CreatedAt DATETIME2 NOT NULL DEFAULT GETUTCDATE());
+CREATE INDEX IX_PriceConfigs_Route ON PriceConfigs (RouteFrom, RouteTo, Month);
+END
+
+IF OBJECT_ID('PromoCodes', 'U') IS NULL
+BEGIN
+CREATE TABLE PromoCodes (Id BIGINT PRIMARY KEY IDENTITY(1,1), Code NVARCHAR(50) NOT NULL, Description NVARCHAR(500) NOT NULL, DiscountPercent DECIMAL(5,2) NOT NULL, MaxDiscount DECIMAL(18,2) NOT NULL, MinOrderValue DECIMAL(18,2) NOT NULL DEFAULT 0, UsageLimit INT NOT NULL DEFAULT 100, UsedCount INT NOT NULL DEFAULT 0, ValidFrom DATE NOT NULL, ValidTo DATE NOT NULL, IsActive BIT NOT NULL DEFAULT 1, CreatedAt DATETIME2 NOT NULL DEFAULT GETUTCDATE());
+CREATE UNIQUE INDEX IX_PromoCodes_Code ON PromoCodes (Code);
+END";
+    cmd.ExecuteNonQuery();
+
+    // Migrate old insurance package names to new short names
+    cmd.CommandText = @"
+IF EXISTS (SELECT 1 FROM InsurancePackages WHERE Name = N'Bảo hiểm chuyến đi Cơ bản')
+BEGIN
+    UPDATE InsurancePackages SET Name = N'Cơ Bản' WHERE Name = N'Bảo hiểm chuyến đi Cơ bản';
+    UPDATE InsurancePackages SET Name = N'Cao Cấp' WHERE Name = N'Bảo hiểm chuyến đi Cao cấp';
+    UPDATE InsurancePackages SET Name = N'Toàn Diện' WHERE Name = N'Bảo hiểm toàn diện Gia đình';
+    UPDATE InsurancePackages SET Description = N'Bảo vệ toàn diện với chi phí y tế tối đa 200 triệu đồng, hủy chuyến, thất lạc hành lý và hỗ trợ 24/7.' WHERE Name = N'Toàn Diện';
 END";
     cmd.ExecuteNonQuery();
 
@@ -223,12 +265,21 @@ END";
         cmd.ExecuteNonQuery();
     }
 
+    // Re-seed: clear old price data so new per-route/seat class seed runs
+    cmd.Parameters.Clear();
+    cmd.CommandText = @"
+DELETE FROM PriceHistories;
+DELETE FROM Reviews;
+UPDATE Bookings SET FlightId = NULL, TrainId = NULL, BusId = NULL;
+DELETE FROM Flights;
+DELETE FROM Trains;
+DELETE FROM Buses;";
+    cmd.ExecuteNonQuery();
+
     // Check if flights exist, seed if empty
     cmd.Parameters.Clear();
     cmd.CommandText = "SELECT COUNT(1) FROM Flights";
     var flightCount = (int)cmd.ExecuteScalar()!;
-
-    conn.Close();
 
     if (flightCount == 0)
     {
@@ -236,10 +287,62 @@ END";
         await seeder.SeedAsync();
     }
 
+    // Seed buses if empty (in case flights were already present but buses are not)
+    cmd.Parameters.Clear();
+    cmd.CommandText = "SELECT COUNT(1) FROM Buses";
+    var busCount = (int)cmd.ExecuteScalar()!;
+
+    if (busCount == 0)
+    {
+        var busSeeder = scope.ServiceProvider.GetRequiredService<SeedDataService>();
+        await busSeeder.SeedBusesOnlyAsync();
+    }
+
     // Seed community tips (always check, separate from flight seed)
     using var tipScope = app.Services.CreateScope();
     var tipSeeder = tipScope.ServiceProvider.GetRequiredService<SeedDataService>();
     await tipSeeder.SeedCommunityTipsAsync();
+
+    // Seed PriceConfigs
+    cmd.Parameters.Clear();
+    cmd.CommandText = "SELECT COUNT(1) FROM PriceConfigs";
+    var pcCount = (int)cmd.ExecuteScalar()!;
+    if (pcCount == 0)
+    {
+        cmd.CommandText = @"
+INSERT INTO PriceConfigs (RouteFrom, RouteTo, Month, Multiplier, BaseVolatilityPct) VALUES
+-- HAN->SGN
+('HAN','SGN',1,2.0,8),('HAN','SGN',2,1.8,8),('HAN','SGN',3,1.0,5),('HAN','SGN',4,0.95,5),('HAN','SGN',5,0.9,5),('HAN','SGN',6,1.3,6),('HAN','SGN',7,1.2,6),('HAN','SGN',8,1.2,6),('HAN','SGN',9,0.9,5),('HAN','SGN',10,0.85,5),('HAN','SGN',11,0.85,5),('HAN','SGN',12,1.1,6),
+-- HAN->DAD
+('HAN','DAD',1,1.8,8),('HAN','DAD',2,1.6,8),('HAN','DAD',3,0.9,5),('HAN','DAD',4,0.85,5),('HAN','DAD',5,0.85,5),('HAN','DAD',6,1.2,6),('HAN','DAD',7,1.1,6),('HAN','DAD',8,1.1,6),('HAN','DAD',9,0.85,5),('HAN','DAD',10,0.8,5),('HAN','DAD',11,0.8,5),('HAN','DAD',12,1.0,6),
+-- SGN->DAD
+('SGN','DAD',1,1.8,8),('SGN','DAD',2,1.6,8),('SGN','DAD',3,0.9,5),('SGN','DAD',4,0.85,5),('SGN','DAD',5,0.85,5),('SGN','DAD',6,1.2,6),('SGN','DAD',7,1.1,6),('SGN','DAD',8,1.1,6),('SGN','DAD',9,0.85,5),('SGN','DAD',10,0.8,5),('SGN','DAD',11,0.8,5),('SGN','DAD',12,1.0,6),
+-- SGN->CXR
+('SGN','CXR',1,1.6,8),('SGN','CXR',2,1.8,8),('SGN','CXR',3,0.9,5),('SGN','CXR',4,0.85,5),('SGN','CXR',5,0.85,5),('SGN','CXR',6,1.3,6),('SGN','CXR',7,1.4,6),('SGN','CXR',8,1.2,6),('SGN','CXR',9,0.85,5),('SGN','CXR',10,0.8,5),('SGN','CXR',11,0.8,5),('SGN','CXR',12,1.0,6),
+-- HAN->PQC
+('HAN','PQC',1,1.6,8),('HAN','PQC',2,1.8,8),('HAN','PQC',3,0.9,5),('HAN','PQC',4,0.85,5),('HAN','PQC',5,0.85,5),('HAN','PQC',6,1.3,6),('HAN','PQC',7,1.4,6),('HAN','PQC',8,1.2,6),('HAN','PQC',9,0.85,5),('HAN','PQC',10,0.8,5),('HAN','PQC',11,0.8,5),('HAN','PQC',12,1.0,6),
+-- DAD->SGN
+('DAD','SGN',1,1.8,8),('DAD','SGN',2,1.6,8),('DAD','SGN',3,0.9,5),('DAD','SGN',4,0.85,5),('DAD','SGN',5,0.85,5),('DAD','SGN',6,1.2,6),('DAD','SGN',7,1.1,6),('DAD','SGN',8,1.1,6),('DAD','SGN',9,0.85,5),('DAD','SGN',10,0.8,5),('DAD','SGN',11,0.8,5),('DAD','SGN',12,1.0,6),
+-- HAN->CXR
+('HAN','CXR',1,1.6,8),('HAN','CXR',2,1.8,8),('HAN','CXR',3,0.9,5),('HAN','CXR',4,0.85,5),('HAN','CXR',5,0.85,5),('HAN','CXR',6,1.3,6),('HAN','CXR',7,1.4,6),('HAN','CXR',8,1.2,6),('HAN','CXR',9,0.85,5),('HAN','CXR',10,0.8,5),('HAN','CXR',11,0.8,5),('HAN','CXR',12,1.0,6),
+-- SGN->HAN
+('SGN','HAN',1,2.0,8),('SGN','HAN',2,1.8,8),('SGN','HAN',3,1.0,5),('SGN','HAN',4,0.95,5),('SGN','HAN',5,0.9,5),('SGN','HAN',6,1.3,6),('SGN','HAN',7,1.2,6),('SGN','HAN',8,1.2,6),('SGN','HAN',9,0.9,5),('SGN','HAN',10,0.85,5),('SGN','HAN',11,0.85,5),('SGN','HAN',12,1.1,6)";
+        cmd.ExecuteNonQuery();
+    }
+
+    // Seed PromoCodes
+    cmd.Parameters.Clear();
+    cmd.CommandText = "SELECT COUNT(1) FROM PromoCodes";
+    var promoCount = (int)cmd.ExecuteScalar()!;
+    if (promoCount == 0)
+    {
+        cmd.CommandText = @"
+INSERT INTO PromoCodes (Code, Description, DiscountPercent, MaxDiscount, MinOrderValue, UsageLimit, UsedCount, ValidFrom, ValidTo, IsActive) VALUES
+('WELCOME10', N'Giảm 10% cho lần đầu đặt vé, tối đa 200,000đ', 10, 200000, 500000, 100, 0, '2026-01-01', '2027-01-01', 1),
+('SUMMER25', N'Giảm 25% cho vé mùa hè, tối đa 500,000đ', 25, 500000, 1000000, 50, 0, '2026-06-01', '2026-09-30', 1),
+('VIP20', N'Giảm 20% cho khách hàng VIP, tối đa 1,000,000đ', 20, 1000000, 500000, 200, 0, '2026-01-01', '2027-01-01', 1)";
+        cmd.ExecuteNonQuery();
+    }
 }
 
 app.UseCors();
@@ -281,6 +384,11 @@ app.MapGet("/share/{type}/{id:long}", async (string type, long id, ApplicationDb
         var t = await db.Trains.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id);
         if (t != null) { item = t; price = t.Price; title = $"Vé tàu {t.DepartureLocation} → {t.ArrivalLocation}"; description = $"Chỉ từ {t.Price:N0}₫ - Khởi hành {t.TrainDate:dd/MM/yyyy}"; }
     }
+    else if (type == "bus")
+    {
+        var b = await db.Buses.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id);
+        if (b != null) { item = b; price = b.Price; title = $"Vé xe khách {b.DepartureLocation} → {b.ArrivalLocation}"; description = $"Chỉ từ {b.Price:N0}₫ - Khởi hành {b.BusDate:dd/MM/yyyy}"; }
+    }
 
     var ogUrl = $"{builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()?.FirstOrDefault() ?? "http://localhost:5173"}/booking/{type}/{id}";
 
@@ -303,8 +411,8 @@ app.MapGet("/share/{type}/{id:long}", async (string type, long id, ApplicationDb
     </head>
     <body>
         <div class="card">
-            <div class="badge">{{(type == "flight" ? "✈️ Chuyến bay" : "🚆 Tàu hỏa")}}</div>
-            <div class="route">{{title.Replace("Vé máy bay ", "").Replace("Vé tàu ", "")}}</div>
+            <div class="badge">{{(type == "flight" ? "✈️ Chuyến bay" : type == "train" ? "🚆 Tàu hỏa" : "🚌 Xe khách")}}</div>
+            <div class="route">{{title.Replace("Vé máy bay ", "").Replace("Vé tàu ", "").Replace("Vé xe khách ", "")}}</div>
             <div class="price">{{price:N0}}₫</div>
             <p style="color:#94A3B8;margin-top:8px;font-size:14px">{{description}}</p>
             <div style="margin-top:20px;padding-top:16px;border-top:1px solid #334155;color:#64748B;font-size:12px">vé247.vn — Đặt vé thông minh</div>

@@ -13,14 +13,20 @@ public class BookingsController : ControllerBase
 {
     private readonly ApplicationDbContext _db;
     private readonly VnPayService _vnPay;
+    private readonly MoMoService _moMo;
+    private readonly ZaloPayService _zaloPay;
     private readonly ILogger<BookingsController> _logger;
+    private readonly EmailService _email;
     private static readonly Random _rng = new();
 
-    public BookingsController(ApplicationDbContext db, VnPayService vnPay, ILogger<BookingsController> logger)
+    public BookingsController(ApplicationDbContext db, VnPayService vnPay, MoMoService moMo, ZaloPayService zaloPay, ILogger<BookingsController> logger, EmailService email)
     {
         _db = db;
         _vnPay = vnPay;
+        _moMo = moMo;
+        _zaloPay = zaloPay;
         _logger = logger;
+        _email = email;
     }
 
     [HttpGet]
@@ -53,6 +59,7 @@ public class BookingsController : ControllerBase
             .Include(b => b.User)
             .Include(b => b.Flight)
             .Include(b => b.Train)
+            .Include(b => b.Bus)
             .FirstOrDefaultAsync(b => b.Id == id);
 
         if (booking == null) return NotFound();
@@ -62,14 +69,15 @@ public class BookingsController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> CreateBooking([FromBody] CreateBookingRequest request)
     {
-        if (request.FlightId == null && request.TrainId == null)
-            return BadRequest(new { message = "Phải chọn chuyến bay hoặc tàu hỏa" });
+        if (request.FlightId == null && request.TrainId == null && request.BusId == null)
+            return BadRequest(new { message = "Phải chọn chuyến bay, tàu hỏa hoặc xe khách" });
         if (request.Passengers <= 0)
             return BadRequest(new { message = "Số khách phải lớn hơn 0" });
 
         decimal totalPrice = 0;
         Flight? flight = null;
         Train? train = null;
+        Bus? bus = null;
 
         if (request.FlightId.HasValue)
         {
@@ -95,6 +103,18 @@ public class BookingsController : ControllerBase
             train.Seats -= request.Passengers;
             totalPrice = train.Price * request.Passengers;
         }
+        else if (request.BusId.HasValue)
+        {
+            bus = await _db.Buses.FindAsync(request.BusId.Value);
+            if (bus == null)
+                return BadRequest(new { message = "Xe khách không tồn tại" });
+
+            if (bus.Seats < request.Passengers)
+                return BadRequest(new { message = $"Chỉ còn {bus.Seats} chỗ trống" });
+
+            bus.Seats -= request.Passengers;
+            totalPrice = bus.Price * request.Passengers;
+        }
 
         var user = await _db.Users.FirstOrDefaultAsync(u => u.Email == request.Email);
         if (user == null)
@@ -116,10 +136,20 @@ public class BookingsController : ControllerBase
             UserId = user.Id,
             FlightId = request.FlightId,
             TrainId = request.TrainId,
+            BusId = request.BusId,
             TotalPrice = totalPrice,
             Passengers = request.Passengers,
             Address = request.Address,
             PaymentMethod = request.PaymentMethod,
+            PromoCode = request.PromoCode,
+            DiscountAmount = request.DiscountAmount,
+            DateOfBirth = request.DateOfBirth,
+            Gender = request.Gender,
+            Nationality = request.Nationality,
+            IdNumber = request.IdNumber,
+            EmergencyContactName = request.EmergencyContactName,
+            EmergencyContactPhone = request.EmergencyContactPhone,
+            SpecialRequests = request.SpecialRequests,
             Status = "Pending"
         };
 
@@ -130,12 +160,15 @@ public class BookingsController : ControllerBase
     }
 
     [HttpPost("{id:long}/pay")]
-    public async Task<IActionResult> ProcessPayment(long id)
+    public async Task<IActionResult> ProcessPayment(long id, [FromBody] PayRequest? request)
     {
+        var provider = request?.Provider ?? request?.PaymentMethod ?? "test_mode";
+
         var booking = await _db.Bookings
             .Include(b => b.User)
             .Include(b => b.Flight)
             .Include(b => b.Train)
+            .Include(b => b.Bus)
             .FirstOrDefaultAsync(b => b.Id == id);
 
         if (booking == null) return NotFound(new { message = "Không tìm thấy đặt chỗ" });
@@ -146,20 +179,63 @@ public class BookingsController : ControllerBase
         if (booking.Status == "Cancelled")
             return BadRequest(new { message = "Đặt chỗ đã bị hủy" });
 
-        // VNPay — generate payment URL, don't confirm yet
-        if (booking.PaymentMethod == "e_wallet")
-        {
-            var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "127.0.0.1";
-            var orderInfo = $"Thanh toán đặt chỗ #{booking.Id} - Vé247";
-            var paymentUrl = _vnPay.CreatePaymentUrl(booking.Id, booking.TotalPrice, orderInfo, ipAddress);
+        // E-wallet payment — create real gateway URL (MoMo / ZaloPay / VNPay)
+        var amount = booking.TotalPrice - (booking.DiscountAmount ?? 0);
+        if (amount <= 0) amount = booking.TotalPrice;
 
-            booking.TransactionId = $"VNPAY_{DateTime.UtcNow:yyyyMMddHHmmss}_{_rng.Next(1000, 9999)}";
+        if (provider == "momo" || provider == "zalopay" || provider == "vnpay")
+        {
+            booking.PaymentProvider = provider;
+            booking.PaymentMethod = "e_wallet";
             await _db.SaveChangesAsync();
 
-            return Ok(new { redirect = true, paymentUrl, transactionId = booking.TransactionId });
+            try
+            {
+                string? paymentUrl = null;
+                string? providerTransactionId = null;
+
+                switch (provider)
+                {
+                    case "momo":
+                    {
+                        var result = await _moMo.CreatePaymentAsync(booking.Id, amount, $"Ve247-Booking-{booking.Id}");
+                        if (result.ResultCode != 0 && result.ResultCode != 9000)
+                            return BadRequest(new { message = $"MoMo: {result.Message}" });
+                        paymentUrl = result.PayUrl;
+                        providerTransactionId = result.OrderId;
+                        break;
+                    }
+                    case "zalopay":
+                    {
+                        var result = await _zaloPay.CreatePaymentAsync(booking.Id, amount, $"Booking #{booking.Id}");
+                        if (result.ReturnCode != 1)
+                            return BadRequest(new { message = $"ZaloPay: {result.ReturnMessage}" });
+                        paymentUrl = result.OrderUrl;
+                        providerTransactionId = result.AppTransId;
+                        break;
+                    }
+                    case "vnpay":
+                    {
+                        var ip = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "127.0.0.1";
+                        paymentUrl = _vnPay.CreatePaymentUrl(booking.Id, amount, $"Ve247 booking #{booking.Id}", ip);
+                        providerTransactionId = booking.Id.ToString();
+                        break;
+                    }
+                }
+
+                if (string.IsNullOrEmpty(paymentUrl))
+                    return BadRequest(new { message = "Không tạo được đường dẫn thanh toán" });
+
+                return Ok(new { success = true, redirect = true, paymentUrl, provider, providerTransactionId });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to create e-wallet payment URL for booking #{Id}", booking.Id);
+                return StatusCode(500, new { message = "Không thể kết nối cổng thanh toán. Vui lòng thử lại." });
+            }
         }
 
-        // Sandbox/test mode — always succeeds
+        // Sandbox/test mode — always succeeds (kể cả e_wallet, credit_card, bank_transfer)
         booking.Status = "Confirmed";
 
         var transactionId = booking.TransactionId ?? $"TXN_{DateTime.UtcNow:yyyyMMddHHmmss}_{_rng.Next(1000, 9999)}";
@@ -178,6 +254,37 @@ public class BookingsController : ControllerBase
 
         await _db.SaveChangesAsync();
 
+        // Send email confirmation
+        try
+        {
+            var item = booking.Flight ?? (object?)booking.Train ?? booking.Bus;
+            await _email.SendBookingConfirmationAsync(
+                toEmail: booking.User?.Email ?? "",
+                customerName: booking.User?.FullName ?? "Khách hàng",
+                customerPhone: booking.User?.Phone ?? "",
+                customerAddress: booking.Address ?? "",
+                type: booking.FlightId != null ? "flight" : booking.TrainId != null ? "train" : "bus",
+                code: booking.Flight != null ? $"{booking.Flight.AirlineCode}{(booking.Flight.Id % 900) + 100}" : booking.Train?.TrainCode ?? booking.Bus?.BusCode,
+                airlineName: booking.Flight?.AirlineName,
+                trainName: booking.Train?.TrainName,
+                busCompany: booking.Bus?.BusCompany,
+                fromCode: booking.Flight?.DepartureLocation ?? booking.Train?.DepartureLocation ?? booking.Bus?.DepartureLocation ?? "",
+                toCode: booking.Flight?.ArrivalLocation ?? booking.Train?.ArrivalLocation ?? booking.Bus?.ArrivalLocation ?? "",
+                departureTime: booking.Flight?.DepartureTime ?? booking.Train?.DepartureTime ?? booking.Bus?.DepartureTime ?? default,
+                arrivalTime: booking.Flight?.ArrivalTime ?? booking.Train?.ArrivalTime ?? booking.Bus?.ArrivalTime ?? default,
+                itemPrice: booking.Flight?.Price ?? booking.Train?.Price ?? booking.Bus?.Price ?? 0,
+                passengers: booking.Passengers,
+                totalPrice: booking.TotalPrice,
+                paymentMethod: booking.PaymentMethod,
+                transactionId: transactionId,
+                bookingId: booking.Id
+            );
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to send booking confirmation email for #{Id}", booking.Id);
+        }
+
         _logger.LogInformation("Payment processed: Booking #{Id}, Transaction {TxnId}", booking.Id, transactionId);
 
         return Ok(new
@@ -194,6 +301,7 @@ public class BookingsController : ControllerBase
         var booking = await _db.Bookings
             .Include(b => b.Flight)
             .Include(b => b.Train)
+            .Include(b => b.Bus)
             .FirstOrDefaultAsync(b => b.Id == id);
 
         if (booking == null) return NotFound(new { message = "Đặt chỗ không tồn tại" });
@@ -205,6 +313,9 @@ public class BookingsController : ControllerBase
 
         if (booking.TrainId != null && booking.Train != null)
             booking.Train.Seats += booking.Passengers;
+
+        if (booking.BusId != null && booking.Bus != null)
+            booking.Bus.Seats += booking.Passengers;
 
         booking.Status = "Cancelled";
         await _db.SaveChangesAsync();
@@ -218,21 +329,23 @@ public class BookingsController : ControllerBase
         var booking = await _db.Bookings
             .Include(b => b.Flight)
             .Include(b => b.Train)
+            .Include(b => b.Bus)
             .Include(b => b.User)
             .FirstOrDefaultAsync(b => b.Id == id);
 
         if (booking == null) return NotFound();
 
         var isFlight = booking.Flight != null;
-        var item = isFlight ? (object?)booking.Flight : booking.Train;
+        var isBus = booking.Bus != null;
+        var item = isFlight ? (object?)booking.Flight : isBus ? booking.Bus : booking.Train;
         if (item == null) return NotFound();
 
-        var depTime = isFlight ? ((Flight)item).DepartureTime : ((Train)item).DepartureTime;
-        var arrTime = isFlight ? ((Flight)item).ArrivalTime : ((Train)item).ArrivalTime;
-        var depLoc = isFlight ? ((Flight)item).DepartureLocation : ((Train)item).DepartureLocation;
-        var arrLoc = isFlight ? ((Flight)item).ArrivalLocation : ((Train)item).ArrivalLocation;
-        var typeName = isFlight ? "Chuyến bay" : "Chuyến tàu";
-        var code = isFlight ? ((Flight)item).AirlineCode : ((Train)item).TrainCode;
+        var depTime = isFlight ? ((Flight)item).DepartureTime : isBus ? ((Bus)item).DepartureTime : ((Train)item).DepartureTime;
+        var arrTime = isFlight ? ((Flight)item).ArrivalTime : isBus ? ((Bus)item).ArrivalTime : ((Train)item).ArrivalTime;
+        var depLoc = isFlight ? ((Flight)item).DepartureLocation : isBus ? ((Bus)item).DepartureLocation : ((Train)item).DepartureLocation;
+        var arrLoc = isFlight ? ((Flight)item).ArrivalLocation : isBus ? ((Bus)item).ArrivalLocation : ((Train)item).ArrivalLocation;
+        var typeName = isFlight ? "Chuyến bay" : isBus ? "Xe khách" : "Chuyến tàu";
+        var code = isFlight ? ((Flight)item).AirlineCode : isBus ? ((Bus)item).BusCode : ((Train)item).TrainCode;
 
         var uid = $"ve247-booking-{booking.Id}@ve247.vn";
         var now = DateTime.UtcNow.ToString("yyyyMMddTHHmmssZ");
@@ -277,5 +390,21 @@ public class CreateBookingRequest
     public string? PaymentMethod { get; set; }
     public long? FlightId { get; set; }
     public long? TrainId { get; set; }
+    public long? BusId { get; set; }
     public int Passengers { get; set; } = 1;
+    public string? PromoCode { get; set; }
+    public decimal? DiscountAmount { get; set; }
+    public DateTime? DateOfBirth { get; set; }
+    public string? Gender { get; set; }
+    public string? Nationality { get; set; }
+    public string? IdNumber { get; set; }
+    public string? EmergencyContactName { get; set; }
+    public string? EmergencyContactPhone { get; set; }
+    public string? SpecialRequests { get; set; }
+}
+
+public class PayRequest
+{
+    public string? Provider { get; set; }
+    public string? PaymentMethod { get; set; }
 }

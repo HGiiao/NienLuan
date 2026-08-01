@@ -2,7 +2,7 @@ import { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  Plane, Train, Search, ArrowRight, ArrowLeftRight,
+  Plane, Train, Bus, Search, ArrowRight, ArrowLeftRight,
   Calendar, MapPin,
 } from 'lucide-react'
 import LocationInput from './LocationInput'
@@ -28,9 +28,12 @@ function ComparisonPreview() {
         <div className="w-5 h-5 rounded-full bg-white/30 flex items-center justify-center ring-2 ring-primary-700 shadow-sm">
           <Train className="w-2.5 h-2.5 text-primary-700" />
         </div>
+        <div className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center ring-2 ring-primary-700 shadow-sm">
+          <Bus className="w-2.5 h-2.5 text-white" />
+        </div>
       </div>
       <span className="text-[11px] font-medium text-white/80">
-        <span className="text-white font-semibold">940</span> chuyến bay · <span className="text-white font-semibold">235</span> chuyến tàu
+        <span className="text-white font-semibold">940</span> chuyến bay · <span className="text-white font-semibold">235</span> chuyến tàu · <span className="text-white font-semibold">3.000+</span> chuyến xe khách
       </span>
     </motion.div>
   )
@@ -60,7 +63,7 @@ export default function HeroSearch() {
 
   const handleSearch = () => {
     if (!from || !to || !date) return
-    const prefix = mode === 'flights' ? '/flights' : '/trains'
+    const prefix = mode === 'flights' ? '/flights' : mode === 'buses' ? '/buses' : '/trains'
     const params = new URLSearchParams({ from, to, date, tripType })
     if (returnDate) params.set('returnDate', returnDate)
     navigate(`${prefix}?${params}`)
@@ -69,7 +72,7 @@ export default function HeroSearch() {
   const handleSwap = () => { setFrom(to); setTo(from) }
 
   const handleQuickRoute = (r) => {
-    const prefix = mode === 'flights' ? '/flights' : '/trains'
+    const prefix = mode === 'flights' ? '/flights' : mode === 'buses' ? '/buses' : '/trains'
     const params = new URLSearchParams({ from: r.from, to: r.to, date, tripType })
     if (returnDate) params.set('returnDate', returnDate)
     navigate(`${prefix}?${params}`)
@@ -88,7 +91,7 @@ export default function HeroSearch() {
 
       <section className="relative min-h-[88vh] flex items-center overflow-hidden">
         {/* Background image */}
-        <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: "url('/images/banner-bg.png')" }} />
+        <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: "url('/images/NENBANNER.jpg')" }} />
         {/* Gradient overlay */}
         <div className="absolute inset-0 bg-gradient-to-br from-black/50 via-black/40 to-black/50" />
 
@@ -144,7 +147,7 @@ export default function HeroSearch() {
                 <span className="absolute -bottom-1 left-0 right-0 h-[3px] bg-gradient-to-r from-primary-500 to-primary-400 rounded-full" />
               </span>
               <br />
-              <span className="text-white/80">máy bay, tàu hỏa</span>
+              <span className="text-white/80">máy bay, xe khách, tàu hỏa</span>
             </motion.h1>
 
             {/* Subtitle */}
@@ -164,6 +167,7 @@ export default function HeroSearch() {
                   <div className="flex gap-1">
                     {[
                       { id: 'flights', label: 'Vé máy bay', icon: Plane },
+                      { id: 'buses', label: 'Vé xe khách', icon: Bus },
                       { id: 'trains', label: 'Vé tàu hỏa', icon: Train },
                     ].map(tab => {
                       const Icon = tab.icon

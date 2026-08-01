@@ -27,6 +27,18 @@
   --color-chart-5: #DC2626;
   --color-chart-6: #EAB308;
 
+  /* ACCENT (alias primary) */
+  --color-accent-50: #FFF7ED;
+  --color-accent-100: #FFEDD5;
+  --color-accent-200: #FED7AA;
+  --color-accent-300: #FDBA74;
+  --color-accent-400: #FB923C;
+  --color-accent-500: #F97316;
+  --color-accent-600: #EA580C;
+  --color-accent-700: #C2410C;
+  --color-accent-800: #9A3412;
+  --color-accent-900: #7C2D12;
+
   /* SURFACES */
   --color-surface-50: #F1F5F9;
   --color-surface-100: #E2E8F0;

@@ -3,6 +3,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Train, Search, CalendarDays, AlertCircle, Sparkles, Bell, Star } from 'lucide-react'
 import TrainCard from '../components/TrainCard'
+import TicketDetailModal from '../components/TicketDetailModal'
 import PriceFilter from '../components/PriceFilter'
 import BookingOptionsModal from '../components/BookingOptionsModal'
 
@@ -50,6 +51,7 @@ export default function SearchTrains() {
   const initialLoad = useRef(true)
 
   const [bookingItem, setBookingItem] = useState(null)
+  const [detailItem, setDetailItem] = useState(null)
   const [prediction, setPrediction] = useState(null)
   const [buyNowFilter, setBuyNowFilter] = useState(false)
   const [watchMsg, setWatchMsg] = useState('')
@@ -132,7 +134,7 @@ export default function SearchTrains() {
   }, [items, buyNowFilter, prediction])
 
   const handleWatch = async (train) => {
-    const stored = (() => { try { return JSON.parse(localStorage.getItem('user')) } catch { return null } })()
+    const stored = (() => { try { return JSON.parse(sessionStorage.getItem('user')) } catch { return null } })()
     if (!stored?.email) { navigate('/auth?redirect=/trains'); return }
     try {
       if (watchedIds.has(train.id)) return
@@ -253,7 +255,7 @@ export default function SearchTrains() {
       </SearchForm>
 
       <div className="flex items-center justify-between gap-3 mt-4 mb-4">
-        <PriceFilter onChange={setFilters} />
+        <PriceFilter type="train" onChange={setFilters} />
         <div className="flex items-center gap-2">
           {prediction && prediction.confidence > 0.3 && !isRoundTrip && (
             <button onClick={() => setBuyNowFilter(f => !f)}
@@ -302,7 +304,7 @@ export default function SearchTrains() {
             <motion.div {...stagger} className="space-y-3">
               {outboundItems.map(t => (
                 <motion.div key={t.id} variants={cardVariant}>
-                  <TrainCard train={t} onBook={(train) => setBookingItem(train)} onWatch={handleWatch} watched={watchedIds.has(t.id)}  prediction={null} />
+                  <TrainCard train={t} onBook={(train) => setBookingItem(train)} onDetail={(train) => setDetailItem(train)} onWatch={handleWatch} watched={watchedIds.has(t.id)}  prediction={null} />
                 </motion.div>
               ))}
               {outboundItems.length === 0 && hasSearched && (
@@ -325,7 +327,7 @@ export default function SearchTrains() {
             <motion.div {...stagger} className="space-y-3">
               {returnItems.map(t => (
                 <motion.div key={t.id} variants={cardVariant}>
-                  <TrainCard train={t} onBook={(train) => setBookingItem(train)} onWatch={handleWatch} watched={watchedIds.has(t.id)}  prediction={null} />
+                  <TrainCard train={t} onBook={(train) => setBookingItem(train)} onDetail={(train) => setDetailItem(train)} onWatch={handleWatch} watched={watchedIds.has(t.id)}  prediction={null} />
                 </motion.div>
               ))}
               {returnItems.length === 0 && hasSearched && (
@@ -344,7 +346,7 @@ export default function SearchTrains() {
           <motion.div {...stagger} className="space-y-3">
             {filteredItems.map(t => (
               <motion.div key={t.id} variants={cardVariant}>
-                <TrainCard train={t} onBook={(train) => setBookingItem(train)} onWatch={handleWatch} watched={watchedIds.has(t.id)}  prediction={prediction} />
+                <TrainCard train={t} onBook={(train) => setBookingItem(train)} onDetail={(train) => setDetailItem(train)} onWatch={handleWatch} watched={watchedIds.has(t.id)}  prediction={prediction} />
               </motion.div>
             ))}
             {items.length === 0 && hasSearched && (
@@ -369,6 +371,14 @@ export default function SearchTrains() {
             setBookingItem(null)
             navigate(`/booking/train/${train.id}`, { state: { item: train } })
           }}
+        />
+      )}
+
+      {detailItem && (
+        <TicketDetailModal
+          item={detailItem}
+          type="train"
+          onClose={() => setDetailItem(null)}
         />
       )}
     </motion.div>

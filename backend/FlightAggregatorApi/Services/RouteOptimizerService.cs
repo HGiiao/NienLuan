@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using FlightAggregatorApi.Data;
 using FlightAggregatorApi.Models;
 
@@ -7,66 +8,84 @@ namespace FlightAggregatorApi.Services;
 public class RouteOptimizerService
 {
     private readonly ApplicationDbContext _db;
+    private readonly IMemoryCache _cache;
+    private readonly ILogger<RouteOptimizerService> _logger;
 
     private static readonly string[] Hubs = ["HAN", "SGN", "DAD", "CXR", "PQC", "HCM"];
+    private static readonly TimeSpan MinTransfer = TimeSpan.FromHours(1);
+    private static readonly TimeSpan MaxTransfer = TimeSpan.FromHours(6);
+    private static readonly TimeSpan IdealTransferMin = TimeSpan.FromHours(2);
+    private static readonly TimeSpan IdealTransferMax = TimeSpan.FromHours(3);
+    private static readonly TimeSpan CacheTtl = TimeSpan.FromMinutes(5);
 
-    public RouteOptimizerService(ApplicationDbContext db)
+    public RouteOptimizerService(ApplicationDbContext db, IMemoryCache cache, ILogger<RouteOptimizerService> logger)
     {
         _db = db;
+        _cache = cache;
+        _logger = logger;
     }
 
     public async Task<List<OptimizedRoute>> FindOptimalRoute(
         string origin, string destination, DateOnly startDate, DateOnly endDate, string preference)
     {
-        var allFlights = await _db.Flights.AsNoTracking()
-            .Where(f => f.FlightDate >= startDate && f.FlightDate <= endDate)
+        var cacheKey = $"route:{origin}:{destination}:{startDate}:{endDate}:{preference}";
+        if (_cache.TryGetValue(cacheKey, out List<OptimizedRoute>? cached))
+        {
+            _logger.LogInformation("Route cache hit for {Origin}->{Destination} {Start}-{End}", origin, destination, startDate, endDate);
+            return cached!;
+        }
+
+        var flights = await _db.Flights.AsNoTracking()
+            .Where(f => f.FlightDate >= startDate && f.FlightDate <= endDate
+                && ((f.DepartureLocation == origin && f.ArrivalLocation == destination)
+                 || (f.DepartureLocation == origin && Hubs.Contains(f.ArrivalLocation))
+                 || (Hubs.Contains(f.DepartureLocation) && f.ArrivalLocation == destination)
+                 || (Hubs.Contains(f.DepartureLocation) && Hubs.Contains(f.ArrivalLocation))))
             .ToListAsync();
 
-        var allTrains = await _db.Trains.AsNoTracking()
-            .Where(t => t.TrainDate >= startDate && t.TrainDate <= endDate)
+        var trains = await _db.Trains.AsNoTracking()
+            .Where(t => t.TrainDate >= startDate && t.TrainDate <= endDate
+                && ((t.DepartureLocation == origin && t.ArrivalLocation == destination)
+                 || (t.DepartureLocation == origin && Hubs.Contains(t.ArrivalLocation))
+                 || (Hubs.Contains(t.DepartureLocation) && t.ArrivalLocation == destination)
+                 || (Hubs.Contains(t.DepartureLocation) && Hubs.Contains(t.ArrivalLocation))))
             .ToListAsync();
+
+        _logger.LogInformation("Loaded {Flights} flights, {Trains} trains for route optimization", flights.Count, trains.Count);
 
         var routes = new List<OptimizedRoute>();
 
-        // 1. Direct flights
-        foreach (var f in allFlights.Where(f => f.DepartureLocation == origin && f.ArrivalLocation == destination))
-        {
+        foreach (var f in flights.Where(f => f.DepartureLocation == origin && f.ArrivalLocation == destination))
             routes.Add(FromFlight(f, "direct"));
-        }
 
-        // 2. Direct trains
-        foreach (var t in allTrains.Where(t => t.DepartureLocation == origin && t.ArrivalLocation == destination))
-        {
+        foreach (var t in trains.Where(t => t.DepartureLocation == origin && t.ArrivalLocation == destination))
             routes.Add(FromTrain(t, "direct"));
-        }
 
-        // 3. Multi-leg via hub cities
         foreach (var hub in Hubs)
         {
             if (hub == origin || hub == destination) continue;
 
-            // Flight → Train
-            Combine(routes, allFlights.Where(f => f.DepartureLocation == origin && f.ArrivalLocation == hub),
-                            allTrains.Where(t => t.DepartureLocation == hub && t.ArrivalLocation == destination),
-                            "flight", "train", $"Qua {hub}");
+            Combine(routes,
+                flights.Where(f => f.DepartureLocation == origin && f.ArrivalLocation == hub),
+                trains.Where(t => t.DepartureLocation == hub && t.ArrivalLocation == destination),
+                "flight", "train", $"Qua {hub}");
 
-            // Train → Flight
-            Combine(routes, allTrains.Where(t => t.DepartureLocation == origin && t.ArrivalLocation == hub),
-                            allFlights.Where(f => f.DepartureLocation == hub && f.ArrivalLocation == destination),
-                            "train", "flight", $"Qua {hub}");
+            Combine(routes,
+                trains.Where(t => t.DepartureLocation == origin && t.ArrivalLocation == hub),
+                flights.Where(f => f.DepartureLocation == hub && f.ArrivalLocation == destination),
+                "train", "flight", $"Qua {hub}");
 
-            // Flight → Flight
-            Combine(routes, allFlights.Where(f => f.DepartureLocation == origin && f.ArrivalLocation == hub),
-                            allFlights.Where(f => f.DepartureLocation == hub && f.ArrivalLocation == destination),
-                            "flight", "flight", $"Qua {hub}");
+            Combine(routes,
+                flights.Where(f => f.DepartureLocation == origin && f.ArrivalLocation == hub),
+                flights.Where(f => f.DepartureLocation == hub && f.ArrivalLocation == destination),
+                "flight", "flight", $"Qua {hub}");
 
-            // Train → Train
-            Combine(routes, allTrains.Where(t => t.DepartureLocation == origin && t.ArrivalLocation == hub),
-                            allTrains.Where(t => t.DepartureLocation == hub && t.ArrivalLocation == destination),
-                            "train", "train", $"Qua {hub}");
+            Combine(routes,
+                trains.Where(t => t.DepartureLocation == origin && t.ArrivalLocation == hub),
+                trains.Where(t => t.DepartureLocation == hub && t.ArrivalLocation == destination),
+                "train", "train", $"Qua {hub}");
         }
 
-        // 4. Three-leg routes (Flight → Train → Flight / Train → Flight → Train) via two hubs
         foreach (var mid in Hubs)
         {
             if (mid == origin || mid == destination) continue;
@@ -74,34 +93,47 @@ public class RouteOptimizerService
             {
                 if (hub2 == origin || hub2 == destination || hub2 == mid) continue;
 
-                // Flight → Train → Flight
                 Combine3(routes,
-                    allFlights.Where(f => f.DepartureLocation == origin && f.ArrivalLocation == mid),
-                    allTrains.Where(t => t.DepartureLocation == mid && t.ArrivalLocation == hub2),
-                    allFlights.Where(f => f.DepartureLocation == hub2 && f.ArrivalLocation == destination),
+                    flights.Where(f => f.DepartureLocation == origin && f.ArrivalLocation == mid),
+                    trains.Where(t => t.DepartureLocation == mid && t.ArrivalLocation == hub2),
+                    flights.Where(f => f.DepartureLocation == hub2 && f.ArrivalLocation == destination),
                     "flight", "train", "flight", $"Qua {mid}, {hub2}");
 
-                // Train → Flight → Train
                 Combine3(routes,
-                    allTrains.Where(t => t.DepartureLocation == origin && t.ArrivalLocation == mid),
-                    allFlights.Where(f => f.DepartureLocation == mid && f.ArrivalLocation == hub2),
-                    allTrains.Where(t => t.DepartureLocation == hub2 && t.ArrivalLocation == destination),
+                    trains.Where(t => t.DepartureLocation == origin && t.ArrivalLocation == mid),
+                    flights.Where(f => f.DepartureLocation == mid && f.ArrivalLocation == hub2),
+                    trains.Where(t => t.DepartureLocation == hub2 && t.ArrivalLocation == destination),
                     "train", "flight", "train", $"Qua {mid}, {hub2}");
             }
         }
 
-        // Remove duplicates (same segments, same total price)
         routes = routes.DistinctBy(r => string.Join("|", r.Segments.Select(s => $"{s.Type}:{s.Code}:{s.DepartureTime}"))).ToList();
 
-        // Sort by preference
         routes = preference switch
         {
             "cheapest" => [.. routes.OrderBy(r => r.TotalPrice)],
             "fastest" => [.. routes.OrderBy(r => r.TotalDuration)],
+            "fewest_stops" => [.. routes.OrderBy(r => r.Segments.Count).ThenBy(r => r.TotalPrice)],
+            "earliest_arrival" => [.. routes.OrderBy(r => r.Segments.Last().ArrivalTime)],
             _ => [.. routes.OrderBy(r => r.TotalPrice * 0.5m + (decimal)r.TotalDuration.TotalMinutes * 0.5m)]
         };
 
-        return routes.Take(10).ToList();
+        var result = routes.Take(10).ToList();
+        _cache.Set(cacheKey, result, CacheTtl);
+        return result;
+    }
+
+    private static bool IsValidTransfer(DateTime arrival, DateTime departure, out TimeSpan waitTime)
+    {
+        waitTime = departure - arrival;
+        return waitTime >= MinTransfer && waitTime <= MaxTransfer;
+    }
+
+    private static int TransferScore(TimeSpan wait)
+    {
+        if (wait >= IdealTransferMin && wait <= IdealTransferMax) return 0;
+        if (wait >= MinTransfer && wait <= MaxTransfer) return 1;
+        return 2;
     }
 
     private void Combine(List<OptimizedRoute> routes,
@@ -112,30 +144,30 @@ public class RouteOptimizerService
         {
             foreach (var t in secondTrains)
             {
-                if (f.ArrivalTime.AddHours(1) <= t.DepartureTime)
+                if (!IsValidTransfer(f.ArrivalTime, t.DepartureTime, out var wait)) continue;
+                routes.Add(new OptimizedRoute
                 {
-                    routes.Add(new OptimizedRoute
-                    {
-                        Label = label,
-                        TotalPrice = f.Price + t.Price,
-                        TotalDuration = t.ArrivalTime - f.DepartureTime,
-                        Segments =
-                        [
-                            new RouteSegment
-                            {
-                                Type = type1, Code = f.AirlineCode, Name = f.AirlineName,
-                                DepartureLocation = f.DepartureLocation, ArrivalLocation = f.ArrivalLocation,
-                                DepartureTime = f.DepartureTime, ArrivalTime = f.ArrivalTime, Price = f.Price
-                            },
-                            new RouteSegment
-                            {
-                                Type = type2, Code = t.TrainCode, Name = t.TrainName,
-                                DepartureLocation = t.DepartureLocation, ArrivalLocation = t.ArrivalLocation,
-                                DepartureTime = t.DepartureTime, ArrivalTime = t.ArrivalTime, Price = t.Price
-                            }
-                        ]
-                    });
-                }
+                    Label = label,
+                    TotalPrice = f.Price + t.Price,
+                    TotalDuration = t.ArrivalTime - f.DepartureTime,
+                    TransferWait = wait,
+                    TransferScore = TransferScore(wait),
+                    Segments =
+                    [
+                        new RouteSegment
+                        {
+                            Type = type1, Code = f.AirlineCode, Name = f.AirlineName,
+                            DepartureLocation = f.DepartureLocation, ArrivalLocation = f.ArrivalLocation,
+                            DepartureTime = f.DepartureTime, ArrivalTime = f.ArrivalTime, Price = f.Price, Id = f.Id
+                        },
+                        new RouteSegment
+                        {
+                            Type = type2, Code = t.TrainCode, Name = t.TrainName,
+                            DepartureLocation = t.DepartureLocation, ArrivalLocation = t.ArrivalLocation,
+                            DepartureTime = t.DepartureTime, ArrivalTime = t.ArrivalTime, Price = t.Price, Id = t.Id
+                        }
+                    ]
+                });
             }
         }
     }
@@ -148,30 +180,30 @@ public class RouteOptimizerService
         {
             foreach (var f in secondFlights)
             {
-                if (t.ArrivalTime.AddHours(1) <= f.DepartureTime)
+                if (!IsValidTransfer(t.ArrivalTime, f.DepartureTime, out var wait)) continue;
+                routes.Add(new OptimizedRoute
                 {
-                    routes.Add(new OptimizedRoute
-                    {
-                        Label = label,
-                        TotalPrice = t.Price + f.Price,
-                        TotalDuration = f.ArrivalTime - t.DepartureTime,
-                        Segments =
-                        [
-                            new RouteSegment
-                            {
-                                Type = type1, Code = t.TrainCode, Name = t.TrainName,
-                                DepartureLocation = t.DepartureLocation, ArrivalLocation = t.ArrivalLocation,
-                                DepartureTime = t.DepartureTime, ArrivalTime = t.ArrivalTime, Price = t.Price
-                            },
-                            new RouteSegment
-                            {
-                                Type = type2, Code = f.AirlineCode, Name = f.AirlineName,
-                                DepartureLocation = f.DepartureLocation, ArrivalLocation = f.ArrivalLocation,
-                                DepartureTime = f.DepartureTime, ArrivalTime = f.ArrivalTime, Price = f.Price
-                            }
-                        ]
-                    });
-                }
+                    Label = label,
+                    TotalPrice = t.Price + f.Price,
+                    TotalDuration = f.ArrivalTime - t.DepartureTime,
+                    TransferWait = wait,
+                    TransferScore = TransferScore(wait),
+                    Segments =
+                    [
+                        new RouteSegment
+                        {
+                            Type = type1, Code = t.TrainCode, Name = t.TrainName,
+                            DepartureLocation = t.DepartureLocation, ArrivalLocation = t.ArrivalLocation,
+                            DepartureTime = t.DepartureTime, ArrivalTime = t.ArrivalTime, Price = t.Price, Id = t.Id
+                        },
+                        new RouteSegment
+                        {
+                            Type = type2, Code = f.AirlineCode, Name = f.AirlineName,
+                            DepartureLocation = f.DepartureLocation, ArrivalLocation = f.ArrivalLocation,
+                            DepartureTime = f.DepartureTime, ArrivalTime = f.ArrivalTime, Price = f.Price, Id = f.Id
+                        }
+                    ]
+                });
             }
         }
     }
@@ -184,30 +216,30 @@ public class RouteOptimizerService
         {
             foreach (var f2 in secondF)
             {
-                if (f1.ArrivalTime.AddHours(1) <= f2.DepartureTime)
+                if (!IsValidTransfer(f1.ArrivalTime, f2.DepartureTime, out var wait)) continue;
+                routes.Add(new OptimizedRoute
                 {
-                    routes.Add(new OptimizedRoute
-                    {
-                        Label = label,
-                        TotalPrice = f1.Price + f2.Price,
-                        TotalDuration = f2.ArrivalTime - f1.DepartureTime,
-                        Segments =
-                        [
-                            new RouteSegment
-                            {
-                                Type = type1, Code = f1.AirlineCode, Name = f1.AirlineName,
-                                DepartureLocation = f1.DepartureLocation, ArrivalLocation = f1.ArrivalLocation,
-                                DepartureTime = f1.DepartureTime, ArrivalTime = f1.ArrivalTime, Price = f1.Price
-                            },
-                            new RouteSegment
-                            {
-                                Type = type2, Code = f2.AirlineCode, Name = f2.AirlineName,
-                                DepartureLocation = f2.DepartureLocation, ArrivalLocation = f2.ArrivalLocation,
-                                DepartureTime = f2.DepartureTime, ArrivalTime = f2.ArrivalTime, Price = f2.Price
-                            }
-                        ]
-                    });
-                }
+                    Label = label,
+                    TotalPrice = f1.Price + f2.Price,
+                    TotalDuration = f2.ArrivalTime - f1.DepartureTime,
+                    TransferWait = wait,
+                    TransferScore = TransferScore(wait),
+                    Segments =
+                    [
+                        new RouteSegment
+                        {
+                            Type = type1, Code = f1.AirlineCode, Name = f1.AirlineName,
+                            DepartureLocation = f1.DepartureLocation, ArrivalLocation = f1.ArrivalLocation,
+                            DepartureTime = f1.DepartureTime, ArrivalTime = f1.ArrivalTime, Price = f1.Price, Id = f1.Id
+                        },
+                        new RouteSegment
+                        {
+                            Type = type2, Code = f2.AirlineCode, Name = f2.AirlineName,
+                            DepartureLocation = f2.DepartureLocation, ArrivalLocation = f2.ArrivalLocation,
+                            DepartureTime = f2.DepartureTime, ArrivalTime = f2.ArrivalTime, Price = f2.Price, Id = f2.Id
+                        }
+                    ]
+                });
             }
         }
     }
@@ -220,30 +252,30 @@ public class RouteOptimizerService
         {
             foreach (var t2 in secondT)
             {
-                if (t1.ArrivalTime.AddHours(1) <= t2.DepartureTime)
+                if (!IsValidTransfer(t1.ArrivalTime, t2.DepartureTime, out var wait)) continue;
+                routes.Add(new OptimizedRoute
                 {
-                    routes.Add(new OptimizedRoute
-                    {
-                        Label = label,
-                        TotalPrice = t1.Price + t2.Price,
-                        TotalDuration = t2.ArrivalTime - t1.DepartureTime,
-                        Segments =
-                        [
-                            new RouteSegment
-                            {
-                                Type = type1, Code = t1.TrainCode, Name = t1.TrainName,
-                                DepartureLocation = t1.DepartureLocation, ArrivalLocation = t1.ArrivalLocation,
-                                DepartureTime = t1.DepartureTime, ArrivalTime = t1.ArrivalTime, Price = t1.Price
-                            },
-                            new RouteSegment
-                            {
-                                Type = type2, Code = t2.TrainCode, Name = t2.TrainName,
-                                DepartureLocation = t2.DepartureLocation, ArrivalLocation = t2.ArrivalLocation,
-                                DepartureTime = t2.DepartureTime, ArrivalTime = t2.ArrivalTime, Price = t2.Price
-                            }
-                        ]
-                    });
-                }
+                    Label = label,
+                    TotalPrice = t1.Price + t2.Price,
+                    TotalDuration = t2.ArrivalTime - t1.DepartureTime,
+                    TransferWait = wait,
+                    TransferScore = TransferScore(wait),
+                    Segments =
+                    [
+                        new RouteSegment
+                        {
+                            Type = type1, Code = t1.TrainCode, Name = t1.TrainName,
+                            DepartureLocation = t1.DepartureLocation, ArrivalLocation = t1.ArrivalLocation,
+                            DepartureTime = t1.DepartureTime, ArrivalTime = t1.ArrivalTime, Price = t1.Price, Id = t1.Id
+                        },
+                        new RouteSegment
+                        {
+                            Type = type2, Code = t2.TrainCode, Name = t2.TrainName,
+                            DepartureLocation = t2.DepartureLocation, ArrivalLocation = t2.ArrivalLocation,
+                            DepartureTime = t2.DepartureTime, ArrivalTime = t2.ArrivalTime, Price = t2.Price, Id = t2.Id
+                        }
+                    ]
+                });
             }
         }
     }
@@ -254,19 +286,21 @@ public class RouteOptimizerService
     {
         foreach (var l1 in leg1)
             foreach (var l2 in leg2)
-                if (l1.ArrivalTime.AddHours(1) <= l2.DepartureTime)
+                if (IsValidTransfer(l1.ArrivalTime, l2.DepartureTime, out var w1))
                     foreach (var l3 in leg3)
-                        if (l2.ArrivalTime.AddHours(1) <= l3.DepartureTime)
+                        if (IsValidTransfer(l2.ArrivalTime, l3.DepartureTime, out var w2))
                             routes.Add(new OptimizedRoute
                             {
                                 Label = label,
                                 TotalPrice = l1.Price + l2.Price + l3.Price,
                                 TotalDuration = l3.ArrivalTime - l1.DepartureTime,
+                                TransferWait = w1 + w2,
+                                TransferScore = TransferScore(w1) + TransferScore(w2),
                                 Segments =
                                 [
-                                    new() { Type = t1, Code = l1.AirlineCode, Name = l1.AirlineName, DepartureLocation = l1.DepartureLocation, ArrivalLocation = l1.ArrivalLocation, DepartureTime = l1.DepartureTime, ArrivalTime = l1.ArrivalTime, Price = l1.Price },
-                                    new() { Type = t2, Code = l2.TrainCode, Name = l2.TrainName, DepartureLocation = l2.DepartureLocation, ArrivalLocation = l2.ArrivalLocation, DepartureTime = l2.DepartureTime, ArrivalTime = l2.ArrivalTime, Price = l2.Price },
-                                    new() { Type = t3, Code = l3.AirlineCode, Name = l3.AirlineName, DepartureLocation = l3.DepartureLocation, ArrivalLocation = l3.ArrivalLocation, DepartureTime = l3.DepartureTime, ArrivalTime = l3.ArrivalTime, Price = l3.Price },
+                                    new() { Type = t1, Code = l1.AirlineCode, Name = l1.AirlineName, DepartureLocation = l1.DepartureLocation, ArrivalLocation = l1.ArrivalLocation, DepartureTime = l1.DepartureTime, ArrivalTime = l1.ArrivalTime, Price = l1.Price, Id = l1.Id },
+                                    new() { Type = t2, Code = l2.TrainCode, Name = l2.TrainName, DepartureLocation = l2.DepartureLocation, ArrivalLocation = l2.ArrivalLocation, DepartureTime = l2.DepartureTime, ArrivalTime = l2.ArrivalTime, Price = l2.Price, Id = l2.Id },
+                                    new() { Type = t3, Code = l3.AirlineCode, Name = l3.AirlineName, DepartureLocation = l3.DepartureLocation, ArrivalLocation = l3.ArrivalLocation, DepartureTime = l3.DepartureTime, ArrivalTime = l3.ArrivalTime, Price = l3.Price, Id = l3.Id },
                                 ]
                             });
     }
@@ -277,19 +311,21 @@ public class RouteOptimizerService
     {
         foreach (var l1 in leg1)
             foreach (var l2 in leg2)
-                if (l1.ArrivalTime.AddHours(1) <= l2.DepartureTime)
+                if (IsValidTransfer(l1.ArrivalTime, l2.DepartureTime, out var w1))
                     foreach (var l3 in leg3)
-                        if (l2.ArrivalTime.AddHours(1) <= l3.DepartureTime)
+                        if (IsValidTransfer(l2.ArrivalTime, l3.DepartureTime, out var w2))
                             routes.Add(new OptimizedRoute
                             {
                                 Label = label,
                                 TotalPrice = l1.Price + l2.Price + l3.Price,
                                 TotalDuration = l3.ArrivalTime - l1.DepartureTime,
+                                TransferWait = w1 + w2,
+                                TransferScore = TransferScore(w1) + TransferScore(w2),
                                 Segments =
                                 [
-                                    new() { Type = t1, Code = l1.TrainCode, Name = l1.TrainName, DepartureLocation = l1.DepartureLocation, ArrivalLocation = l1.ArrivalLocation, DepartureTime = l1.DepartureTime, ArrivalTime = l1.ArrivalTime, Price = l1.Price },
-                                    new() { Type = t2, Code = l2.AirlineCode, Name = l2.AirlineName, DepartureLocation = l2.DepartureLocation, ArrivalLocation = l2.ArrivalLocation, DepartureTime = l2.DepartureTime, ArrivalTime = l2.ArrivalTime, Price = l2.Price },
-                                    new() { Type = t3, Code = l3.TrainCode, Name = l3.TrainName, DepartureLocation = l3.DepartureLocation, ArrivalLocation = l3.ArrivalLocation, DepartureTime = l3.DepartureTime, ArrivalTime = l3.ArrivalTime, Price = l3.Price },
+                                    new() { Type = t1, Code = l1.TrainCode, Name = l1.TrainName, DepartureLocation = l1.DepartureLocation, ArrivalLocation = l1.ArrivalLocation, DepartureTime = l1.DepartureTime, ArrivalTime = l1.ArrivalTime, Price = l1.Price, Id = l1.Id },
+                                    new() { Type = t2, Code = l2.AirlineCode, Name = l2.AirlineName, DepartureLocation = l2.DepartureLocation, ArrivalLocation = l2.ArrivalLocation, DepartureTime = l2.DepartureTime, ArrivalTime = l2.ArrivalTime, Price = l2.Price, Id = l2.Id },
+                                    new() { Type = t3, Code = l3.TrainCode, Name = l3.TrainName, DepartureLocation = l3.DepartureLocation, ArrivalLocation = l3.ArrivalLocation, DepartureTime = l3.DepartureTime, ArrivalTime = l3.ArrivalTime, Price = l3.Price, Id = l3.Id },
                                 ]
                             });
     }
@@ -307,7 +343,7 @@ public class RouteOptimizerService
                 {
                     Type = "flight", Code = f.AirlineCode, Name = f.AirlineName,
                     DepartureLocation = f.DepartureLocation, ArrivalLocation = f.ArrivalLocation,
-                    DepartureTime = f.DepartureTime, ArrivalTime = f.ArrivalTime, Price = f.Price
+                    DepartureTime = f.DepartureTime, ArrivalTime = f.ArrivalTime, Price = f.Price, Id = f.Id
                 }
             ]
         };
@@ -326,7 +362,7 @@ public class RouteOptimizerService
                 {
                     Type = "train", Code = t.TrainCode, Name = t.TrainName,
                     DepartureLocation = t.DepartureLocation, ArrivalLocation = t.ArrivalLocation,
-                    DepartureTime = t.DepartureTime, ArrivalTime = t.ArrivalTime, Price = t.Price
+                    DepartureTime = t.DepartureTime, ArrivalTime = t.ArrivalTime, Price = t.Price, Id = t.Id
                 }
             ]
         };
@@ -339,6 +375,8 @@ public class OptimizedRoute
     public decimal TotalPrice { get; set; }
     public TimeSpan TotalDuration { get; set; }
     public double TotalDurationMinutes => TotalDuration.TotalMinutes;
+    public TimeSpan TransferWait { get; set; }
+    public int TransferScore { get; set; }
     public List<RouteSegment> Segments { get; set; } = new();
 }
 
@@ -352,4 +390,5 @@ public class RouteSegment
     public DateTime DepartureTime { get; set; }
     public DateTime ArrivalTime { get; set; }
     public decimal Price { get; set; }
+    public long Id { get; set; }
 }

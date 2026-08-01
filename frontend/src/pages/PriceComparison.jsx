@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  ArrowLeftRight, Plane, Train, CalendarDays, Trophy, BarChart4, ArrowRight, ArrowLeft,
+  ArrowLeftRight, Plane, Train, Bus, CalendarDays, Trophy, BarChart4, ArrowRight, ArrowLeft,
   TrendingUp, DollarSign, BarChart3, ArrowUp, ArrowDown, Activity, Zap, Award, Sparkles, Search, ChevronDown,
   WifiOff, RefreshCcw, Bell
 } from 'lucide-react'
@@ -9,6 +9,7 @@ import LocationInput from '../components/LocationInput'
 import PriceHeatmap from '../components/PriceHeatmap'
 import CommunityTips from '../components/CommunityTips'
 import CarbonBadge from '../components/CarbonBadge'
+import { useNavigate } from 'react-router-dom'
 import { compareRoutes, getPriceTrends, predictPrice, getCurrentPrices } from '../services/api'
 import { formatCurrencyVnd, formatDurationMs } from '../utils/formatters'
 import usePriceStream from '../hooks/usePriceStream'
@@ -134,16 +135,34 @@ function RecommendationCard({ type, route, price, savings, icon: Icon, livePrice
 }
 
 function CompareSection({
-  label, icon: Icon, accent, flights, trains, outRecommendation, retRecommendation,
-  liveCountdown, highlightedIds,
+  label, icon: Icon, accent, flights, trains, buses, outRecommendation, retRecommendation,
+  liveCountdown, highlightedIds, searchParams,
 }) {
+  const navigate = useNavigate()
   const flightList = flights?.map(f => ({ ...f, type: 'flight', typeLabel: 'Máy bay', code: f.airlineCode })) || []
   const trainList = trains?.map(t => ({ ...t, type: 'train', typeLabel: 'Tàu hỏa', code: t.trainCode })) || []
-  const all = [...flightList, ...trainList]
+  const busList = buses?.map(b => ({ ...b, type: 'bus', typeLabel: 'Xe khách', code: b.busCode })) || []
+  const all = [...flightList, ...trainList, ...busList]
   const cheapest = all.length ? all.reduce((a, b) => a.price < b.price ? a : b) : null
   const cheapestF = flightList.length ? flightList.reduce((a, b) => a.price < b.price ? a : b) : null
   const cheapestT = trainList.length ? trainList.reduce((a, b) => a.price < b.price ? a : b) : null
-  const savings = cheapestF && cheapestT ? Math.abs(cheapestF.price - cheapestT.price) : 0
+  const cheapestB = busList.length ? busList.reduce((a, b) => a.price < b.price ? a : b) : null
+
+  const goToFlight = (f) => {
+    const params = new URLSearchParams({ from: searchParams?.from || f.departureLocation, to: searchParams?.to || f.arrivalLocation, date: searchParams?.date || '', tripType: searchParams?.tripType || 'one-way' })
+    if (searchParams?.returnDate) params.set('returnDate', searchParams.returnDate)
+    navigate(`/flights?${params.toString()}`)
+  }
+  const goToTrain = (t) => {
+    const params = new URLSearchParams({ from: searchParams?.from || t.departureLocation, to: searchParams?.to || t.arrivalLocation, date: searchParams?.date || '', tripType: searchParams?.tripType || 'one-way' })
+    if (searchParams?.returnDate) params.set('returnDate', searchParams.returnDate)
+    navigate(`/trains?${params.toString()}`)
+  }
+  const goToBus = (b) => {
+    const params = new URLSearchParams({ from: searchParams?.from || b.departureLocation, to: searchParams?.to || b.arrivalLocation, date: searchParams?.date || '', tripType: searchParams?.tripType || 'one-way' })
+    if (searchParams?.returnDate) params.set('returnDate', searchParams.returnDate)
+    navigate(`/buses?${params.toString()}`)
+  }
 
   return (
     <div className="mb-6">
@@ -164,32 +183,42 @@ function CompareSection({
             <div>
               <h4 className="font-semibold text-[var(--color-text-primary)] mb-1 text-xs flex items-center gap-2">
                 <BarChart4 className="w-3.5 h-3.5 text-primary-500" />
-                So sánh giá thấp nhất — Máy bay vs Tàu hỏa
+                So sánh giá thấp nhất — Máy bay vs Xe khách vs Tàu hỏa
               </h4>
               {cheapest && (
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
                   <span className="text-xs text-[var(--color-text-secondary)]">
-                    Rẻ nhất: <span className="font-semibold text-[var(--color-text-primary)]">{cheapest.type === 'flight' ? <Plane className="w-3.5 h-3.5 inline" /> : <Train className="w-3.5 h-3.5 inline" />} {cheapest.code}</span>
+                    Rẻ nhất: <span className="font-semibold text-[var(--color-text-primary)]">{cheapest.type === 'flight' ? <Plane className="w-3.5 h-3.5 inline" /> : cheapest.type === 'bus' ? <Bus className="w-3.5 h-3.5 inline" /> : <Train className="w-3.5 h-3.5 inline" />} {cheapest.code}</span>
                     <span className="ml-1 font-bold text-[var(--color-success)]">{formatCurrencyVnd(cheapest.price)}</span>
                   </span>
-                  {savings > 0 && (
-                    <span className="text-xs text-[var(--color-text-secondary)]">
-                      Chênh lệch: <span className="font-bold text-primary-500">{formatCurrencyVnd(savings)}</span>
-                    </span>
-                  )}
+                  {(() => {
+                    const prices = [cheapestF?.price, cheapestT?.price, cheapestB?.price].filter(p => p != null)
+                    if (prices.length >= 2) {
+                      const spread = Math.max(...prices) - Math.min(...prices)
+                      if (spread > 0) {
+                        return (
+                          <span className="text-xs text-[var(--color-text-secondary)]">
+                            Chênh lệch: <span className="font-bold text-primary-500">{formatCurrencyVnd(spread)}</span>
+                          </span>
+                        )
+                      }
+                    }
+                    return null
+                  })()}
                 </div>
               )}
             </div>
 
-            {cheapestF && cheapestT && (
+            {all.length > 0 && (
               <ResponsiveContainer width="100%" height={140}>
                 <BarChart data={[
-                  { name: cheapestF.airlineCode, price: cheapestF.price, fill: 'var(--color-chart-1)', label: 'Máy bay' },
-                  { name: cheapestT.trainCode, price: cheapestT.price, fill: 'var(--color-chart-2)', label: 'Tàu hỏa' },
+                  ...(cheapestF ? [{ name: cheapestF.airlineCode, price: cheapestF.price, fill: 'var(--color-chart-1)', label: 'Máy bay' }] : []),
+                  ...(cheapestB ? [{ name: cheapestB.busCode, price: cheapestB.price, fill: 'var(--color-chart-3)', label: 'Xe khách' }] : []),
+                  ...(cheapestT ? [{ name: cheapestT.trainCode, price: cheapestT.price, fill: 'var(--color-chart-2)', label: 'Tàu hỏa' }] : []),
                 ]} layout="vertical" margin={{ left: 50, right: 40, top: 5, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" horizontal={false} />
                   <XAxis type="number" tick={{ fontSize: 11, fill: 'var(--color-text-tertiary)' }} tickFormatter={(v) => formatCurrencyVnd(v)} />
-                  <YAxis type="category" dataKey="name" tick={{ fontSize: 12, fontWeight: 600, fill: 'var(--color-text-primary)' }} width={50} />
+                  <YAxis type="category" dataKey="name" tick={{ fontSize: 12, fontWeight: 600, fill: 'var(--color-text-primary)' }} width={70} />
                   <Tooltip
                     content={({ active, payload }) => active && payload?.[0] ? (
                       <div className="bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl shadow-lg p-3">
@@ -208,7 +237,7 @@ function CompareSection({
           </div>
         </div>
 
-        <div className="grid md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-[var(--color-border)]">
+        <div className="grid md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-[var(--color-border)]">
           <div>
             <div className="px-5 py-2 flex items-center gap-2 bg-[var(--color-bg)]">
               <Plane className="w-3.5 h-3.5 text-primary-500" />
@@ -219,8 +248,8 @@ function CompareSection({
               {flights?.length > 0 ? flights.map(f => {
                 const isHighlighted = highlightedIds?.has(`flight_${f.id}`)
                 return (
-                  <div key={f.id}
-                    className={`px-5 py-2.5 flex items-center justify-between hover:bg-[var(--color-border)]/20 transition-colors ${
+                  <div key={f.id} onClick={() => goToFlight(f)}
+                    className={`px-5 py-2.5 flex items-center justify-between hover:bg-[var(--color-border)]/20 transition-colors cursor-pointer ${
                       f.price === cheapestF?.price ? 'bg-[var(--color-success)]/5' : ''
                     } ${isHighlighted ? 'animate-pulse bg-emerald-500/5' : ''}`}
                   >
@@ -248,6 +277,43 @@ function CompareSection({
 
           <div>
             <div className="px-5 py-2 flex items-center gap-2 bg-[var(--color-bg)]">
+              <Bus className="w-3.5 h-3.5 text-primary-500" />
+              <span className="text-xs font-medium text-[var(--color-text-secondary)]">Xe khách ({buses?.length || 0})</span>
+              {cheapestB && <span className="text-[10px] font-semibold text-[var(--color-success)] ml-auto">Từ {formatCurrencyVnd(cheapestB.price)}</span>}
+            </div>
+            <div className="max-h-[220px] overflow-y-auto scrollbar-thin">
+              {buses?.length > 0 ? buses.map(b => {
+                const isHighlighted = highlightedIds?.has(`bus_${b.id}`)
+                return (
+                  <div key={b.id} onClick={() => goToBus(b)}
+                    className={`px-5 py-2.5 flex items-center justify-between hover:bg-[var(--color-border)]/20 transition-colors cursor-pointer ${
+                      b.price === cheapestB?.price ? 'bg-[var(--color-success)]/5' : ''
+                    } ${isHighlighted ? 'animate-pulse bg-emerald-500/5' : ''}`}
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <span className="text-xs font-semibold px-2 py-0.5 rounded-lg shrink-0 bg-primary-500/10 text-primary-500">{b.busCode}</span>
+                      <div className="min-w-0">
+                        <span className="text-xs font-medium text-[var(--color-text-primary)] block truncate">
+                          {b.departureLocation} &rarr; {b.arrivalLocation}
+                        </span>
+                        <span className="text-[10px] text-[var(--color-text-tertiary)]">
+                          {new Date(b.departureTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - {new Date(b.arrivalTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                    </div>
+                    <span className={`text-xs font-semibold shrink-0 ${b.price === cheapestB?.price ? 'text-[var(--color-success)]' : 'text-[var(--color-text-primary)]'}`}>
+                      {formatCurrencyVnd(b.price)}
+                    </span>
+                  </div>
+                )
+              }) : (
+                <div className="px-5 py-6 text-center text-sm text-[var(--color-text-tertiary)]">Không có xe khách</div>
+              )}
+            </div>
+          </div>
+
+          <div>
+            <div className="px-5 py-2 flex items-center gap-2 bg-[var(--color-bg)]">
               <Train className="w-3.5 h-3.5 text-primary-500" />
               <span className="text-xs font-medium text-[var(--color-text-secondary)]">Tàu hỏa ({trains?.length || 0})</span>
               {cheapestT && <span className="text-[10px] font-semibold text-[var(--color-success)] ml-auto">Từ {formatCurrencyVnd(cheapestT.price)}</span>}
@@ -256,8 +322,8 @@ function CompareSection({
               {trains?.length > 0 ? trains.map(t => {
                 const isHighlighted = highlightedIds?.has(`train_${t.id}`)
                 return (
-                  <div key={t.id}
-                    className={`px-5 py-2.5 flex items-center justify-between hover:bg-[var(--color-border)]/20 transition-colors ${
+                  <div key={t.id} onClick={() => goToTrain(t)}
+                    className={`px-5 py-2.5 flex items-center justify-between hover:bg-[var(--color-border)]/20 transition-colors cursor-pointer ${
                       t.price === cheapestT?.price ? 'bg-[var(--color-success)]/5' : ''
                     } ${isHighlighted ? 'animate-pulse bg-emerald-500/5' : ''}`}
                   >
@@ -448,6 +514,14 @@ export default function PriceComparison() {
       const match = compareData.returns.trains.reduce((a, b) => a.price < b.price ? a : b)
       if (match) set.add(`train_${match.id}`)
     }
+    if (compareData?.outbound?.buses?.length) {
+      const match = compareData.outbound.buses.reduce((a, b) => a.price < b.price ? a : b)
+      if (match) set.add(`bus_${match.id}`)
+    }
+    if (compareData?.returns?.buses?.length) {
+      const match = compareData.returns.buses.reduce((a, b) => a.price < b.price ? a : b)
+      if (match) set.add(`bus_${match.id}`)
+    }
     return set.size ? set : null
   }, [lastUpdate, compareData])
 
@@ -466,7 +540,7 @@ export default function PriceComparison() {
             </div>
             <div>
               <h1 className="text-xl md:text-2xl font-bold text-[var(--color-text-primary)]">So sánh giá vé</h1>
-              <p className="text-sm text-[var(--color-text-secondary)]">Tổng hợp & so sánh giá vé máy bay, tàu hỏa theo thời gian thực</p>
+              <p className="text-sm text-[var(--color-text-secondary)]">Tổng hợp & so sánh giá vé máy bay, xe khách, tàu hỏa theo thời gian thực</p>
             </div>
           </div>
         </div>
@@ -675,8 +749,10 @@ export default function PriceComparison() {
                           accent="bg-gradient-to-r from-primary-500 to-primary-600"
                           flights={compareData.outbound.flights}
                           trains={compareData.outbound.trains}
+                          buses={compareData.outbound.buses}
                           liveCountdown={realtimeEnabled ? nextTick : null}
                           highlightedIds={highlightedIds}
+                          searchParams={query}
                         />
                         <CompareSection
                           label="Chiều về"
@@ -684,19 +760,23 @@ export default function PriceComparison() {
                           accent="bg-gradient-to-r from-primary-500 to-primary-600"
                           flights={compareData.returns.flights}
                           trains={compareData.returns.trains}
+                          buses={compareData.returns.buses}
                           liveCountdown={realtimeEnabled ? nextTick : null}
                           highlightedIds={highlightedIds}
+                          searchParams={query}
                         />
                       </>
-                    ) : compareData.flights || compareData.trains ? (
+                    ) : compareData.flights || compareData.trains || compareData.buses ? (
                       <CompareSection
                         label="So sánh giá vé"
                         icon={BarChart4}
                         accent="bg-gradient-to-r from-primary-500 to-primary-600"
                         flights={compareData.flights}
                         trains={compareData.trains}
+                        buses={compareData.buses}
                         liveCountdown={realtimeEnabled ? nextTick : null}
                         highlightedIds={highlightedIds}
+                        searchParams={query}
                       />
                     ) : null}
                   </motion.div>
@@ -712,50 +792,46 @@ export default function PriceComparison() {
                       </span>
                     </div>
 
-                    <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
                       {[
-                        { icon: DollarSign, label: 'Giá trung bình', value: formatCurrencyVnd(trendStats?.avg), color: 'text-primary-400', bg: 'bg-primary-500/10' },
-                        { icon: TrendingUp, label: 'Giá thấp nhất', value: formatCurrencyVnd(trendStats?.min), color: 'text-[var(--color-success)]', bg: 'bg-[var(--color-success)]/10' },
-                        { icon: BarChart3, label: 'Giá cao nhất', value: formatCurrencyVnd(trendStats?.max), color: 'text-primary-500', bg: 'bg-primary-500/10' },
-                        { icon: Activity, label: 'Xu hướng', value: trend === 'up' ? `+${change.toFixed(1)}%` : trend === 'down' ? `-${change.toFixed(1)}%` : '--', color: trend === 'up' ? 'text-[var(--color-danger)]' : trend === 'down' ? 'text-[var(--color-success)]' : 'text-[var(--color-text-tertiary)]', bg: trend === 'up' ? 'bg-[var(--color-danger)]/10' : trend === 'down' ? 'bg-[var(--color-success)]/10' : 'bg-[var(--color-border)]/30' },
-                        ...(prediction && prediction.confidence > 0.3 ? [{
-                          icon: Sparkles, label: 'Dự báo 7 ngày', value: prediction.recommendation === 'buy_now' ? 'Nên mua' : prediction.recommendation === 'wait' ? 'Chờ thêm' : 'Ổn định',
-                          color: prediction.recommendation === 'buy_now' ? 'text-emerald-500' : prediction.recommendation === 'wait' ? 'text-amber-500' : 'text-[var(--color-text-tertiary)]',
-                          bg: prediction.recommendation === 'buy_now' ? 'bg-emerald-500/10' : prediction.recommendation === 'wait' ? 'bg-amber-500/10' : 'bg-[var(--color-border)]/30',
-                        }] : []),
-                      ].flat().map((s, i) => {
-                        const Icon = s.icon
-                        return (
-                          <div key={i} className="bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl p-4">
-                            <div className="flex items-center gap-2 mb-2">
-                              <div className={`w-8 h-8 rounded-lg ${s.bg} flex items-center justify-center ${s.color}`}>
-                                <Icon className="w-4 h-4" />
-                              </div>
-                            </div>
-                            <p className="text-xs text-[var(--color-text-tertiary)] mb-0.5">{s.label}</p>
-                            <p className={`text-lg font-bold ${s.color}`}>{s.value}</p>
-                          </div>
-                        )
-                      })}
+                        { label: 'Xu hướng', value: trend === 'up' ? `↑ +${change.toFixed(1)}%` : trend === 'down' ? `↓ -${change.toFixed(1)}%` : `→ ~${change.toFixed(1)}%`, colorClass: trend === 'up' ? 'text-red-400 bg-red-400/10 border-red-400/20' : trend === 'down' ? 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20' : 'text-[var(--color-text-tertiary)] bg-[var(--color-bg)] border-[var(--color-border)]' },
+                        { label: 'Giá thấp nhất', value: formatCurrencyVnd(trendStats?.min), colorClass: 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20' },
+                        { label: 'Giá cao nhất', value: formatCurrencyVnd(trendStats?.max), colorClass: 'text-red-400 bg-red-400/10 border-red-400/20' },
+                        { label: 'Trung bình', value: formatCurrencyVnd(trendStats?.avg), colorClass: 'text-primary-400 bg-primary-500/10 border-primary-500/20' },
+                      ].map((stat, i) => (
+                        <div key={i} className={`rounded-xl p-3 border ${stat.colorClass}`}>
+                          <div className="text-[10px] font-semibold uppercase tracking-wider mb-1 opacity-80">{stat.label}</div>
+                          <div className="text-sm font-black truncate">{stat.value}</div>
+                        </div>
+                      ))}
                     </div>
+
+                    {lastUpdate && trendStats?.avg > 0 && (() => {
+                      const liveDelta = ((lastUpdate.avgPrice - trendStats.avg) / trendStats.avg) * 100
+                      const isGood = liveDelta <= -5
+                      const isBad = liveDelta >= 5
+                      const note = isGood ? `Hôm nay thấp hơn TB ${Math.abs(liveDelta).toFixed(1)}% — giá tốt` : isBad ? `Hôm nay cao hơn TB ${liveDelta.toFixed(1)}% — nên chờ` : 'Giá hôm nay gần bằng trung bình gần đây'
+                      const cls = isGood ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' : isBad ? 'text-amber-400 bg-amber-500/10 border-amber-500/20' : 'text-[var(--color-text-secondary)] bg-[var(--color-bg)] border-[var(--color-border)]'
+                      return (
+                        <div className={`mb-4 px-4 py-3 rounded-xl border text-xs font-semibold ${cls}`}>
+                          {note}
+                        </div>
+                      )
+                    })()}
 
                     <div className="bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-2xl p-5 shadow-sm">
                       <h3 className="font-semibold text-[var(--color-text-primary)] mb-0.5 flex items-center gap-2">
                         <AreaChart className="w-4 h-4" />
                         Biểu đồ xu hướng giá
                       </h3>
-                      <p className="text-xs text-[var(--color-text-tertiary)] mb-4">Dữ liệu {query.days} ngày qua · Cập nhật mỗi 30s</p>
-                      <ResponsiveContainer width="100%" height={350}>
-                        <AreaChart data={chartData} margin={{ top: 10, right: 20, left: 0, bottom: 10 }}>
+                      <p className="text-xs text-[var(--color-text-tertiary)] mb-4">Giá trung bình {query.days} ngày · Cập nhật realtime</p>
+                      <ResponsiveContainer width="100%" height={260}>
+                        <AreaChart data={chartData} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
                           <defs>
-                            <linearGradient id="avgGradient" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="var(--color-chart-1)" stopOpacity={0.15} />
-                                <stop offset="95%" stopColor="var(--color-chart-1)" stopOpacity={0} />
-                              </linearGradient>
-                              <linearGradient id="minGradient" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="var(--color-chart-3)" stopOpacity={0.1} />
-                                <stop offset="95%" stopColor="var(--color-chart-3)" stopOpacity={0} />
-                              </linearGradient>
+                            <linearGradient id="avgGradientTrend" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="var(--color-chart-1)" stopOpacity={0.2} />
+                              <stop offset="95%" stopColor="var(--color-chart-1)" stopOpacity={0} />
+                            </linearGradient>
                           </defs>
                           <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
                           <XAxis
@@ -764,17 +840,12 @@ export default function PriceComparison() {
                           />
                           <YAxis tick={{ fontSize: 11, fill: 'var(--color-text-tertiary)' }} tickFormatter={(v) => formatCurrencyVnd(v)} />
                           <Tooltip content={<TrendTooltip />} />
-                          <Legend
-                            formatter={(value) => {
-                              const names = { avgPrice: 'Giá trung bình', minPrice: 'Giá thấp nhất', maxPrice: 'Giá cao nhất', predictedPrice: 'Dự báo' }
-                              return <span className="text-sm text-[var(--color-text-secondary)]">{names[value] || value}</span>
-                            }}
-                          />
-                          <Area type="monotone" dataKey="maxPrice" stroke="var(--color-chart-2)" strokeWidth={1} fill="url(#avgGradient)" dot={false} />
-                          <Area type="monotone" dataKey="minPrice" stroke="var(--color-chart-3)" strokeWidth={1} fill="url(#minGradient)" dot={false} />
-                          <Line type="monotone" dataKey="avgPrice" stroke="var(--color-chart-1)" strokeWidth={2.5} dot={{ r: 3, fill: 'var(--color-chart-1)' }} activeDot={{ r: 5 }} />
+                          <Line type="monotone" dataKey="avgPrice" stroke="var(--color-chart-1)" strokeWidth={2.5}
+                            dot={{ r: 3, fill: 'var(--color-chart-1)' }} activeDot={{ r: 5 }}
+                            fill="url(#avgGradientTrend)" />
                           {prediction && (
-                            <Line type="monotone" dataKey="predictedPrice" stroke="var(--color-chart-2)" strokeWidth={2} strokeDasharray="6 3" dot={{ r: 3, fill: 'var(--color-chart-2)' }} name="Dự báo" />
+                            <Line type="monotone" dataKey="predictedPrice" stroke="var(--color-chart-2)" strokeWidth={2}
+                              strokeDasharray="6 3" dot={{ r: 3, fill: 'var(--color-chart-2)' }} name="Dự báo" />
                           )}
                           {lastUpdate && (() => {
                             const todayStr = new Date(lastUpdate.timestamp).toISOString().substring(0, 10)
@@ -782,20 +853,15 @@ export default function PriceComparison() {
                             if (!row) return null
                             return (
                               <Line
-                                type="monotone"
-                                dataKey="avgPrice"
-                                stroke="transparent"
-                                strokeWidth={0}
+                                type="monotone" dataKey="avgPrice" stroke="transparent" strokeWidth={0}
                                 dot={{ r: 6, fill: '#22c55e', stroke: '#fff', strokeWidth: 2 }}
                                 activeDot={{ r: 8, fill: '#22c55e' }}
-                                data={[row]}
-                                name="Realtime"
-                              />
+                                data={[row]} name="Realtime" />
                             )
                           })()}
                         </AreaChart>
                       </ResponsiveContainer>
-                      <p className="text-[11px] text-[var(--color-text-tertiary)] mt-2">Chấm xanh lá = điểm cập nhật real-time gần nhất</p>
+                      <p className="text-[11px] text-[var(--color-text-tertiary)] mt-2">Chấm xanh lá = cập nhật realtime gần nhất</p>
                     </div>
 
                     <div className="bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-2xl overflow-hidden shadow-sm mt-6">
@@ -807,7 +873,8 @@ export default function PriceComparison() {
                         <span className="text-[11px] text-[var(--color-text-tertiary)]">{trendData.length} ngày</span>
                       </div>
                       <div className="overflow-x-auto max-h-[300px] overflow-y-auto scrollbar-thin">
-                        <table className="w-full text-sm">
+                        {/* Desktop table */}
+                        <table className="hidden sm:table w-full text-sm">
                           <thead className="bg-[var(--color-bg)] sticky top-0">
                             <tr>
                               <th className="px-4 py-2.5 text-left text-xs font-semibold text-[var(--color-text-tertiary)] uppercase">Ngày</th>
@@ -842,6 +909,29 @@ export default function PriceComparison() {
                             })}
                           </tbody>
                         </table>
+                        {/* Mobile cards */}
+                        <div className="sm:hidden space-y-2">
+                          {[...trendData].reverse().map((d, i) => {
+                            const prev = i < trendData.length - 1 ? trendData[trendData.length - 2 - i] : null
+                            const change = prev ? ((d.avgPrice - prev.avgPrice) / prev.avgPrice * 100) : 0
+                            const changeColor = change > 0 ? 'text-[var(--color-danger)]' : change < 0 ? 'text-[var(--color-success)]' : 'text-[var(--color-text-tertiary)]'
+                            return (
+                              <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-[var(--color-bg)] border border-[var(--color-border)]">
+                                <div className="flex flex-col gap-0.5 min-w-0">
+                                  <span className="text-xs font-semibold text-[var(--color-text-primary)]">{d.date}</span>
+                                  <div className="flex items-center gap-2 text-[11px]">
+                                    <span className="text-[var(--color-success)]">{formatCurrencyVnd(d.minPrice)}</span>
+                                    <span className="text-primary-400">~{formatCurrencyVnd(d.avgPrice)}</span>
+                                    <span className="text-primary-400">{formatCurrencyVnd(d.maxPrice)}</span>
+                                  </div>
+                                </div>
+                                <span className={`shrink-0 text-xs font-semibold flex items-center gap-0.5 ${changeColor}`}>
+                                  {change !== 0 ? <>{change > 0 ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />}{Math.abs(change).toFixed(1)}%</> : '—'}
+                                </span>
+                              </div>
+                            )
+                          })}
+                        </div>
                       </div>
                     </div>
                   </motion.div>

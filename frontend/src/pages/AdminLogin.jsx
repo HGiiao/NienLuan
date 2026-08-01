@@ -29,7 +29,8 @@ export default function AdminLogin() {
         setLoading(false)
         return
       }
-      localStorage.setItem('user', JSON.stringify({ ...data, loginMethod: 'backend' }))
+      localStorage.removeItem('user')
+      sessionStorage.setItem('user', JSON.stringify({ ...data, loginMethod: 'backend' }))
       const redirect = searchParams.get('redirect') || '/admin'
       window.location.href = redirect
     } catch (err) {

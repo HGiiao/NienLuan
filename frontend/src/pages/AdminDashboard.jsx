@@ -61,12 +61,13 @@ function AdminShell() {
   }, [])
 
   const storedUser = (() => {
-    try { return JSON.parse(localStorage.getItem('user')) } catch { return null }
+    try { return JSON.parse(sessionStorage.getItem('user')) } catch { return null }
   })()
 
   const handleLogout = () => {
-    localStorage.removeItem('user')
-    localStorage.removeItem('loginMethod')
+    sessionStorage.removeItem('user')
+    sessionStorage.removeItem('loginMethod')
+    sessionStorage.removeItem('ve247-auth')
     navigate('/admin/login')
   }
 

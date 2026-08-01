@@ -1,14 +1,29 @@
 import { useMemo } from 'react'
 import { motion } from 'framer-motion'
-import { Clock, TrendingDown, Zap, AlertTriangle, BarChart4, Activity, Sparkles, Bell, BellOff, Star } from 'lucide-react'
+import { Clock, TrendingDown, Zap, AlertTriangle, BarChart4, Activity, Sparkles, Bell, BellOff, Star, Crown, Gem } from 'lucide-react'
 import { formatCurrencyVnd, formatDurationMs } from '../utils/formatters'
 
 const airlineConfig = {
-  VN: { name: 'Vietnam Airlines', badge: 'bg-primary-500/10 text-primary-500 border-primary-500/20', dot: 'bg-primary-500', line: 'bg-primary-500/20' },
-  VJ: { name: 'VietJet Air', badge: 'bg-primary-500/10 text-primary-500 border-primary-500/20', dot: 'bg-primary-500', line: 'bg-primary-500/20' },
-  QH: { name: 'Bamboo Airways', badge: 'bg-primary-500/10 text-primary-500 border-primary-500/20', dot: 'bg-primary-500', line: 'bg-primary-500/20' },
-  BL: { name: 'Pacific Airlines', badge: 'bg-primary-500/10 text-primary-500 border-primary-500/20', dot: 'bg-primary-500', line: 'bg-primary-500/20' },
-  VU: { name: 'Vietravel Airlines', badge: 'bg-primary-500/10 text-primary-500 border-primary-500/20', dot: 'bg-primary-500', line: 'bg-primary-500/20' },
+  VN: { name: 'Vietnam Airlines' },
+  VJ: { name: 'VietJet Air' },
+  QH: { name: 'Bamboo Airways' },
+  BL: { name: 'Pacific Airlines' },
+  VU: { name: 'Vietravel Airlines' },
+}
+
+const seatClassConfig = {
+  Business: { label: 'Business', icon: Crown, barH: 'h-1.5',
+    bar: 'bg-accent-500', text: 'text-accent-500', badge: 'bg-accent-500/15 text-accent-500 border-accent-500/30',
+    gradient: 'from-accent-500 to-accent-600', dot: 'bg-accent-500', line: 'bg-accent-500/30' },
+  'Premium Economy': { label: 'Premium Eco', icon: Gem, barH: 'h-1',
+    bar: 'bg-accent-500', text: 'text-accent-500', badge: 'bg-accent-500/10 text-accent-500 border-accent-500/20',
+    gradient: 'from-accent-500 to-accent-600', dot: 'bg-accent-500', line: 'bg-accent-500/30' },
+  Economy: { label: 'Economy', icon: null, barH: 'h-0.5',
+    bar: 'bg-accent-500', text: 'text-accent-500', badge: 'bg-transparent text-accent-500 border-accent-500/20',
+    gradient: 'from-accent-500 to-accent-600', dot: 'bg-accent-500', line: 'bg-accent-500/30' },
+  PremiumEconomy: { label: 'Premium Eco', icon: Gem, barH: 'h-1',
+    bar: 'bg-accent-500', text: 'text-accent-500', badge: 'bg-accent-500/10 text-accent-500 border-accent-500/20',
+    gradient: 'from-accent-500 to-accent-600', dot: 'bg-accent-500', line: 'bg-accent-500/30' },
 }
 
 const cityNames = {
@@ -18,10 +33,9 @@ const cityNames = {
   UIH: 'Quy Nhơn', QNG: 'Quảng Ngãi',
 }
 
-function AirlineLogo({ code }) {
-  const colors = ['from-primary-500 to-primary-700', 'from-primary-400 to-primary-600', 'from-primary-600 to-primary-800', 'from-primary-500 to-primary-700', 'from-primary-400 to-primary-600', 'from-primary-600 to-primary-800']
+function AirlineLogo({ code, gradient }) {
   return (
-    <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${colors[code.charCodeAt(0) % colors.length]} flex items-center justify-center shadow-sm shrink-0`}>
+    <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${gradient} flex items-center justify-center shadow-sm shrink-0`}>
       <span className="text-white text-sm font-black tracking-tight">{code}</span>
     </div>
   )
@@ -30,8 +44,9 @@ function AirlineLogo({ code }) {
 function formatDuration(dep, arr) { return formatDurationMs(new Date(arr) - new Date(dep)) }
 function fmtTime(d) { return new Date(d).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }
 
-export default function FlightCard({ flight, onBook, onWatch, badge, index = 0, prediction, rating, watched = false }) {
+export default function FlightCard({ flight, onBook, onWatch, onDetail, badge, index = 0, prediction, rating, watched = false }) {
   const cfg = airlineConfig[flight.airlineCode] || airlineConfig.VN
+  const seatCfg = seatClassConfig[flight.seatClass] || seatClassConfig.Economy
   const showBadge = badge || (index === 0 ? 'Rẻ nhất' : null)
   const flightNumber = `${flight.airlineCode}${(flight.id % 900) + 100}`
   const cityFrom = cityNames[flight.departureLocation] || flight.departureLocation
@@ -49,24 +64,26 @@ export default function FlightCard({ flight, onBook, onWatch, badge, index = 0, 
 
   return (
     <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0, transition: { duration: 0.35, delay: index * 0.04 } }} whileHover={{ y: -2 }}
-      className="group bg-[var(--color-bg-card)] rounded-2xl border border-[var(--color-border)] shadow-sm hover:shadow-lg hover:border-[var(--color-border-hover)] transition-all duration-300"
+      className="group bg-[var(--color-bg-card)] rounded-2xl border border-[var(--color-border)] shadow-sm hover:shadow-lg hover:border-[var(--color-border-hover)] transition-all duration-300 overflow-hidden"
     >
       <div className="relative p-5 flex flex-col gap-4">
-        {/* Desktop — Clean Compact Card */}
+        {/* Desktop */}
         <div className="hidden md:flex flex-col gap-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <AirlineLogo code={flight.airlineCode} />
+              <AirlineLogo code={flight.airlineCode} gradient={seatCfg.gradient} />
               <div>
-                <div className="text-sm font-bold text-[var(--color-text-primary)] leading-tight">{cfg.name}</div>
+                <div className="flex items-center gap-2">
+                  <div className="text-sm font-bold text-[var(--color-text-primary)] leading-tight">{cfg.name}</div>
+                  <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border ${seatCfg.badge}`}>
+                    {seatCfg.icon && <seatCfg.icon className="w-3 h-3" />}{seatCfg.label}
+                  </span>
+                </div>
                 <div className="text-[11px] text-[var(--color-text-tertiary)] font-medium">{flightNumber}</div>
-              </div>
-              <div className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full border ${cfg.badge}`}>
-                <Clock className="w-3 h-3" />Phổ thông
               </div>
             </div>
             <div className="text-right">
-              <div className="text-[26px] font-black text-primary-500 leading-none tracking-tight">{formatCurrencyVnd(flight.price)}</div>
+              <div className={`text-[26px] font-black ${seatCfg.text} leading-none tracking-tight`}>{formatCurrencyVnd(flight.price)}</div>
               <div className="text-[11px] text-[var(--color-text-tertiary)] font-medium">Đã bao gồm thuế</div>
             </div>
           </div>
@@ -80,21 +97,21 @@ export default function FlightCard({ flight, onBook, onWatch, badge, index = 0, 
             <div className="flex-1 flex flex-col items-center px-2">
               <div className="text-[11px] font-medium text-[var(--color-text-tertiary)] mb-2">{formatDuration(flight.departureTime, flight.arrivalTime)}</div>
               <div className="w-full flex items-center gap-1">
-                <div className={`w-2.5 h-2.5 rounded-full ${cfg.dot} shrink-0 ring-2 ring-[var(--color-bg-card)]`} />
+                <div className={`w-2.5 h-2.5 rounded-full ${seatCfg.dot} shrink-0 ring-2 ring-[var(--color-bg-card)]`} />
                 <div className="flex-1 h-[2px] relative">
-                  <div className={`absolute inset-0 ${cfg.line} rounded-full`} />
+                  <div className={`absolute inset-0 ${seatCfg.line} rounded-full`} />
                   <motion.div initial={{ scaleX: 0 }} animate={{ scaleX: 1 }} transition={{ duration: 0.6, delay: 0.2, ease: 'easeOut' }}
-                    className={`absolute inset-y-0 left-0 w-1/2 ${cfg.dot} rounded-full origin-left`} />
+                    className={`absolute inset-y-0 left-0 w-1/2 ${seatCfg.bar} rounded-full origin-left`} />
                   <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
-                    <div className={`w-5 h-5 rounded-full flex items-center justify-center ${cfg.badge} shadow-sm border`}>
+                    <div className={`w-5 h-5 rounded-full flex items-center justify-center ${seatCfg.badge} shadow-sm`}>
                       <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
                     </div>
                   </div>
                 </div>
-                <div className={`w-2.5 h-2.5 rounded-full ${cfg.dot} shrink-0 ring-2 ring-[var(--color-bg-card)]`} />
+                <div className={`w-2.5 h-2.5 rounded-full ${seatCfg.dot} shrink-0 ring-2 ring-[var(--color-bg-card)]`} />
               </div>
               <div className="flex items-center gap-1.5 mt-2">
-                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary-500 bg-primary-500/10 px-2 py-0.5 rounded-full border border-primary-500/20">
+                <span className={`inline-flex items-center gap-1 text-[11px] font-semibold ${seatCfg.badge}`}>
                   <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
                   Bay thẳng
                 </span>
@@ -117,9 +134,7 @@ export default function FlightCard({ flight, onBook, onWatch, badge, index = 0, 
                 {trend === 'down' ? '↓' : trend === 'up' ? '↑' : '→'}{Math.abs(vsAverage).toFixed(0)}% TB
               </span>
               {showBadge && (
-                <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${
-                  showBadge === 'Rẻ nhất' ? 'bg-primary-500/10 text-primary-500 border-primary-500/20' : 'bg-primary-500/10 text-primary-500 border-primary-500/20'
-                }`}>
+                <span className={`inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${seatCfg.badge}`}>
                   {showBadge === 'Rẻ nhất' ? <TrendingDown className="w-3 h-3" /> : <Zap className="w-3 h-3" />}{showBadge}
                 </span>
               )}
@@ -151,66 +166,113 @@ export default function FlightCard({ flight, onBook, onWatch, badge, index = 0, 
               )}
             </div>
             <div className="flex items-center gap-2 shrink-0 ml-auto">
+              <span className="text-[10px] text-[var(--color-text-tertiary)] flex items-center gap-1">
+                <Clock className="w-3 h-3" />{new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+              </span>
               {onWatch && (
                 <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
-                  onClick={() => onWatch?.(flight)}
-                  className={`shrink-0 whitespace-nowrap py-2.5 px-3 rounded-xl text-xs font-bold transition-all ${watched ? 'bg-accent-500/10 text-accent-500 border border-accent-500/30' : 'border border-primary-500/30 text-primary-500 hover:bg-primary-500/5'}`}
+                  onClick={e => { e.stopPropagation(); onWatch?.(flight) }}
+                  className={`shrink-0 whitespace-nowrap py-2.5 px-3 rounded-xl text-xs font-bold transition-all ${watched ? 'bg-accent-500/10 text-accent-500 border border-accent-500/30' : 'border border-accent-500/30 text-accent-500 hover:bg-accent-500/5'}`}
                 >
                   {watched ? <BellOff className="w-3.5 h-3.5 inline mr-1" /> : <Bell className="w-3.5 h-3.5 inline mr-1" />}
                   {watched ? 'Đang theo dõi' : 'Theo dõi giá'}
                 </motion.button>
               )}
               <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
-                onClick={() => onBook?.(flight)}
-                className="bg-gradient-to-r from-primary-500 to-primary-600 text-white py-2.5 px-5 rounded-xl text-sm font-bold hover:shadow-lg hover:shadow-primary-500/20 transition-all shadow-md active:shadow-sm"
+                onClick={e => { e.stopPropagation(); onDetail?.(flight) }}
+                className="shrink-0 whitespace-nowrap py-2.5 px-3 rounded-xl text-xs font-bold transition-all border border-accent-500/30 text-accent-500 hover:bg-accent-500/5"
+              >Xem chi tiết</motion.button>
+              <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
+                onClick={e => { e.stopPropagation(); onBook?.(flight) }}
+                className={`bg-gradient-to-r ${seatCfg.gradient} text-white py-2.5 px-5 rounded-xl text-sm font-bold hover:shadow-lg transition-all shadow-md active:shadow-sm`}
               >Đặt vé</motion.button>
             </div>
           </div>
         </div>
 
         {/* Mobile */}
-        <div className="md:hidden p-4 flex flex-col gap-3">
+        <div className="md:hidden flex flex-col gap-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
-              <AirlineLogo code={flight.airlineCode} />
-              <div><div className="text-sm font-bold text-[var(--color-text-primary)]">{cfg.name}</div><div className="text-[11px] text-[var(--color-text-tertiary)]">{flightNumber}</div></div>
+              <AirlineLogo code={flight.airlineCode} gradient={seatCfg.gradient} />
+              <div>
+                <div className="flex items-center gap-1.5">
+                  <div className="text-sm font-bold text-[var(--color-text-primary)]">{cfg.name}</div>
+                  <span className={`inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${seatCfg.badge}`}>
+                    {seatCfg.icon && <seatCfg.icon className="w-2.5 h-2.5" />}{seatCfg.label}
+                  </span>
+                </div>
+                <div className="text-[11px] text-[var(--color-text-tertiary)]">{flightNumber}</div>
+              </div>
             </div>
-            <div className="text-right"><div className="text-xl font-black text-primary-500">{formatCurrencyVnd(flight.price)}</div><div className="text-[10px] text-[var(--color-text-tertiary)]">Đã bao gồm thuế</div></div>
+            <div className="text-right">
+              <div className={`text-xl font-black ${seatCfg.text}`}>{formatCurrencyVnd(flight.price)}</div>
+              <div className="text-[10px] text-[var(--color-text-tertiary)]">Đã bao gồm thuế</div>
+            </div>
           </div>
+
           <div className="flex items-center gap-2 py-1">
-            <div className="flex-1"><div className="text-lg font-bold text-[var(--color-text-primary)]">{fmtTime(flight.departureTime)}</div><div className="text-xs font-semibold text-[var(--color-text-secondary)]">{flight.departureLocation}</div></div>
+            <div className="flex-1">
+              <div className="text-lg font-bold text-[var(--color-text-primary)]">{fmtTime(flight.departureTime)}</div>
+              <div className="text-xs font-semibold text-[var(--color-text-secondary)]">{flight.departureLocation}</div>
+            </div>
             <div className="flex flex-col items-center px-1">
               <div className="text-[10px] text-[var(--color-text-tertiary)] font-medium whitespace-nowrap">{formatDuration(flight.departureTime, flight.arrivalTime)}</div>
               <div className="flex items-center gap-1 w-full">
-                <div className={`w-2 h-2 rounded-full ${cfg.dot}`} />
-                <div className={`flex-1 h-[2px] ${cfg.line}`}><div className={`h-full w-1/2 ${cfg.dot} rounded-full`} /></div>
-                <div className={`w-2 h-2 rounded-full ${cfg.dot}`} />
+                <div className={`w-2 h-2 rounded-full ${seatCfg.dot}`} />
+                <div className={`flex-1 h-[2px] ${seatCfg.line}`}>
+                  <div className={`h-full w-1/2 ${seatCfg.bar} rounded-full`} />
+                </div>
+                <div className={`w-2 h-2 rounded-full ${seatCfg.dot}`} />
               </div>
-              <span className="text-[10px] font-semibold text-primary-500 mt-0.5">Bay thẳng</span>
+              <span className={`text-[10px] font-semibold ${seatCfg.text} mt-0.5`}>Bay thẳng</span>
             </div>
-            <div className="flex-1 text-right"><div className="text-lg font-bold text-[var(--color-text-primary)]">{fmtTime(flight.arrivalTime)}</div><div className="text-xs font-semibold text-[var(--color-text-secondary)]">{flight.arrivalLocation}</div></div>
+            <div className="flex-1 text-right">
+              <div className="text-lg font-bold text-[var(--color-text-primary)]">{fmtTime(flight.arrivalTime)}</div>
+              <div className="text-xs font-semibold text-[var(--color-text-secondary)]">{flight.arrivalLocation}</div>
+            </div>
           </div>
-          <div className="flex items-center gap-2 pt-1">
+
+          <div className="flex items-center gap-2 pt-1 border-t border-[var(--color-border)]">
             <div className="flex flex-wrap items-center gap-1.5">
               {pred?.recommendation === 'buy_now' && (
-                <span className="text-[10px] font-bold text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20"><Sparkles className="w-3 h-3 inline mr-0.5" />Nên mua ngay</span>
+                <span className="text-[10px] font-bold text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                  <Sparkles className="w-3 h-3 inline mr-0.5" />Nên mua ngay
+                </span>
               )}
               {pred?.recommendation === 'wait' && (
-                <span className="text-[10px] font-bold text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20"><Clock className="w-3 h-3 inline mr-0.5" />Chờ thêm</span>
+                <span className="text-[10px] font-bold text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">
+                  <Clock className="w-3 h-3 inline mr-0.5" />Chờ thêm
+                </span>
               )}
-              {showBadge && <span className="text-[10px] font-bold text-primary-500 bg-primary-500/10 px-2 py-0.5 rounded-full border border-primary-500/20">{showBadge === 'Rẻ nhất' ? '↓' : '⚡'} {showBadge}</span>}
-              {isLowStock ? <span className="text-[10px] font-semibold text-[var(--color-danger)] bg-[var(--color-danger)]/10 px-2 py-0.5 rounded-full">Sắp hết vé</span> : <span className="text-[11px] text-[var(--color-text-tertiary)]">{seatsLeft} chỗ</span>}
+              {showBadge && (
+                <span className={`text-[10px] font-bold ${seatCfg.badge} px-2 py-0.5 rounded-full`}>
+                  {showBadge === 'Rẻ nhất' ? '↓' : '⚡'} {showBadge}
+                </span>
+              )}
+              {isLowStock ? (
+                <span className="text-[10px] font-semibold text-[var(--color-danger)] bg-[var(--color-danger)]/10 px-2 py-0.5 rounded-full">Sắp hết vé</span>
+              ) : (
+                <span className="text-[11px] text-[var(--color-text-tertiary)]">{seatsLeft} chỗ</span>
+              )}
             </div>
             <div className="ml-auto flex items-center gap-1.5">
               {onWatch && (
-                <button onClick={() => onWatch?.(flight)} className={`px-3 py-2 rounded-xl text-xs font-bold transition-all ${watched ? 'bg-accent-500/10 text-accent-500 border border-accent-500/30' : 'border border-primary-500/30 text-primary-500 hover:bg-primary-500/5'}`}>{watched ? <BellOff className="w-3.5 h-3.5" /> : <Bell className="w-3.5 h-3.5" />}</button>
+                <button onClick={e => { e.stopPropagation(); onWatch?.(flight) }}
+                  className={`px-3 py-2 rounded-xl text-xs font-bold transition-all ${watched ? 'bg-accent-500/10 text-accent-500 border border-accent-500/30' : 'border border-accent-500/30 text-accent-500 hover:bg-accent-500/5'}`}
+                >{watched ? <BellOff className="w-3.5 h-3.5" /> : <Bell className="w-3.5 h-3.5" />}</button>
               )}
-              <button onClick={() => onBook?.(flight)} className="bg-gradient-to-r from-primary-500 to-primary-600 text-white px-5 py-2 rounded-xl text-sm font-bold shadow-md active:scale-[0.97]">Đặt vé</button>
+              <button onClick={e => { e.stopPropagation(); onDetail?.(flight) }}
+                className="px-3 py-2 rounded-xl text-xs font-bold border border-accent-500/30 text-accent-500 hover:bg-accent-500/5 transition-all"
+              >Chi tiết</button>
+              <button onClick={e => { e.stopPropagation(); onBook?.(flight) }}
+                className={`bg-gradient-to-r ${seatCfg.gradient} text-white px-5 py-2 rounded-xl text-sm font-bold shadow-md active:scale-[0.97]`}
+              >Đặt vé</button>
             </div>
           </div>
+
           <div className="flex items-center justify-between text-[11px] text-[var(--color-text-tertiary)] pt-1 border-t border-[var(--color-border)]">
             <div className="flex items-center gap-2">
-              <Clock className="w-3 h-3" /><span>Phổ thông</span>
               {pred && pred.confidence > 0.3 && (
                 <span className={`flex items-center gap-0.5 ${pred.recommendation === 'buy_now' ? 'text-emerald-500' : 'text-amber-500'}`}>
                   <Sparkles className="w-3 h-3" />
@@ -220,6 +282,9 @@ export default function FlightCard({ flight, onBook, onWatch, badge, index = 0, 
             </div>
             <span className={trend === 'down' ? 'text-[var(--color-success)]' : trend === 'up' ? 'text-[var(--color-danger)]' : ''}>
               {trend === 'down' ? '↓' : trend === 'up' ? '↑' : '→'} {Math.abs(vsAverage).toFixed(0)}% so với TB
+            </span>
+            <span className="flex items-center gap-1">
+              <Clock className="w-3 h-3" />{new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
             </span>
           </div>
         </div>

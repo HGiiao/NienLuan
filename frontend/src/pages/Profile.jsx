@@ -3,13 +3,13 @@ import { useNavigate, Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
   Mail, Phone, CalendarDays, ShieldCheck, Ticket,
-  LogOut, Plane, Star, Bell, Clock,
-  Search, TrendingUp, Pencil, X, Check, Loader, Shield,
+  LogOut, Star, Bell, Clock,
+  Search, TrendingUp, Pencil, X, Check, Loader, Shield, Wallet,
 } from 'lucide-react'
-import { getProfile, updateProfile, getPriceAlerts, deletePriceAlert } from '../services/api'
+import { getProfile, updateProfile, getPriceAlerts, deletePriceAlert, getBookings, getReviewSummary } from '../services/api'
 import { formatCurrencyVnd } from '../utils/formatters'
 import { useUser } from '@clerk/clerk-react'
-import { Card, StatCard, SkeletonCard, ErrorState, Badge, Button } from '../ui'
+import { Card, SkeletonCard, ErrorState, Badge, Button } from '../ui'
 
 const container = {
   initial: { opacity: 0 },
@@ -34,14 +34,6 @@ function Route(props) {
   )
 }
 
-function Train(props) {
-  return (
-    <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="4" y="3" width="16" height="16" rx="2" /><path d="M4 11h16" /><path d="M8 19l-2 3" /><path d="M16 19l2 3" /><circle cx="9" cy="15" r="1" /><circle cx="15" cy="15" r="1" />
-    </svg>
-  )
-}
-
 export default function Profile() {
   const navigate = useNavigate()
   const { isSignedIn, user: clerkUser } = useUser()
@@ -54,8 +46,11 @@ export default function Profile() {
   const [editForm, setEditForm] = useState({ fullName: '', phone: '' })
   const [alerts, setAlerts] = useState([])
   const [alertsLoading, setAlertsLoading] = useState(false)
+  const [bookingCount, setBookingCount] = useState(0)
+  const [totalSpent, setTotalSpent] = useState(0)
+  const [reviewCount, setReviewCount] = useState(0)
 
-  const stored = (() => { try { return JSON.parse(localStorage.getItem('user')) } catch { return null } })()
+  const stored = (() => { try { return JSON.parse(sessionStorage.getItem('user')) } catch { return null } })()
 
   useEffect(() => {
     if (!stored && !isSignedIn) { navigate('/auth'); return }
@@ -64,7 +59,7 @@ export default function Profile() {
       try {
         let email = ''
         if (isSignedIn && clerkUser) email = clerkUser.primaryEmailAddress?.emailAddress || ''
-        else if (stored) { const u = JSON.parse(localStorage.getItem('user')); email = u.email || '' }
+        else if (stored) { const u = JSON.parse(sessionStorage.getItem('user')); email = u.email || '' }
         if (!email) { setLoading(false); return }
         const res = await getProfile(email)
         setProfile(res.data)
@@ -75,7 +70,7 @@ export default function Profile() {
     load()
 
     const loadAlerts = async () => {
-      const u = (() => { try { return JSON.parse(localStorage.getItem('user')) } catch { return null } })()
+      const u = (() => { try { return JSON.parse(sessionStorage.getItem('user')) } catch { return null } })()
       const email = u?.email || clerkUser?.primaryEmailAddress?.emailAddress
       if (!email) return
       setAlertsLoading(true)
@@ -85,6 +80,23 @@ export default function Profile() {
       } catch {} finally { setAlertsLoading(false) }
     }
     loadAlerts()
+
+    const loadStats = async (email) => {
+      try {
+        const [bookRes, reviewRes] = await Promise.all([
+          getBookings({ email }),
+          getReviewSummary({ email }).catch(() => null),
+        ])
+        const allBookings = bookRes.data
+        setBookingCount(allBookings.total || 0)
+        setTotalSpent((allBookings.items || []).reduce((sum, b) => sum + (b.totalPrice || 0), 0))
+        if (reviewRes?.data?.totalReviews != null) setReviewCount(reviewRes.data.totalReviews)
+      } catch {}
+    }
+
+    const u = (() => { try { return JSON.parse(sessionStorage.getItem('user')) } catch { return null } })()
+    const email = clerkUser?.primaryEmailAddress?.emailAddress || u?.email
+    if (email) loadStats(email)
   }, [navigate, isSignedIn, clerkUser])
 
   const data = {
@@ -124,7 +136,7 @@ export default function Profile() {
       setProfile(res.data)
       if (stored) {
         const updated = { ...stored, fullName: editForm.fullName.trim(), phone: editForm.phone.trim() }
-        localStorage.setItem('user', JSON.stringify(updated))
+        sessionStorage.setItem('user', JSON.stringify(updated))
       }
       setEditing(false)
       setSuccessMsg('Cập nhật thông tin thành công')
@@ -135,10 +147,10 @@ export default function Profile() {
   }
 
   const stats = [
-    { icon: Ticket, label: 'Đặt chỗ', value: '—', color: 'text-primary-500', bg: 'bg-primary-500/10' },
-    { icon: Plane, label: 'Chuyến bay', value: '—', color: 'text-primary-400', bg: 'bg-primary-500/10' },
-    { icon: Train, label: 'Tàu hỏa', value: '—', color: 'text-primary-400', bg: 'bg-primary-500/10' },
-    { icon: Star, label: 'Đánh giá', value: '—', color: 'text-primary-400', bg: 'bg-primary-500/10' },
+    { icon: Ticket, label: 'Đặt chỗ', value: bookingCount, suffix: 'vé', iconBg: 'bg-primary-500/10', iconColor: 'text-primary-500' },
+    { icon: Wallet, label: 'Tổng chi', value: formatCurrencyVnd(totalSpent), suffix: '', iconBg: 'bg-emerald-500/10', iconColor: 'text-emerald-500' },
+    { icon: Bell, label: 'Cảnh báo giá', value: alerts.length, suffix: 'cảnh báo', iconBg: 'bg-amber-500/10', iconColor: 'text-amber-500' },
+    { icon: Star, label: 'Đánh giá', value: reviewCount, suffix: 'đánh giá', iconBg: 'bg-violet-500/10', iconColor: 'text-violet-500' },
   ]
 
   const infoCards = [
@@ -156,21 +168,14 @@ export default function Profile() {
     ...(stored?.role === 'Admin' ? [{ icon: Shield, label: 'Quản trị', to: '/admin', desc: 'Dashboard quản lý hệ thống', gradient: 'from-primary-500 to-primary-600' }] : []),
   ]
 
-  const handleLogout = () => { localStorage.removeItem('user'); navigate('/auth') }
+  const handleLogout = () => { sessionStorage.removeItem('user'); sessionStorage.removeItem('ve247-auth'); navigate('/auth') }
 
   if (loading) {
     return (
-      <section className="max-w-7xl mx-auto px-4 py-6 md:py-8">
+      <section className="max-w-7xl mx-auto px-4 py-8">
         <div className="animate-pulse space-y-6">
-          <div className="h-48 bg-[var(--color-border)] rounded-3xl" />
-          <div className="flex items-center gap-5 px-6 -mt-14 relative z-10">
-            <div className="w-24 h-24 rounded-2xl bg-[var(--color-border)] ring-4 ring-white" />
-            <div className="space-y-2 flex-1"><div className="h-6 bg-[var(--color-border)] rounded-lg w-48" /><div className="h-4 bg-[var(--color-border)] rounded-lg w-32" /></div>
-          </div>
-          <SkeletonCard lines={2} />
-          <div className="grid grid-cols-2 gap-4">
-            {[1, 2, 3, 4].map(i => <SkeletonCard key={i} lines={1} />)}
-          </div>
+          <div className="h-40 bg-[var(--color-border)] rounded-2xl" />
+          <div className="grid grid-cols-2 gap-4">{[1,2,3,4].map(i => <SkeletonCard key={i} lines={1} />)}</div>
         </div>
       </section>
     )
@@ -178,135 +183,108 @@ export default function Profile() {
 
   if (error) {
     return (
-      <section className="max-w-7xl mx-auto px-4 py-6 md:py-8">
-        <ErrorState
-          title="Không thể tải thông tin"
-          desc={error}
-          action="Về trang chủ"
-          onAction={() => navigate('/')}
-        />
+      <section className="max-w-7xl mx-auto px-4 py-8">
+        <ErrorState title="Không thể tải thông tin" desc={error} action="Về trang chủ" onAction={() => navigate('/')} />
       </section>
     )
   }
 
   return (
-    <section className="max-w-7xl mx-auto px-4 py-6 md:py-8">
-      <motion.div variants={container} initial="initial" animate="animate">
-        <motion.div variants={item} className="relative bg-gradient-to-br from-primary-600 via-primary-700 to-primary-800 rounded-3xl overflow-hidden shadow-xl">
-          <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4wNCI+PGNpcmNsZSBjeD0iMzAiIGN5PSIzMCIgcj0iMiIvPjwvZz48L2c+PC9zdmc+')]" />
-          <div className="absolute top-0 right-0 w-72 h-72 bg-primary-500/10 rounded-full blur-[100px]" />
-          <div className="absolute bottom-0 left-0 w-64 h-64 bg-white/5 rounded-full blur-[80px]" />
+    <section className="max-w-7xl mx-auto px-4 py-8">
+      <motion.div variants={container} initial="initial" animate="animate" className="space-y-6">
 
-          <div className="relative p-6 md:p-10 pb-28 md:pb-32">
-            <div className="max-w-6xl mx-auto">
-            <div className="flex items-start justify-between">
-              <div>
-                <Badge variant="primary" size="sm" icon={ShieldCheck} className="mb-4">
-                  {data.verified ? 'Đã xác thực' : 'Chưa xác thực'}
-                </Badge>
-                {editing ? (
-                  <input
-                    value={editForm.fullName}
-                    onChange={e => setEditForm(p => ({ ...p, fullName: e.target.value }))}
-                    className="text-3xl md:text-4xl font-bold text-white bg-white/10 border border-white/20 rounded-xl px-3 py-1.5 w-full max-w-md outline-none focus:ring-2 focus:ring-primary-500 mb-1"
-                    placeholder="Họ và tên"
-                  />
-                ) : (
-                  <h1 className="text-3xl md:text-4xl font-bold text-white mb-1 tracking-tight flex items-center gap-3">
-                    {data.name}
-                    {stored?.role === 'Admin' && (
-                      <span className="inline-flex items-center gap-1 text-xs font-semibold bg-primary-500/20 text-primary-200 px-2.5 py-1 rounded-full border border-primary-500/30">
-                        <Shield className="w-3 h-3" />
-                        Admin
-                      </span>
-                    )}
-                  </h1>
-                )}
-                <p className="text-white/60 text-sm flex items-center gap-1.5">
-                  <Mail className="w-3.5 h-3.5" />
-                  {data.email}
-                </p>
-              </div>
-              <div className="hidden md:flex items-center gap-2">
-                <span className="flex items-center gap-1.5 text-xs text-white/60 bg-white/10 px-3 py-2 rounded-xl backdrop-blur-sm">
-                  <CalendarDays className="w-3.5 h-3.5" />
-                  {data.joined}
-                </span>
-                {editing ? (
-                  <div className="flex items-center gap-1.5">
-                    <button onClick={handleSave} disabled={saving}
-                      className="flex items-center gap-1 bg-[var(--color-success)] text-white px-3 py-2 rounded-xl text-xs font-semibold hover:brightness-110 transition-all disabled:opacity-60">
-                      {saving ? <Loader className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-                      Lưu
+        <motion.div variants={item}
+          className="bg-gradient-to-br from-primary-600 via-primary-700 to-primary-800 rounded-2xl p-6 md:p-8 shadow-xl"
+        >
+          <div className="flex items-start gap-5">
+            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary-300 to-primary-500 flex items-center justify-center shadow-lg shrink-0 ring-4 ring-white/20">
+              <span className="text-2xl font-bold text-white drop-shadow">{initials}</span>
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <Badge variant="primary" size="sm" icon={ShieldCheck} className="mb-2">
+                    {data.verified ? 'Đã xác thực' : 'Chưa xác thực'}
+                  </Badge>
+                  {editing ? (
+                    <input value={editForm.fullName}
+                      onChange={e => setEditForm(p => ({ ...p, fullName: e.target.value }))}
+                      className="text-2xl md:text-3xl font-bold text-white bg-white/10 border border-white/20 rounded-xl px-3 py-1.5 w-full max-w-sm outline-none focus:ring-2 focus:ring-primary-500 mb-1"
+                      placeholder="Họ và tên"
+                    />
+                  ) : (
+                    <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight flex items-center gap-3">
+                      {data.name}
+                      {stored?.role === 'Admin' && (
+                        <span className="inline-flex items-center gap-1 text-xs font-semibold bg-primary-500/20 text-primary-200 px-2.5 py-1 rounded-full border border-primary-500/30">
+                          <Shield className="w-3 h-3" />Admin
+                        </span>
+                      )}
+                    </h1>
+                  )}
+                  <p className="text-white/60 text-sm flex items-center gap-1.5 mt-1">
+                    <Mail className="w-3.5 h-3.5" />{data.email}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  {editing ? (
+                    <>
+                      <button onClick={handleSave} disabled={saving}
+                        className="flex items-center gap-1 bg-[var(--color-success)] text-white px-3 py-2 rounded-xl text-xs font-semibold hover:brightness-110 transition-all disabled:opacity-60">
+                        {saving ? <Loader className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}Lưu
+                      </button>
+                      <button onClick={cancelEditing} disabled={saving}
+                        className="flex items-center gap-1 bg-white/10 text-white px-3 py-2 rounded-xl text-xs font-semibold hover:bg-white/20 transition-all">
+                        <X className="w-3.5 h-3.5" />Hủy
+                      </button>
+                    </>
+                  ) : (
+                    <button onClick={startEditing}
+                      className="flex items-center gap-1.5 text-xs text-white/60 bg-white/10 px-3 py-2 rounded-xl backdrop-blur-sm hover:bg-white/20 hover:text-white transition-all">
+                      <Pencil className="w-3.5 h-3.5" />Chỉnh sửa
                     </button>
-                    <button onClick={cancelEditing} disabled={saving}
-                      className="flex items-center gap-1 bg-white/10 text-white px-3 py-2 rounded-xl text-xs font-semibold hover:bg-white/20 transition-all">
-                      <X className="w-3.5 h-3.5" />
-                      Hủy
-                    </button>
-                  </div>
-                ) : (
-                  <button onClick={startEditing}
-                    className="flex items-center gap-1.5 text-xs text-white/60 bg-white/10 px-3 py-2 rounded-xl backdrop-blur-sm hover:bg-white/20 hover:text-white transition-all">
-                    <Pencil className="w-3.5 h-3.5" />
-                    Chỉnh sửa
-                  </button>
-                )}
+                  )}
+                </div>
               </div>
-            </div>
-            </div>
-          </div>
-
-          <div className="absolute bottom-0 left-0 right-0 pb-6 md:pb-8">
-            <div className="max-w-6xl mx-auto px-6 md:px-0">
-            <div className="flex items-end gap-6">
-              <div className="-mt-20 w-24 h-24 rounded-2xl bg-gradient-to-br from-primary-300 to-primary-500 flex items-center justify-center ring-4 ring-white shadow-2xl">
-                <span className="text-3xl font-bold text-white drop-shadow">{initials}</span>
+              <div className="flex items-center gap-4 mt-3 text-white/50 text-xs">
+                <span className="flex items-center gap-1.5"><CalendarDays className="w-3.5 h-3.5" />Tham gia {data.joined}</span>
+                {data.phone && <span className="flex items-center gap-1.5"><Phone className="w-3.5 h-3.5" />{data.phone}</span>}
               </div>
-              <div className="flex-1 min-w-0 pb-1">
-                <p className="text-white/50 text-xs font-medium uppercase tracking-wider mb-0.5">Thành viên</p>
-                <p className="text-white font-semibold">{data.email}</p>
-              </div>
-            </div>
             </div>
           </div>
         </motion.div>
 
         {successMsg && (
           <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
-            className="mt-4 flex items-center gap-2 text-sm text-[var(--color-success)] bg-[var(--color-success)]/10 px-4 py-3 rounded-xl border border-[var(--color-success)]/20">
-            <Check className="w-4 h-4" />
-            {successMsg}
+            className="flex items-center gap-2 text-sm text-[var(--color-success)] bg-[var(--color-success)]/10 px-4 py-3 rounded-xl border border-[var(--color-success)]/20">
+            <Check className="w-4 h-4" />{successMsg}
           </motion.div>
         )}
 
         {error && (
           <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
-            className="mt-4 flex items-center gap-2 text-sm text-[var(--color-danger)] bg-[var(--color-danger)]/10 px-4 py-3 rounded-xl">
-            <X className="w-4 h-4" />
-            {error}
+            className="flex items-center gap-2 text-sm text-[var(--color-danger)] bg-[var(--color-danger)]/10 px-4 py-3 rounded-xl">
+            <X className="w-4 h-4" />{error}
           </motion.div>
         )}
 
-        <motion.div variants={item} className="max-w-6xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 -mt-6 relative z-10">
-          {stats.map((s, i) => (
-            <StatCard key={i} icon={s.icon} label={s.label} value={s.value} color={s.color} bg={s.bg} delay={i * 0.06} />
-          ))}
+        <motion.div variants={item} className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {stats.map((s, i) => {
+            const Icon = s.icon
+            return (
+              <div key={i} className="bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-2xl p-4">
+                <div className={`w-10 h-10 rounded-xl ${s.iconBg} flex items-center justify-center ${s.iconColor} mb-3`}>
+                  <Icon className="w-5 h-5" />
+                </div>
+                <p className="text-2xl font-bold text-[var(--color-text-primary)] tracking-tight">{s.value}</p>
+                <p className="text-xs text-[var(--color-text-tertiary)] mt-0.5">{s.label}{s.suffix ? ` (${s.suffix})` : ''}</p>
+              </div>
+            )
+          })}
         </motion.div>
 
-        <motion.div variants={item} className="max-w-6xl mx-auto mt-6 md:mt-8">
-          <div className="flex items-center justify-between mb-3 md:mb-4 px-1">
-            <h2 className="text-sm font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wider">
-              Thông tin cá nhân
-            </h2>
-            {!editing && (
-              <button onClick={startEditing}
-                className="flex items-center gap-1 text-xs font-semibold text-primary-500 hover:text-primary-600 transition-colors md:hidden">
-                <Pencil className="w-3.5 h-3.5" />
-                Chỉnh sửa
-              </button>
-            )}
-          </div>
+        <motion.div variants={item}>
+          <h2 className="text-sm font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wider mb-3">Thông tin cá nhân</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {infoCards.map((c, i) => (
               <Card key={i} variant="hover" padding="md">
@@ -317,8 +295,7 @@ export default function Profile() {
                   <div className="min-w-0 flex-1">
                     <p className="text-xs text-[var(--color-text-tertiary)] font-medium mb-0.5">{c.label}</p>
                     {editing && c.edit ? (
-                      <input
-                        value={editForm.phone}
+                      <input value={editForm.phone}
                         onChange={e => setEditForm(p => ({ ...p, phone: e.target.value }))}
                         className="w-full text-sm font-semibold text-[var(--color-text-primary)] bg-[var(--color-surface-50)] border border-[var(--color-border)] rounded-lg px-2.5 py-1.5 outline-none focus:ring-2 focus:ring-primary-500"
                         placeholder="Nhập số điện thoại"
@@ -335,22 +312,18 @@ export default function Profile() {
             <div className="flex items-center gap-2 mt-4 md:hidden">
               <button onClick={handleSave} disabled={saving}
                 className="flex-1 flex items-center justify-center gap-2 bg-primary-500 text-white py-3 rounded-xl text-sm font-semibold hover:bg-primary-600 transition-all disabled:opacity-60">
-                {saving ? <Loader className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                Lưu thay đổi
+                {saving ? <Loader className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}Lưu thay đổi
               </button>
               <button onClick={cancelEditing} disabled={saving}
                 className="flex items-center justify-center gap-2 border border-[var(--color-border)] text-[var(--color-text-secondary)] px-5 py-3 rounded-xl text-sm font-semibold hover:bg-[var(--color-border)]/30 transition-all">
-                <X className="w-4 h-4" />
-                Hủy
+                <X className="w-4 h-4" />Hủy
               </button>
             </div>
           )}
         </motion.div>
 
-        <motion.div variants={item} className="max-w-6xl mx-auto mt-6 md:mt-8">
-          <h2 className="text-sm font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wider mb-3 md:mb-4 px-1">
-            Tiện ích nhanh
-          </h2>
+        <motion.div variants={item}>
+          <h2 className="text-sm font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wider mb-3">Tiện ích nhanh</h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {actions.map((a, i) => {
               const Icon = a.icon
@@ -370,8 +343,8 @@ export default function Profile() {
         </motion.div>
 
         {alerts.length > 0 && (
-          <motion.div variants={item} className="max-w-6xl mx-auto mt-6 md:mt-8">
-            <h2 className="text-sm font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wider mb-3 md:mb-4 px-1">
+          <motion.div variants={item}>
+            <h2 className="text-sm font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wider mb-3">
               <Bell className="w-4 h-4 inline mr-1.5 text-accent-500" />
               Đang theo dõi ({alerts.length})
             </h2>
@@ -384,21 +357,15 @@ export default function Profile() {
                         <Bell className="w-5 h-5" />
                       </div>
                       <div>
-                        <p className="text-sm font-semibold text-[var(--color-text-primary)]">
-                          {a.routeFrom} → {a.routeTo}
-                        </p>
+                        <p className="text-sm font-semibold text-[var(--color-text-primary)]">{a.routeFrom} → {a.routeTo}</p>
                         <p className="text-xs text-[var(--color-text-tertiary)]">
                           Mục tiêu: <span className="font-bold text-accent-500">{formatCurrencyVnd(a.targetPrice)}</span>
                           {a.currentPrice != null && <> · Hiện tại: {formatCurrencyVnd(a.currentPrice)}</>}
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <button onClick={() => deletePriceAlert(a.id).then(() => setAlerts(as => as.filter(x => x.id !== a.id)))}
-                        className="text-xs text-[var(--color-danger)] hover:underline">
-                        Hủy
-                      </button>
-                    </div>
+                    <button onClick={() => deletePriceAlert(a.id).then(() => setAlerts(as => as.filter(x => x.id !== a.id)))}
+                      className="text-xs text-[var(--color-danger)] hover:underline shrink-0">Hủy</button>
                   </div>
                 </Card>
               ))}
@@ -407,10 +374,8 @@ export default function Profile() {
         )}
 
         {!isSignedIn && (
-          <motion.div variants={item} className="max-w-6xl mx-auto mt-6">
-            <Button variant="danger" className="w-full justify-center" onClick={handleLogout} icon={LogOut}>
-              Đăng xuất
-            </Button>
+          <motion.div variants={item}>
+            <Button variant="danger" className="w-full justify-center" onClick={handleLogout} icon={LogOut}>Đăng xuất</Button>
           </motion.div>
         )}
       </motion.div>

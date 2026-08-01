@@ -7,7 +7,7 @@ import { getBooking } from '../services/api'
 import { formatCurrencyVnd } from '../utils/formatters'
 
 function getStoredUser() {
-  try { return JSON.parse(localStorage.getItem('user')) } catch { return null }
+  try { return JSON.parse(sessionStorage.getItem('user')) } catch { return null }
 }
 
 const statusConfig = {
@@ -21,7 +21,8 @@ export default function BookingConfirmation() {
   const navigate = useNavigate()
   const { isSignedIn } = useUser()
   const localUser = getStoredUser()
-  const isAuth = isSignedIn || !!localUser
+  const tabAuth = sessionStorage.getItem('ve247-auth')
+  const isAuth = (isSignedIn && tabAuth) || (!!localUser && localUser?.loginMethod !== 'clerk')
   const [booking, setBooking] = useState(null)
   const [loading, setLoading] = useState(true)
 

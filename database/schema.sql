@@ -9,6 +9,7 @@ CREATE TABLE Flights (
     ArrivalTime DATETIME2 NOT NULL,
     Price DECIMAL(18,2) NOT NULL,
     Seats INT NOT NULL,
+    SeatClass NVARCHAR(50) NOT NULL DEFAULT 'Economy',
     FlightDate DATE NOT NULL,
     RoundTripGroupId BIGINT NULL,
     CreatedAt DATETIME2 DEFAULT GETUTCDATE()

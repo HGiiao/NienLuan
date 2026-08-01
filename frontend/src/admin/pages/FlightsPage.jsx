@@ -1,10 +1,10 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { motion } from 'framer-motion'
-import { Plane, Plus, Edit3, Trash2 } from 'lucide-react'
+import { Plane, Plus, Edit3, Trash2, Upload, Download } from 'lucide-react'
 import DataTable from '../DataTable'
 import ModalForm from '../ModalForm'
 import { useAdmin } from '../AdminContext'
-import { getAdminFlights, createAdminFlight, updateAdminFlight, deleteAdminFlight } from '../../services/api'
+import { getAdminFlights, createAdminFlight, updateAdminFlight, deleteAdminFlight, importAdminFlights, exportAdminFlights } from '../../services/api'
 
 const columns = [
   { key: 'id', label: 'ID', render: v => <span className="text-xs font-mono text-[var(--color-text-tertiary)]">#{v.id}</span> },
@@ -42,6 +42,8 @@ export default function FlightsPage() {
   const [airlineFilter, setAirlineFilter] = useState('')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
+  const fileInputRef = useRef(null)
+  const [importing, setImporting] = useState(false)
 
   const fetchData = useCallback(() => {
     setLoading(true)
@@ -116,10 +118,39 @@ export default function FlightsPage() {
           <h2 className="text-lg font-bold text-[var(--color-text-primary)]">Quản lý chuyến bay</h2>
           <p className="text-sm text-[var(--color-text-tertiary)] mt-0.5">{total.toLocaleString('vi-VN')} chuyến bay</p>
         </div>
-        <button onClick={openCreate} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white bg-primary-500 hover:bg-primary-600 transition-all shadow-sm">
-          <Plus className="w-4 h-4" />
-          Thêm chuyến bay
-        </button>
+        <div className="flex items-center gap-2">
+          <input ref={fileInputRef} type="file" accept=".json" className="hidden" onChange={async (e) => {
+            const file = e.target.files?.[0]; if (!file) return
+            setImporting(true)
+            try {
+              const text = await file.text(); const data = JSON.parse(text)
+              const list = Array.isArray(data) ? data : data.items || data.flights || []
+              if (list.length === 0) { toast('File không có dữ liệu', 'error'); return }
+              const res = await importAdminFlights(list)
+              toast(res.data?.message || `Đã nhập ${list.length} chuyến bay`, 'success')
+              fetchData()
+            } catch (err) { toast(err.response?.data?.message || 'Lỗi import file', 'error') }
+            finally { setImporting(false); e.target.value = '' }
+          }} />
+          <button disabled={importing} onClick={() => fileInputRef.current?.click()} className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-semibold text-[var(--color-text-secondary)] border border-[var(--color-border)] hover:bg-[var(--color-border)]/30 transition-all disabled:opacity-50">
+            <Upload className="w-4 h-4" />{importing ? 'Đang nhập...' : 'Import'}
+          </button>
+          <button onClick={async () => {
+            try {
+              const res = await exportAdminFlights({})
+              const url = URL.createObjectURL(new Blob([res.data]))
+              const a = document.createElement('a'); a.href = url; a.download = `flights_${new Date().toISOString().split('T')[0]}.csv`
+              a.click(); URL.revokeObjectURL(url)
+              toast('Xuất file CSV thành công', 'success')
+            } catch (err) { toast('Lỗi xuất file', 'error') }
+          }} className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-semibold text-[var(--color-text-secondary)] border border-[var(--color-border)] hover:bg-[var(--color-border)]/30 transition-all">
+            <Download className="w-4 h-4" />Export
+          </button>
+          <button onClick={openCreate} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white bg-primary-500 hover:bg-primary-600 transition-all shadow-sm">
+            <Plus className="w-4 h-4" />
+            Thêm chuyến bay
+          </button>
+        </div>
       </div>
 
       <DataTable

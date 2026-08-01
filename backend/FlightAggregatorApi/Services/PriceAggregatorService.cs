@@ -30,4 +30,13 @@ public class PriceAggregatorService
             .OrderBy(t => t.Price)
             .ToListAsync();
     }
+
+    public async Task<List<Bus>> FetchBusPrices(string from, string to, DateOnly date)
+    {
+        return await _db.Buses
+            .AsNoTracking()
+            .Where(b => b.DepartureLocation == from && b.ArrivalLocation == to && b.BusDate == date)
+            .OrderBy(b => b.Price)
+            .ToListAsync();
+    }
 }

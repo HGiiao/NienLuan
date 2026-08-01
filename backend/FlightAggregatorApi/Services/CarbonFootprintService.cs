@@ -4,11 +4,14 @@ public class CarbonFootprintResult
 {
     public double FlightKgCO2 { get; set; }
     public double TrainKgCO2 { get; set; }
+    public double BusKgCO2 { get; set; }
     public string RouteFrom { get; set; } = string.Empty;
     public string RouteTo { get; set; } = string.Empty;
     public double DistanceKm { get; set; }
     public bool TrainIsGreener => TrainKgCO2 < FlightKgCO2;
+    public bool BusIsGreener => BusKgCO2 < FlightKgCO2;
     public double SavedKgCO2 => Math.Round(FlightKgCO2 - TrainKgCO2, 1);
+    public double SavedBusKgCO2 => Math.Round(FlightKgCO2 - BusKgCO2, 1);
     public string Recommendation { get; set; } = string.Empty;
 }
 
@@ -36,24 +39,28 @@ public class CarbonFootprintService
 
     public static double TrainCO2PerKmKg => 0.041;
 
+    public static double BusCO2PerKmKg => 0.068;
+
     public static CarbonFootprintResult Calculate(string from, string to)
     {
         var dist = RouteDistances.GetValueOrDefault((from, to), 500.0);
         var flightCO2 = Math.Round(dist * FlightCO2PerKmKg, 1);
         var trainCO2 = Math.Round(dist * TrainCO2PerKmKg, 1);
+        var busCO2 = Math.Round(dist * BusCO2PerKmKg, 1);
 
         string recommendation;
-        if (trainCO2 < flightCO2 * 0.5)
-            recommendation = $"Tàu hỏa thải ra ít hơn {(flightCO2 - trainCO2):F0}kg CO₂ so với máy bay. Lựa chọn xanh cho môi trường!";
+        if (busCO2 < flightCO2 * 0.5)
+            recommendation = $"Xe khách thải ra ít hơn {(flightCO2 - busCO2):F0}kg CO₂ so với máy bay. Lựa chọn xanh cho môi trường!";
         else if (dist < 300)
-            recommendation = "Tuyến ngắn, tàu hỏa là lựa chọn thân thiện với môi trường nhất.";
+            recommendation = "Tuyến ngắn, xe khách là lựa chọn thân thiện với môi trường nhất.";
         else
-            recommendation = $"Máy bay thải {(flightCO2 / trainCO2):F1}x CO₂ so với tàu hỏa trên tuyến này.";
+            recommendation = $"Máy bay thải {(flightCO2 / busCO2):F1}x CO₂ so với xe khách trên tuyến này.";
 
         return new CarbonFootprintResult
         {
             FlightKgCO2 = flightCO2,
             TrainKgCO2 = trainCO2,
+            BusKgCO2 = busCO2,
             RouteFrom = from,
             RouteTo = to,
             DistanceKm = dist,

@@ -22,6 +22,10 @@ public class Flight
     public DateTime ArrivalTime { get; set; }
     public decimal Price { get; set; }
     public int Seats { get; set; }
+
+    [MaxLength(50)]
+    public string SeatClass { get; set; } = "Economy";
+
     public DateOnly FlightDate { get; set; }
     public long? RoundTripGroupId { get; set; }
     public int ShareCount { get; set; }

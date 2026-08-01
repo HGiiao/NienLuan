@@ -188,10 +188,12 @@ function VietnamMap({ visibleCities, routeActive, tilt }) {
           {FLIGHT_PATHS.map((f, i) => (
             <g key={i}>
               <path d={f.d} fill="none" stroke="#F97316" strokeWidth="3.2" opacity="0" strokeLinecap="round">
-                <animate attributeName="opacity" from="0" to="0.20" dur="0.6s" begin={`${i * 0.2 + 0.2}s`} fill="freeze" />
+                <animate attributeName="opacity" from="0" to="0.24" dur="0.7s" begin={`${i * 0.2 + 0.2}s`} fill="freeze" />
+                <animate attributeName="stroke-opacity" values="0.24;0.10;0.24" dur="4s" begin={`${i * 0.2 + 0.6}s`} repeatCount="indefinite" />
               </path>
-              <path d={f.d} fill="none" stroke="#F97316" strokeWidth="1.7" strokeDasharray="4 4" opacity="0" strokeLinecap="round">
-                <animate attributeName="opacity" from="0" to="0.85" dur="0.6s" begin={`${i * 0.2 + 0.2}s`} fill="freeze" />
+              <path d={f.d} fill="none" stroke="#F97316" strokeWidth="1.7" strokeDasharray="4 5" opacity="0" strokeLinecap="round">
+                <animate attributeName="opacity" from="0" to="0.90" dur="0.7s" begin={`${i * 0.2 + 0.2}s`} fill="freeze" />
+                <animate attributeName="stroke-dashoffset" from="0" to="-18" dur="3s" begin={`${i * 0.2 + 0.4}s`} repeatCount="indefinite" />
               </path>
             </g>
           ))}
@@ -229,10 +231,38 @@ function VietnamMap({ visibleCities, routeActive, tilt }) {
 }
 
 /* ─── AI Card ─── */
+function TypingText({ text, speed = 28, className, style }) {
+  const [displayed, setDisplayed] = useState('')
+  const [done, setDone] = useState(false)
+
+  useEffect(() => {
+    setDisplayed('')
+    setDone(false)
+    if (!text) return
+    let i = 0
+    const interval = setInterval(() => {
+      i += 1
+      setDisplayed(text.slice(0, i))
+      if (i >= text.length) {
+        clearInterval(interval)
+        setDone(true)
+      }
+    }, speed)
+    return () => clearInterval(interval)
+  }, [text, speed])
+
+  return (
+    <span className={className} style={style}>
+      {displayed}
+      {!done && <span className="inline-block w-1.5 h-4 ml-0.5 align-middle bg-orange-500/80 animate-pulse" />}
+    </span>
+  )
+}
+
 function AiCard({ state, isDone }) {
   return (
-    <motion.div className="rounded-2xl backdrop-blur-xl border px-4 py-3 md:px-5 md:py-3.5"
-      style={{ backgroundColor: 'rgba(255,255,255,0.82)', borderColor: 'rgba(249,115,22,0.12)', boxShadow: '0 12px 32px rgba(0,0,0,0.05)', transformStyle: 'preserve-3d' }}
+    <motion.div className="rounded-2xl border px-4 py-3 md:px-5 md:py-3.5"
+      style={{ backgroundColor: 'rgba(255,255,255,0.95)', borderColor: 'rgba(249,115,22,0.12)', boxShadow: '0 12px 32px rgba(0,0,0,0.05)', transformStyle: 'preserve-3d' }}
       initial={{ opacity: 0, y: -10, scale: 0.96 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
@@ -241,11 +271,12 @@ function AiCard({ state, isDone }) {
         <motion.div className="w-5 h-5 rounded-md flex items-center justify-center text-white text-[10px] font-bold shrink-0"
           style={{ background: isDone ? 'linear-gradient(135deg, #16A34A, #22C55E)' : 'linear-gradient(135deg, #F97316, #FB923C)', boxShadow: isDone ? '0 8px 18px rgba(22,163,74,0.22)' : '0 8px 18px rgba(249,115,22,0.22)' }}
           animate={!isDone ? { rotate: [0, 4, -4, 0] } : {}}
-          transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
-        >
+          transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}>
           {isDone ? '✓' : '🧠'}
         </motion.div>
-        <span className="text-xs md:text-sm font-semibold" style={{ color: '#0F172A' }}>{state}</span>
+        <span className="text-xs md:text-sm font-semibold" style={{ color: '#0F172A' }}>
+          <TypingText text={state} speed={26} />
+        </span>
         {!isDone && (
           <motion.span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: '#F97316', boxShadow: '0 0 8px rgba(249,115,22,0.45)' }}
             animate={{ scale: [1, 1.6, 1], opacity: [0.6, 1, 0.6] }} transition={{ duration: 1, repeat: Infinity }} />
@@ -296,16 +327,18 @@ function SuggestionCard({ show, onComplete, tilt }) {
               backgroundColor: 'rgba(255,255,255,0.84)', borderColor: 'rgba(249,115,22,0.12)',
               boxShadow: '0 22px 64px rgba(0,0,0,0.05)', transformStyle: 'preserve-3d',
             }}>
-            <div className="flex items-center gap-2 mb-4">
+            <motion.div className="flex items-center gap-2 mb-4"
+              initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.05 }}>
               <div className="w-6 h-6 rounded-full flex items-center justify-center" style={{ backgroundColor: '#16A34A' }}>
                 <svg className="w-3.5 h-3.5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
                   <path d="M20 6L9 17l-5-5" />
                 </svg>
               </div>
               <span className="text-sm font-semibold" style={{ color: '#0F172A' }}>Gợi ý hôm nay</span>
-            </div>
+            </motion.div>
             <div className="space-y-2.5 mb-4">
-              <div className="flex items-center gap-3 p-3 rounded-2xl"
+              <motion.div className="flex items-center gap-3 p-3 rounded-2xl"
+                initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.45, delay: 0.18 }}
                 style={{ backgroundColor: 'rgba(255,255,255,0.65)', border: '1px solid rgba(249,115,22,0.07)' }}>
                 <span className="text-lg">✈️</span>
                 <div className="flex-1 min-w-0">
@@ -316,8 +349,9 @@ function SuggestionCard({ show, onComplete, tilt }) {
                   <div className="text-[10px] font-medium" style={{ color: '#64748B' }}>07:30</div>
                   <div className="text-xs font-semibold" style={{ color: '#F97316' }}>1.890.000đ</div>
                 </div>
-              </div>
-              <div className="flex items-center gap-3 p-3 rounded-2xl"
+              </motion.div>
+              <motion.div className="flex items-center gap-3 p-3 rounded-2xl"
+                initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.45, delay: 0.32 }}
                 style={{ backgroundColor: 'rgba(255,255,255,0.65)', border: '1px solid rgba(249,115,22,0.07)' }}>
                 <span className="text-lg">🚄</span>
                 <div className="flex-1 min-w-0">
@@ -328,7 +362,7 @@ function SuggestionCard({ show, onComplete, tilt }) {
                   <div className="text-[10px] font-medium" style={{ color: '#64748B' }}>13:15</div>
                   <div className="text-xs font-semibold" style={{ color: '#F97316' }}>250.000đ</div>
                 </div>
-              </div>
+              </motion.div>
             </div>
             <div className="flex items-center justify-between pt-3" style={{ borderTop: '1px solid rgba(249,115,22,0.07)' }}>
               <div className="flex items-center gap-1.5">

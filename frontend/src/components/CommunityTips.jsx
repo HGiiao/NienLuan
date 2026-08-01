@@ -41,7 +41,7 @@ export default function CommunityTips({ from, to }) {
 
   const handleSubmit = async () => {
     if (!form.tip.trim()) return
-    const stored = (() => { try { return JSON.parse(localStorage.getItem('user')) } catch { return null } })()
+    const stored = (() => { try { return JSON.parse(sessionStorage.getItem('user')) } catch { return null } })()
     setSubmitting(true)
     try {
       const res = await createCommunityTip({

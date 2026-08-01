@@ -9,6 +9,7 @@ public class ApplicationDbContext : DbContext
 
     public DbSet<Flight> Flights => Set<Flight>();
     public DbSet<Train> Trains => Set<Train>();
+    public DbSet<Bus> Buses => Set<Bus>();
     public DbSet<PriceHistory> PriceHistories => Set<PriceHistory>();
     public DbSet<User> Users => Set<User>();
     public DbSet<Booking> Bookings => Set<Booking>();
@@ -16,7 +17,6 @@ public class ApplicationDbContext : DbContext
     public DbSet<Review> Reviews => Set<Review>();
     public DbSet<CommunityTip> CommunityTips => Set<CommunityTip>();
     public DbSet<Notification> Notifications => Set<Notification>();
-    public DbSet<Seat> Seats => Set<Seat>();
     public DbSet<InsurancePackage> InsurancePackages => Set<InsurancePackage>();
     public DbSet<BookingInsurance> BookingInsurances => Set<BookingInsurance>();
     public DbSet<CorporateAccount> CorporateAccounts => Set<CorporateAccount>();
@@ -26,6 +26,8 @@ public class ApplicationDbContext : DbContext
     public DbSet<UserSubscription> UserSubscriptions => Set<UserSubscription>();
     public DbSet<Hotel> Hotels => Set<Hotel>();
     public DbSet<HotelBooking> HotelBookings => Set<HotelBooking>();
+    public DbSet<PriceConfig> PriceConfigs => Set<PriceConfig>();
+    public DbSet<PromoCode> PromoCodes => Set<PromoCode>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -38,6 +40,12 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<Train>(entity =>
         {
             entity.HasIndex(e => new { e.DepartureLocation, e.ArrivalLocation, e.TrainDate });
+            entity.HasIndex(e => e.Price);
+        });
+
+        modelBuilder.Entity<Bus>(entity =>
+        {
+            entity.HasIndex(e => new { e.DepartureLocation, e.ArrivalLocation, e.BusDate });
             entity.HasIndex(e => e.Price);
         });
 
@@ -61,6 +69,7 @@ public class ApplicationDbContext : DbContext
             entity.HasOne(e => e.User).WithMany(u => u.Bookings).HasForeignKey(e => e.UserId);
             entity.HasOne(e => e.Flight).WithMany(f => f.Bookings).HasForeignKey(e => e.FlightId).OnDelete(DeleteBehavior.SetNull);
             entity.HasOne(e => e.Train).WithMany(t => t.Bookings).HasForeignKey(e => e.TrainId).OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne(e => e.Bus).WithMany(b => b.Bookings).HasForeignKey(e => e.BusId).OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<Review>(entity =>
@@ -80,12 +89,6 @@ public class ApplicationDbContext : DbContext
         {
             entity.HasIndex(e => e.Email);
             entity.HasIndex(e => new { e.Email, e.IsRead });
-        });
-
-        modelBuilder.Entity<Seat>(entity =>
-        {
-            entity.HasIndex(e => new { e.ReferenceType, e.ReferenceId });
-            entity.HasIndex(e => e.Status);
         });
 
         modelBuilder.Entity<BookingInsurance>(entity =>

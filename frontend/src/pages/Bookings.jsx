@@ -29,7 +29,7 @@ export default function Bookings() {
   const fetchBookings = async () => {
     setLoading(true)
     try {
-      const stored = JSON.parse(localStorage.getItem('user') || '{}')
+      const stored = JSON.parse(sessionStorage.getItem('user') || '{}')
       const searchEmail = email || stored.email || ''
       if (!searchEmail) { setLoading(false); return }
 

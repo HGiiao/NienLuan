@@ -66,7 +66,13 @@ public class PricesController : ControllerBase
             .Select(x => x.Price)
             .ToListAsync();
 
-        var all = flightPrices.Concat(trainPrices).ToList();
+        var busPrices = await _db.Buses
+            .AsNoTracking()
+            .Where(x => x.DepartureLocation == f && x.ArrivalLocation == t)
+            .Select(x => x.Price)
+            .ToListAsync();
+
+        var all = flightPrices.Concat(trainPrices).Concat(busPrices).ToList();
         if (!all.Any())
         {
             _logger.LogInformation("No current prices for {From}->{To}", f, t);
@@ -115,6 +121,12 @@ public class PricesController : ControllerBase
                 .OrderBy(tx => tx.Price)
                 .ToListAsync();
 
+            var outboundBuses = await _db.Buses
+                .AsNoTracking()
+                .Where(bx => bx.DepartureLocation == f && bx.ArrivalLocation == t && bx.BusDate == dateVal)
+                .OrderBy(bx => bx.Price)
+                .ToListAsync();
+
             var returnFlights = await _db.Flights
                 .AsNoTracking()
                 .Where(fx => fx.DepartureLocation == t && fx.ArrivalLocation == f && fx.FlightDate == returnDate!.Value)
@@ -127,13 +139,19 @@ public class PricesController : ControllerBase
                 .OrderBy(tx => tx.Price)
                 .ToListAsync();
 
-            _logger.LogInformation("Compare round-trip {F}->{T} {Date} & {RDate}: {FCount}/{TCount} results",
-                f, t, dateVal, returnDate!.Value, outboundFlights.Count + outboundTrains.Count, returnFlights.Count + returnTrains.Count);
+            var returnBuses = await _db.Buses
+                .AsNoTracking()
+                .Where(bx => bx.DepartureLocation == t && bx.ArrivalLocation == f && bx.BusDate == returnDate!.Value)
+                .OrderBy(bx => bx.Price)
+                .ToListAsync();
+
+            _logger.LogInformation("Compare round-trip {F}->{T} {Date} & {RDate}: {OutCount} đi / {RetCount} về",
+                f, t, dateVal, returnDate!.Value, outboundFlights.Count + outboundTrains.Count + outboundBuses.Count, returnFlights.Count + returnTrains.Count + returnBuses.Count);
 
             return Ok(new
             {
-                outbound = new { flights = outboundFlights, trains = outboundTrains },
-                returns = new { flights = returnFlights, trains = returnTrains }
+                outbound = new { flights = outboundFlights, trains = outboundTrains, buses = outboundBuses },
+                returns = new { flights = returnFlights, trains = returnTrains, buses = returnBuses }
             });
         }
 
@@ -149,9 +167,15 @@ public class PricesController : ControllerBase
             .OrderBy(tx => tx.Price)
             .ToListAsync();
 
-        _logger.LogInformation("Compare one-way {F}->{T} {Date}: {Count} results", f, t, dateVal, flights.Count + trains.Count);
+        var buses = await _db.Buses
+            .AsNoTracking()
+            .Where(bx => bx.DepartureLocation == f && bx.ArrivalLocation == t && bx.BusDate == dateVal)
+            .OrderBy(bx => bx.Price)
+            .ToListAsync();
 
-        return Ok(new { flights, trains });
+        _logger.LogInformation("Compare one-way {F}->{T} {Date}: {Count} results", f, t, dateVal, flights.Count + trains.Count + buses.Count);
+
+        return Ok(new { flights, trains, buses });
     }
 
     [HttpGet("predict")]

@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { useSignIn } from '@clerk/clerk-react'
+import { useSignIn, useUser } from '@clerk/clerk-react'
 import {
   Plane, Train, Globe, Briefcase, Mail, Lock, Eye, EyeOff,
   Phone, Check, AlertCircle, Loader, MailCheck, User,
@@ -70,7 +70,15 @@ export default function LoginRegister() {
   const params = new URLSearchParams(location.search)
   const redirectTo = params.get('redirect') || '/'
 
+  const { isSignedIn, isLoaded } = useUser()
   const { signIn, setActive } = useSignIn()
+
+  useEffect(() => {
+    if (isLoaded && isSignedIn && !sessionStorage.getItem('ve247-auth')) {
+      sessionStorage.setItem('ve247-auth', 'true')
+      navigate(redirectTo, { replace: true })
+    }
+  }, [isLoaded, isSignedIn])
 
   const update = (key, value) => setForm(prev => ({ ...prev, [key]: value }))
   const triggerShake = () => setShakeKey(k => k + 1)
@@ -81,7 +89,7 @@ export default function LoginRegister() {
       await signIn.authenticateWithRedirect({
         strategy: `oauth_${provider}`,
         redirectUrl: window.location.origin + '/auth/sso-callback',
-        redirectUrlComplete: window.location.origin + redirectTo,
+        redirectUrlComplete: window.location.origin + '/auth?redirect=' + encodeURIComponent(redirectTo),
       })
     } catch (err) {
       setError(err.errors?.[0]?.message || 'Đăng nhập thất bại')
@@ -99,6 +107,7 @@ export default function LoginRegister() {
       const result = await signIn.attemptFirstFactor({ strategy: 'phone_code', code })
       if (result.status === 'complete') {
         await setActive({ session: result.createdSessionId })
+        sessionStorage.setItem('ve247-auth', 'true')
         navigate(redirectTo)
       }
     } catch (err) {
@@ -121,7 +130,9 @@ export default function LoginRegister() {
     try {
       if (tab === 'login') {
         const res = await login({ email: form.email, password: form.password })
-        localStorage.setItem('user', JSON.stringify({ ...res.data, loginMethod: 'backend' }))
+        localStorage.removeItem('user')
+        sessionStorage.setItem('user', JSON.stringify({ ...res.data, loginMethod: 'backend' }))
+        sessionStorage.setItem('ve247-auth', 'true')
         navigate(redirectTo)
       } else {
         const res = await register({
@@ -152,7 +163,9 @@ export default function LoginRegister() {
       await verifyEmail({ email: registeredEmail, code: otpCode })
       // Auto-login after successful verification
       const loginRes = await login({ email: registeredEmail, password: form.password })
-      localStorage.setItem('user', JSON.stringify({ ...loginRes.data, loginMethod: 'backend' }))
+      localStorage.removeItem('user')
+      sessionStorage.setItem('user', JSON.stringify({ ...loginRes.data, loginMethod: 'backend' }))
+      sessionStorage.setItem('ve247-auth', 'true')
       navigate(redirectTo)
     } catch (err) {
       setError(err.response?.data?.message || 'Mã xác thực không đúng')

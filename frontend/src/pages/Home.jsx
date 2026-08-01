@@ -4,24 +4,25 @@ import { Link, useNavigate } from 'react-router-dom'
 import {
   Search, ArrowRight, Star, Clock, BarChart3,
   ShieldCheck, DollarSign, Zap, TrendingUp, MapPin,
-  Gift, CheckCircle, Plane, Train, Award, ChevronRight,
+  Gift, CheckCircle, Plane, Train, Bus, Award, ChevronRight,
   Calendar, Activity, BarChart4, ArrowLeftRight, Database,
   Sparkles, TrendingDown, Waves, Sun, Flower2, Leaf,
 } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, AreaChart, Area, Line, LineChart } from 'recharts'
 import HeroSearch from '../components/HeroSearch'
+import PromoBanner from '../components/PromoBanner'
 import { formatCurrencyVnd } from '../utils/formatters'
 
 const stats = [
-  { value: '1.175+', label: 'Tổng chuyến', icon: Database, desc: 'Bay & tàu' },
+  { value: '4.000+', label: 'Tổng chuyến', icon: Database, desc: 'Bay, xe khách & tàu' },
   { value: '940', label: 'Chuyến bay', icon: Plane, desc: '6 hãng hàng không' },
+  { value: '3.000+', label: 'Chuyến xe khách', icon: Bus, desc: '5 nhà xe' },
   { value: '235', label: 'Chuyến tàu', icon: Train, desc: '4 tuyến chính' },
-  { value: '8+', label: 'Nhà cung cấp', icon: Award, desc: 'Dữ liệu tổng hợp' },
 ]
 
 const features = [
-  { icon: Database, title: 'Tổng hợp đa nguồn', desc: 'Thu thập dữ liệu từ tất cả hãng bay và đường sắt, hiển thị trên một giao diện duy nhất.', gradient: 'from-primary-500 to-primary-600' },
-  { icon: ArrowLeftRight, title: 'So sánh giá real-time', desc: 'So sánh giá vé máy bay và tàu hỏa cạnh nhau, cập nhật theo thời gian thực.', gradient: 'from-primary-500 to-primary-600' },
+  { icon: Database, title: 'Tổng hợp đa nguồn', desc: 'Thu thập dữ liệu từ tất cả hãng bay, nhà xe và đường sắt, hiển thị trên một giao diện duy nhất.', gradient: 'from-primary-500 to-primary-600' },
+  { icon: ArrowLeftRight, title: 'So sánh giá real-time', desc: 'So sánh giá vé máy bay, xe khách và tàu hỏa cạnh nhau, cập nhật theo thời gian thực.', gradient: 'from-primary-500 to-primary-600' },
   { icon: TrendingUp, title: 'Phân tích xu hướng', desc: 'Biểu đồ giá theo ngày với dự báo xu hướng, giúp bạn chọn thời điểm đặt vé tốt nhất.', gradient: 'from-primary-500 to-primary-600' },
   { icon: Sparkles, title: 'Gợi ý thông minh', desc: 'Hệ thống đề xuất phương tiện tiết kiệm nhất dựa trên dữ liệu giá thực tế.', gradient: 'from-primary-500 to-primary-600' },
   { icon: Clock, title: 'Cập nhật liên tục', desc: 'Dữ liệu giá được làm mới mỗi 30 giây, đảm bảo bạn luôn có thông tin mới nhất.', gradient: 'from-primary-500 to-primary-600' },
@@ -48,7 +49,7 @@ const liveComparison = [
 const steps = [
   { step: 1, title: 'Nhập thông tin', desc: 'Chọn điểm đi, điểm đến và ngày khởi hành.', icon: Search, gradient: 'from-primary-500 to-primary-600' },
   { step: 2, title: 'Hệ thống tổng hợp', desc: 'Dữ liệu từ các nhà cung cấp được thu thập và phân tích.', icon: Database, gradient: 'from-primary-500 to-primary-600' },
-  { step: 3, title: 'So sánh & gợi ý', desc: 'Xem giá vé máy bay vs tàu hỏa cạnh nhau với gợi ý tiết kiệm.', icon: BarChart4, gradient: 'from-primary-500 to-primary-600' },
+  { step: 3, title: 'So sánh & gợi ý', desc: 'Xem giá vé máy bay, xe khách, tàu hỏa cạnh nhau với gợi ý tiết kiệm.', icon: BarChart4, gradient: 'from-primary-500 to-primary-600' },
   { step: 4, title: 'Đặt vé', desc: 'Chuyển đến website chính thức để hoàn tất đặt vé an toàn.', icon: ArrowRight, gradient: 'from-primary-500 to-primary-600' },
 ]
 
@@ -246,7 +247,7 @@ export default function Home() {
               Tại sao chọn <span className="text-primary-500">Vé247</span>?
             </h2>
             <p className="text-sm md:text-base text-[var(--color-text-secondary)] max-w-xl mx-auto">
-              Hệ thống tổng hợp dữ liệu vé máy bay và tàu hỏa, phân tích thời gian thực, gợi ý tiết kiệm
+              Hệ thống tổng hợp dữ liệu vé máy bay, xe khách và tàu hỏa, phân tích thời gian thực, gợi ý tiết kiệm
             </p>
           </div>
           <motion.div
@@ -318,6 +319,8 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      <PromoBanner />
 
       {/* Seasonal Destinations — Hero + Small Cards */}
       {(() => {

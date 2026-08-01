@@ -177,6 +177,7 @@ public class AdminController : ControllerBase
             ArrivalTime = request.ArrivalTime,
             Price = request.Price,
             Seats = request.Seats,
+            SeatClass = request.SeatClass ?? "Economy",
             FlightDate = DateOnly.FromDateTime(request.DepartureTime),
         };
 
@@ -200,6 +201,7 @@ public class AdminController : ControllerBase
         flight.ArrivalTime = request.ArrivalTime;
         flight.Price = request.Price;
         flight.Seats = request.Seats;
+        flight.SeatClass = request.SeatClass ?? "Economy";
         flight.FlightDate = DateOnly.FromDateTime(request.DepartureTime);
 
         await _db.SaveChangesAsync();
@@ -425,6 +427,90 @@ public class AdminController : ControllerBase
             recentTransactions
         });
     }
+
+    [HttpPost("flights/import")]
+    public async Task<IActionResult> ImportFlights([FromBody] List<CreateFlightRequest> requests)
+    {
+        if (requests == null || requests.Count == 0)
+            return BadRequest(new { message = "Danh sách chuyến bay rỗng" });
+
+        var flights = requests.Select(r => new Flight
+        {
+            AirlineCode = r.AirlineCode,
+            AirlineName = r.AirlineName ?? r.AirlineCode,
+            DepartureLocation = r.DepartureLocation,
+            ArrivalLocation = r.ArrivalLocation,
+            DepartureTime = r.DepartureTime,
+            ArrivalTime = r.ArrivalTime,
+            Price = r.Price,
+            Seats = r.Seats,
+            SeatClass = r.SeatClass ?? "Economy",
+            FlightDate = DateOnly.FromDateTime(r.DepartureTime),
+        }).ToList();
+
+        _db.Flights.AddRange(flights);
+        await _db.SaveChangesAsync();
+        _logger.LogInformation("Admin imported {Count} flights", flights.Count);
+
+        return Ok(new { message = $"Đã nhập {flights.Count} chuyến bay", count = flights.Count });
+    }
+
+    [HttpGet("flights/export")]
+    public async Task<IActionResult> ExportFlights([FromQuery] string? airline)
+    {
+        IQueryable<Flight> query = _db.Flights.AsNoTracking();
+        if (!string.IsNullOrEmpty(airline))
+            query = query.Where(f => f.AirlineCode == airline);
+
+        var flights = await query.OrderBy(f => f.DepartureTime).ToListAsync();
+        var csv = new System.Text.StringBuilder();
+        csv.AppendLine("AirlineCode,AirlineName,DepartureLocation,ArrivalLocation,DepartureTime,ArrivalTime,Price,Seats,SeatClass,FlightDate");
+        foreach (var f in flights)
+            csv.AppendLine($"{f.AirlineCode},{EscapeCsv(f.AirlineName)},{f.DepartureLocation},{f.ArrivalLocation},{f.DepartureTime:O},{f.ArrivalTime:O},{f.Price},{f.Seats},{EscapeCsv(f.SeatClass)},{f.FlightDate:O}");
+
+        return File(System.Text.Encoding.UTF8.GetBytes(csv.ToString()), "text/csv", $"flights_{DateTime.UtcNow:yyyyMMdd}.csv");
+    }
+
+    [HttpPost("trains/import")]
+    public async Task<IActionResult> ImportTrains([FromBody] List<CreateTrainRequest> requests)
+    {
+        if (requests == null || requests.Count == 0)
+            return BadRequest(new { message = "Danh sách tàu rỗng" });
+
+        var trains = requests.Select(r => new Train
+        {
+            TrainCode = r.TrainCode,
+            TrainName = r.TrainName ?? r.TrainCode,
+            DepartureLocation = r.DepartureLocation,
+            ArrivalLocation = r.ArrivalLocation,
+            DepartureTime = r.DepartureTime,
+            ArrivalTime = r.ArrivalTime,
+            Price = r.Price,
+            Seats = r.Seats,
+            CoachClass = r.CoachClass ?? "",
+            TrainDate = DateOnly.FromDateTime(r.DepartureTime),
+        }).ToList();
+
+        _db.Trains.AddRange(trains);
+        await _db.SaveChangesAsync();
+        _logger.LogInformation("Admin imported {Count} trains", trains.Count);
+
+        return Ok(new { message = $"Đã nhập {trains.Count} chuyến tàu", count = trains.Count });
+    }
+
+    [HttpGet("trains/export")]
+    public async Task<IActionResult> ExportTrains()
+    {
+        var trains = await _db.Trains.AsNoTracking().OrderBy(t => t.DepartureTime).ToListAsync();
+        var csv = new System.Text.StringBuilder();
+        csv.AppendLine("TrainCode,TrainName,DepartureLocation,ArrivalLocation,DepartureTime,ArrivalTime,Price,Seats,CoachClass,TrainDate");
+        foreach (var t in trains)
+            csv.AppendLine($"{t.TrainCode},{EscapeCsv(t.TrainName)},{t.DepartureLocation},{t.ArrivalLocation},{t.DepartureTime:O},{t.ArrivalTime:O},{t.Price},{t.Seats},{EscapeCsv(t.CoachClass)},{t.TrainDate:O}");
+
+        return File(System.Text.Encoding.UTF8.GetBytes(csv.ToString()), "text/csv", $"trains_{DateTime.UtcNow:yyyyMMdd}.csv");
+    }
+
+    private static string EscapeCsv(string value) => value.Contains(',') || value.Contains('"') || value.Contains('\n') ? $"\"{value.Replace("\"", "\"\"")}\"" : value;
 }
 
 public class CreateFlightRequest
@@ -437,6 +523,7 @@ public class CreateFlightRequest
     public DateTime ArrivalTime { get; set; }
     public decimal Price { get; set; }
     public int Seats { get; set; }
+    public string? SeatClass { get; set; }
 }
 
 public class CreateTrainRequest

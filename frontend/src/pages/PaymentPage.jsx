@@ -7,7 +7,7 @@ import { getBooking, processPayment } from '../services/api'
 import { formatCurrencyVnd } from '../utils/formatters'
 
 function getStoredUser() {
-  try { return JSON.parse(localStorage.getItem('user')) } catch { return null }
+  try { return JSON.parse(sessionStorage.getItem('user')) } catch { return null }
 }
 
 const paymentMethods = [
@@ -28,7 +28,8 @@ export default function PaymentPage() {
   const location = useLocation()
   const { isSignedIn, isLoaded } = useUser()
   const localUser = getStoredUser()
-  const isAuth = isSignedIn || !!localUser
+  const tabAuth = sessionStorage.getItem('ve247-auth')
+  const isAuth = (isSignedIn && tabAuth) || (!!localUser && localUser?.loginMethod !== 'clerk')
   const authReady = isLoaded || !!localUser
 
   const [booking, setBooking] = useState(location.state?.booking || null)
@@ -74,7 +75,10 @@ export default function PaymentPage() {
     setStatus('processing')
     setError('')
     try {
-      const res = await processPayment(bookingId)
+      const res = await processPayment(bookingId, {
+        paymentMethod: booking?.paymentMethod || selectedMethod,
+        provider: booking?.paymentProvider || location.state?.walletProvider || null,
+      })
       const data = res.data
 
       if (data.redirect && data.paymentUrl) {
@@ -125,9 +129,7 @@ export default function PaymentPage() {
       {/* badge test mode */}
       <div className="flex items-center justify-center gap-1.5 mb-4 text-xs font-semibold text-primary-400 bg-primary-500/10 px-3 py-1.5 rounded-full border border-primary-500/20 w-fit mx-auto">
         <Ban className="w-3.5 h-3.5" />
-        {booking?.paymentMethod === 'e_wallet'
-          ? 'Chuyển đến cổng thanh toán VNPay Sandbox'
-          : 'Cổng thanh toán Sandbox — giao dịch luôn thành công'}
+        Cổng thanh toán Sandbox — giao dịch luôn thành công
       </div>
 
       <AnimatePresence mode="wait">
@@ -255,16 +257,20 @@ export default function PaymentPage() {
                     <span className="text-[var(--color-text-secondary)]">Hành khách</span>
                     <span className="font-semibold text-[var(--color-text-primary)]">{booking.fullName || booking.user?.fullName || '--'}</span>
                   </div>
+                  {(booking.dateOfBirth || booking.gender || booking.nationality) && (
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-[var(--color-text-tertiary)] pt-1">
+                      {booking.dateOfBirth && <span>Sinh: {new Date(booking.dateOfBirth).toLocaleDateString('vi-VN')}</span>}
+                      {booking.gender && <span>{booking.gender}</span>}
+                      {booking.nationality && <span>{booking.nationality}</span>}
+                      {booking.idNumber && <span>CMND: {booking.idNumber}</span>}
+                    </div>
+                  )}
                   <div className="flex justify-between">
                     <span className="text-[var(--color-text-secondary)]">Phương thức</span>
                     <span className="font-semibold text-[var(--color-text-primary)] flex items-center gap-1.5">
                       {method && <method.icon className="w-4 h-4" />}
                       {method?.label || booking?.paymentMethod}
                     </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-[var(--color-text-secondary)]">Số khách</span>
-                    <span className="font-semibold text-[var(--color-text-primary)]">{booking.passengers}</span>
                   </div>
                 </div>
 

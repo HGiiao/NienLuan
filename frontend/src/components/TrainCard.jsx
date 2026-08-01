@@ -1,10 +1,18 @@
 import { useMemo } from 'react'
 import { motion } from 'framer-motion'
-import { Train, Clock, BarChart4, Activity, TrendingDown, AlertTriangle, Sparkles, Bell, BellOff, Star, Leaf } from 'lucide-react'
+import { Train, Clock, BarChart4, Activity, TrendingDown, AlertTriangle, Sparkles, Bell, BellOff, Star, Leaf, Crown, Gem, Sofa } from 'lucide-react'
 import { formatCurrencyVnd } from '../utils/formatters'
 import CarbonBadge from './CarbonBadge'
 
-export default function TrainCard({ train, onBook, onWatch, badge, index = 0, prediction, rating, watched = false }) {
+const coachClassConfig = {
+  'Soft Sleeper': { label: 'Giường mềm', icon: Crown, badge: 'bg-primary-500/15 text-primary-500 border-primary-500/30', text: 'text-primary-500' },
+  'Hard Sleeper': { label: 'Giường cứng', icon: null, badge: 'bg-primary-500/10 text-primary-500 border-primary-500/20', text: 'text-primary-500' },
+  'Soft Seat': { label: 'Ghế mềm', icon: Gem, badge: 'bg-primary-500/10 text-primary-500 border-primary-500/20', text: 'text-primary-500' },
+  'Seat': { label: 'Ghế cứng', icon: Sofa, badge: 'bg-transparent text-primary-500 border-primary-500/20', text: 'text-primary-500' },
+}
+const defaultSeatCfg = { label: 'Ngồi mềm', icon: Gem, badge: 'bg-primary-500/10 text-primary-500 border-primary-500/20', text: 'text-primary-500' }
+
+export default function TrainCard({ train, onBook, onWatch, onDetail, badge, index = 0, prediction, rating, watched = false }) {
   const fmt = (d) => new Date(d).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
   const dur = new Date(train.arrivalTime) - new Date(train.departureTime)
   const h = Math.floor(dur / 3600000)
@@ -19,6 +27,7 @@ export default function TrainCard({ train, onBook, onWatch, badge, index = 0, pr
     return { avgPrice: avg, vsAverage: vs, trend: vs < -5 ? 'down' : vs > 5 ? 'up' : 'stable' }
   }, [train.id, train.price])
   const pred = prediction
+  const seatCfg = coachClassConfig[train.coachClass] || defaultSeatCfg
 
   return (
     <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0, transition: { duration: 0.35, delay: index * 0.04 } }} whileHover={{ y: -2 }}
@@ -37,8 +46,8 @@ export default function TrainCard({ train, onBook, onWatch, badge, index = 0, pr
                 <div className="text-[11px] text-[var(--color-text-tertiary)]">{train.trainName || `Hạng ${train.coachClass || 'Ngồi mềm'}`}</div>
               </div>
               <CarbonBadge item={train} type="train" />
-              <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full border bg-primary-500/10 text-primary-500 border-primary-500/20">
-                <Clock className="w-3 h-3" />{h > 0 ? `${h} giờ ${m} phút` : `${m} phút`}
+              <span className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full border ${seatCfg.badge}`}>
+                {seatCfg.icon && <seatCfg.icon className="w-3 h-3" />}{seatCfg.label}
               </span>
             </div>
             <div className="text-right">
@@ -133,6 +142,10 @@ export default function TrainCard({ train, onBook, onWatch, badge, index = 0, pr
                 </motion.button>
               )}
               <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
+                onClick={() => onDetail?.(train)}
+                className="shrink-0 whitespace-nowrap py-2.5 px-3 rounded-xl text-xs font-bold transition-all border border-primary-500/30 text-primary-500 hover:bg-primary-500/5"
+              >Xem chi tiết</motion.button>
+              <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
                 onClick={() => onBook?.(train)}
                 className="bg-gradient-to-r from-primary-500 to-primary-600 text-white py-2.5 px-5 rounded-xl text-sm font-bold hover:shadow-lg hover:shadow-primary-500/20 transition-all shadow-md active:shadow-sm"
               >Đặt vé</motion.button>
@@ -171,6 +184,7 @@ export default function TrainCard({ train, onBook, onWatch, badge, index = 0, pr
               {onWatch && (
                 <button onClick={() => onWatch?.(train)} className={`px-3 py-2 rounded-xl text-xs font-bold transition-all ${watched ? 'bg-accent-500/10 text-accent-500 border border-accent-500/30' : 'border border-primary-500/30 text-primary-500 hover:bg-primary-500/5'}`}>{watched ? <BellOff className="w-3.5 h-3.5" /> : <Bell className="w-3.5 h-3.5" />}</button>
               )}
+              <button onClick={() => onDetail?.(train)} className="px-3 py-2 rounded-xl text-xs font-bold transition-all border border-primary-500/30 text-primary-500 hover:bg-primary-500/5">Chi tiết</button>
               <button onClick={() => onBook?.(train)} className="bg-gradient-to-r from-primary-500 to-primary-600 text-white px-5 py-2 rounded-xl text-sm font-bold shadow-md active:scale-[0.97]">Đặt vé</button>
             </div>
           </div>
