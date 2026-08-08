@@ -47,6 +47,8 @@ export const deletePriceAlert = (id) => api.delete(`/api/price-alerts/${id}`)
 export const togglePriceAlert = (id) => api.patch(`/api/price-alerts/${id}/toggle`)
 export const checkPriceAlerts = (email) => api.post('/api/price-alerts/check', null, { params: { email } })
 export const searchLocations = (q) => api.get('/api/locations/search', { params: { q } })
+// Chat assistant
+export const chatRecommend = (data) => api.post('/api/chat/recommend', data)
 // Admin API
 const adminHeaders = () => {
   try {

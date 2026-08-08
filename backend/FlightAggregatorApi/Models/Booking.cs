@@ -33,6 +33,9 @@ public class Booking
     [MaxLength(50)]
     public string? PaymentProvider { get; set; }
 
+    /// <summary>Unique PayOS order code per payment attempt (retry-safe).</summary>
+    public int? PayOSOrderCode { get; set; }
+
     [MaxLength(50)]
     public string? PromoCode { get; set; }
 

@@ -35,11 +35,10 @@ public class PayOSService
         !string.IsNullOrEmpty(ClientId) && !string.IsNullOrEmpty(ApiKey) && !string.IsNullOrEmpty(ChecksumKey);
 
     public async Task<PayOSCreateResult?> CreatePaymentAsync(
-        long orderId, decimal amount, string description,
+        int orderCode, decimal amount, string description,
         string? buyerName = null, string? buyerEmail = null, string? buyerPhone = null)
     {
         var amountLong = (long)amount;
-        var orderCode = (int)orderId;
         var expiredAt = DateTimeOffset.UtcNow.AddMinutes(ExpiredAfterMinutes).ToUnixTimeSeconds();
         var returnUrl = ReturnUrl;
         var cancelUrl = returnUrl;

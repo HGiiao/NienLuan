@@ -3,6 +3,7 @@ import { useLocation, BrowserRouter as Router, Routes, Route, Navigate } from 'r
 import { ClerkProvider, useUser, AuthenticateWithRedirectCallback } from '@clerk/clerk-react'
 import Navbar from './components/Navbar'
 import Footer from './components/Footer'
+import ChatBot from './components/ChatBot'
 import IntroAnimation from './components/IntroAnimation'
 import ErrorBoundary from './components/ErrorBoundary'
 import Home from './pages/Home'
@@ -113,6 +114,7 @@ function AppLayout() {
       {!introComplete && <ErrorBoundary><IntroAnimation onComplete={handleIntroComplete} /></ErrorBoundary>}
       {!isAdminRoute && <Navbar />}
       {!isAdminRoute && <ClerkSync />}
+      {!isAdminRoute && introComplete && <ChatBot />}
       <main className={isAdminRoute ? '' : 'flex-1'}>
         <Routes>
           <Route path="/" element={<Home />} />

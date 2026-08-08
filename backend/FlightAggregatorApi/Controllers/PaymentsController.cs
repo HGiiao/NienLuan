@@ -226,12 +226,21 @@ public class PaymentsController : ControllerBase
         if (!string.IsNullOrEmpty(paymentLinkId))
             info = await _payOS.GetPaymentInfoAsync(paymentLinkId);
 
+        // Order code comes from the authoritative API response; fall back to the query param
+        var orderCode = info?.OrderCode ?? 0;
+        if (orderCode == 0)
+            int.TryParse(orderCodeStr, out orderCode);
+
         var isPaid = info?.Status == "PAID" || (status == "PAID" && code == "00");
 
-        if (isPaid && int.TryParse(orderCodeStr, out var orderCode))
+        if (isPaid && orderCode > 0)
         {
             var reference = info?.Transactions?.FirstOrDefault()?.Reference ?? paymentLinkId;
-            var booking = await _db.Bookings.FindAsync((long)orderCode);
+            // Match by stored PayOSOrderCode (new links) or booking Id (legacy links created
+            // before the retry-safe orderCode fix — their orderCode was the booking Id). Safe:
+            // new codes are 9-digit (>= 100M) and never collide with small booking Ids.
+            var booking = await _db.Bookings.FirstOrDefaultAsync(b =>
+                b.PayOSOrderCode == orderCode || b.Id == (long)orderCode);
             if (booking != null && booking.Status == "Pending")
             {
                 booking.Status = "Confirmed";
@@ -239,8 +248,11 @@ public class PaymentsController : ControllerBase
                 booking.PaymentProvider = "payos";
                 await _db.SaveChangesAsync();
                 _logger.LogInformation("PayOS return: Booking #{Id} confirmed via ref {Ref}",
-                    orderCode, reference);
+                    booking.Id, reference);
             }
+
+            if (booking == null)
+                return Ok(new { success = false, message = "Không tìm thấy đơn hàng tương ứng" });
 
             return Ok(new
             {
@@ -274,7 +286,8 @@ public class PaymentsController : ControllerBase
 
             if (data.Code == "00")
             {
-                var booking = await _db.Bookings.FindAsync((long)data.OrderCode);
+                var booking = await _db.Bookings.FirstOrDefaultAsync(b =>
+                    b.PayOSOrderCode == data.OrderCode || b.Id == (long)data.OrderCode);
                 if (booking != null && booking.Status == "Pending")
                 {
                     booking.Status = "Confirmed";
@@ -282,7 +295,7 @@ public class PaymentsController : ControllerBase
                     booking.PaymentProvider = "payos";
                     await _db.SaveChangesAsync();
                     _logger.LogInformation("PayOS IPN: Booking #{Id} confirmed via ref {Ref}",
-                        data.OrderCode, data.Reference);
+                        booking.Id, data.Reference);
                 }
             }
 

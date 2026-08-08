@@ -23,6 +23,7 @@ builder.Services.AddScoped<VnPayService>();
 builder.Services.AddScoped<MoMoService>();
 builder.Services.AddScoped<ZaloPayService>();
 builder.Services.AddScoped<PayOSService>();
+builder.Services.AddScoped<ChatBotService>();
 builder.Services.AddScoped<SeedDataService>();
 
 builder.Services.Configure<VietQrOptions>(
@@ -119,6 +120,7 @@ ALTER TABLE Bookings ADD CONSTRAINT FK_Bookings_Bus FOREIGN KEY (BusId) REFERENC
 END
 IF COL_LENGTH('Bookings', 'VnPayTransactionNo') IS NULL ALTER TABLE Bookings ADD VnPayTransactionNo NVARCHAR(50) NULL;
 IF COL_LENGTH('Bookings', 'PaymentProvider') IS NULL ALTER TABLE Bookings ADD PaymentProvider NVARCHAR(50) NULL;
+IF COL_LENGTH('Bookings', 'PayOSOrderCode') IS NULL ALTER TABLE Bookings ADD PayOSOrderCode INT NULL;
 IF COL_LENGTH('Users', 'PasswordHash') IS NULL ALTER TABLE Users ADD PasswordHash NVARCHAR(255) NOT NULL DEFAULT '';
 IF COL_LENGTH('Users', 'EmailVerificationCode') IS NULL ALTER TABLE Users ADD EmailVerificationCode NVARCHAR(6) NULL;
 IF COL_LENGTH('Users', 'IsEmailVerified') IS NULL ALTER TABLE Users ADD IsEmailVerified BIT NOT NULL DEFAULT 0;

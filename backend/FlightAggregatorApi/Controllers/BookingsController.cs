@@ -228,8 +228,15 @@ public class BookingsController : ControllerBase
                         if (!_payOS.IsConfigured)
                             return BadRequest(new { message = "PayOS chưa được cấu hình API key. Vui lòng thử phương thức khác." });
 
+                        // PayOS requires a UNIQUE orderCode per payment request — using booking.Id
+                        // collides when the user retries payment, so generate a fresh 9-digit code
+                        // and persist it to map the return/webhook back to this booking.
+                        var orderCode = Random.Shared.Next(100_000_000, 1_000_000_000);
+                        booking.PayOSOrderCode = orderCode;
+                        await _db.SaveChangesAsync();
+
                         var result = await _payOS.CreatePaymentAsync(
-                            booking.Id, amount, $"Ve247 Booking {booking.Id}",
+                            orderCode, amount, $"Ve247 Booking {booking.Id}",
                             booking.User?.FullName, booking.User?.Email, booking.User?.Phone);
                         if (result == null || string.IsNullOrEmpty(result.CheckoutUrl))
                             return BadRequest(new { message = "PayOS: Không tạo được link thanh toán" });

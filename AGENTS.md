@@ -355,6 +355,34 @@ sqlcmd -i database/schema.sql
 
 ## Session history (lần gần nhất)
 
+### Lần 30 — 08/08/2026 — Fix PayOS "Đơn thanh toán đã tồn tại" (retry-safe orderCode)
+
+- **Lỗi**: `/api/bookings/{id}/pay` provider `payos` trả 400 "Không tạo được link thanh toán" khi user bấm thanh toán lại. Nguyên nhân: `orderCode = (int)booking.Id` — PayOS yêu cầu orderCode **duy nhất** → lần 2 trả `code 231 "Đơn thanh toán đã tồn tại"`
+- **Fix**: sinh orderCode ngẫu nhiên 9 chữ số (`Random.Shared.Next(100_000_000, 1_000_000_000)`) mỗi lần tạo payment + lưu vào cột mới `PayOSOrderCode` (runtime migration `IF COL_LENGTH('Bookings','PayOSOrderCode') IS NULL ALTER TABLE Bookings ADD PayOSOrderCode INT NULL;` trong Program.cs)
+  - `Booking.cs`: thêm `int? PayOSOrderCode`
+  - `PayOSService.CreatePaymentAsync` đổi param `long orderId` → `int orderCode`
+  - `BookingsController` payos case: sinh code + `SaveChangesAsync` trước khi gọi API (retry sau lỗi vẫn sinh code mới)
+  - `PaymentsController` `payos-return`/`payos-ipn`: lookup booking bằng `b.PayOSOrderCode == orderCode || b.Id == orderCode` (an toàn vì code mới ≥ 100M không trùng booking Id nhỏ — **tương thích cả link cũ** tạo trước fix). Trả `success:false "Không tìm thấy đơn hàng tương ứng"` thay vì success giả khi không map được booking
+- **Verify end-to-end**: pay 2 lần liên tiếp trên cùng booking → cả 2 HTTP 200, checkout URL khác nhau, `payOSOrderCode` persist đúng (vd 789980177). `payos-return` với id thật (PayOS đang PENDING) → `success:false "Thanh toán chưa hoàn tất"` — không confirm nhầm dù query giả `status=PAID`
+- **Unit tests mới**: `PayOSReturnTests.cs` — 4 test (confirm theo PayOSOrderCode, legacy link theo booking Id, không tìm thấy → failure, không paid → không confirm). Dùng reflection thay `dynamic` (anonymous type internal không bind được từ assembly test). **32/32 tests pass**
+- **Server**: PID 24716 → build → PID 4112 → (sau fix combined lookup) → PID 13116, port 5000, `/health` OK
+
+### Lần 29 — 08/08/2026 — Chat bot trợ lý gợi ý phương tiện (rule-based)
+
+- **Ý tưởng user**: Khách còn phân vân → chat bot phân tích tin nhắn → tra CSDL → gợi ý phương tiện phù hợp → click gợi ý đi thẳng trang tìm kiếm tương ứng
+- **Quyết định**: Rule-based (không API trả phí — khớp tinh thần đồ án) + widget nổi mọi trang (ẩn ở admin + intro)
+- **Backend**:
+  - `Services/ChatBotService.cs` mới: `POST /api/chat/recommend` (ChatController) — `ParseIntent` (public static, pure, testable) parse tiếng Việt: bỏ dấu (`Normalize`), map 12 thành phố (alias "sài gòn"/"tphcm"/"hcm"...), thứ tự xuất hiện + marker "đến" để xác định from/to, ngày (hôm nay/ngày mai/mốt/cuối tuần/thứ X/ngày 15/8), mode (máy bay/tàu hỏa/xe khách), preference (rẻ/nhanh), ngân sách ("dưới 500k", "1.5tr"), khung giờ (sáng/trưa/chiều/tối)
+  - `FindOptionsAsync`: query Flights/Trains/Buses theo tuyến+ngày (Count/MinPrice/MinDuration, filter theo mode + maxBudget) → trả option kèm `Nav` URL (`/flights|/buses|/trains?from=&to=&date=&tripType=one-way[&timeFrom=&timeTo]`)
+  - Reply tiếng Việt: thiếu địa điểm → hỏi lại + quick replies; có kết quả → liệt kê 3 PT kèm giá từ + gợi ý rẻ nhất/nhanh nhất
+- **Frontend**: `components/ChatBot.jsx` — nút nổi bottom-right (Framer Motion), panel chat (bubble bot/user, typing indicator, quick replies chips), **option cards** (icon PT + giá từ + số chuyến + thời gian) click → `navigate(nav)` + đóng widget. Mở lần đầu → gửi message rỗng nhận lời chào. `App.jsx` mount khi `introComplete && !isAdminRoute`. `api.js` + `chatRecommend`
+- **Unit tests**: `ChatBotServiceTests.cs` 14 tests (địa điểm/đảo chiều/alias/ngày/ngân sách/khung giờ) — **28/28 pass** (14 route + 14 chat)
+- **Bug fix quan trọng**: bảng diacritics lệch 1 ký tự (o×16/u×13 thay vì 17/11) → "Đà Nẵng" không khớp → sinh lại chuỗi bằng script, verify đ→d/ơ→o; marker "toi "/" ve " bỏ (nhầm "tôi"/"vé")
+- **Bug fix từ code review**: (1) "tối" ↔ "tôi" false positive → `ParseTimeOfDay` chỉ nhận "buổi sáng/tối", "sáng sớm"... (tránh "đổi sang" thành "sáng"); (2) **SGN↔HCM**: tàu hỏa dùng mã ga "HCM" không phải "SGN" → `TrainCode()` map khi query + BuildNav `/trains?to=HCM`; (3) "1.5tr" bị regex ngày bắt nhầm thành 01/05 → thêm negative lookahead `(?!\s*(?:tr|trieu|nghin|k|m)\b)`; (4) quick replies stateless → nhúng tên tuyến vào chip ("Chuyến bay nào rẻ nhất Hà Nội - Đà Nẵng?")
+- **Verify**: `dotnet test -c Release` **28/28**, frontend build ✓ (chunk warning known)
+- **Lần 29 bổ sung — restart + fix SQL translation**: User báo 404 `/api/chat/recommend` (server chạy build cũ) → dừng PID 16092, build, start exe mới (PID 26980 → 24716, `Start-Process -WindowStyle Hidden` workdir `bin\Debug\net10.0`). Test API phát hiện **HTTP 500**: `MinAsync(f.ArrivalTime - f.DepartureTime)` KHÔNG dịch được trên SQL Server (InMemory thì client-side nên test pass) → sửa thành project `ModeRow(Price, Dep, Arr)` rồi aggregate trong C# (`QueryFlightsAsync`/`QueryTrainsAsync`/`QueryBusesAsync` + `Aggregate`). **Verify e2e bằng node fetch (4 kịch bản):** "Hà Nội đến Đà Nẵng ngày mai" → HAN→DAD, 09/08, xe khách 530k (2 chuyến) + máy bay 2.6M; "rẻ nhất Sài Gòn ra Đà Nẵng" → pref=cheap, bay 447k đứng đầu; tàu/xe không có chuyến ngày → bot trả lời "đổi ngày khác". Frontend: user cần refresh trang (Vite HMR giữ session cũ)
+
+
 ### Lần 28 — 08/08/2026 — CI pipeline GitHub Actions
 
 - Tạo `.github/workflows/ci.yml` — chạy tự động trên push/PR vào `main`:
