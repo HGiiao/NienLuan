@@ -1,6 +1,6 @@
+using System.Net;
 using System.Security.Cryptography;
 using System.Text;
-using System.Web;
 
 namespace FlightAggregatorApi.Services;
 
@@ -52,8 +52,8 @@ public class VnPayService
         var i = 0;
         foreach (var kvp in params_)
         {
-            var encodedKey = HttpUtility.UrlEncode(kvp.Key);
-            var encodedValue = HttpUtility.UrlEncode(kvp.Value);
+            var encodedKey = WebUtility.UrlEncode(kvp.Key);
+            var encodedValue = WebUtility.UrlEncode(kvp.Value);
             if (i == 1)
             {
                 hashData += "&" + encodedKey + "=" + encodedValue;
@@ -68,7 +68,7 @@ public class VnPayService
         }
 
         var secureHash = HmacSha512(HashSecret, hashData);
-        query += "&vnp_SecureHash=" + HttpUtility.UrlEncode(secureHash);
+        query += "&vnp_SecureHash=" + WebUtility.UrlEncode(secureHash);
 
         return SandboxUrl + "?" + query;
     }
@@ -90,8 +90,8 @@ public class VnPayService
         var i = 0;
         foreach (var kvp in sortedParams)
         {
-            var encodedKey = HttpUtility.UrlEncode(kvp.Key);
-            var encodedValue = HttpUtility.UrlEncode(kvp.Value);
+            var encodedKey = WebUtility.UrlEncode(kvp.Key);
+            var encodedValue = WebUtility.UrlEncode(kvp.Value);
             if (i == 1)
             {
                 hashData += "&" + encodedKey + "=" + encodedValue;

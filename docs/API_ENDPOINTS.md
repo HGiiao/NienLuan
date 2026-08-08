@@ -22,7 +22,7 @@ Base URL: `http://localhost:5000/api`
 |--------|------|--------|-------------|
 | GET | /api/prices/trends | from, to, days | Price trend data |
 | GET | /api/prices/compare | from, to, date, tripType, returnDate | Compare flights vs trains |
-| POST | /api/prices/optimal-route | Body: originCity, destinationCity, startDate, endDate, preferences | Multi-leg route planner |
+| POST | /api/prices/optimal-route | Body: originCity, destinationCity, startDate, endDate, preferences | Multi-leg route planner (máy bay/tàu hỏa/xe khách, 2-3 chặng, segment `type` = flight/train/bus) |
 
 ## Bookings
 

@@ -20,6 +20,7 @@ import PaymentPage from './pages/PaymentPage'
 import VnPayReturn from './pages/VnPayReturn'
 import MoMoReturn from './pages/MoMoReturn'
 import ZaloPayReturn from './pages/ZaloPayReturn'
+import PayOSReturn from './pages/PayOSReturn'
 import VipPlans from './pages/VipPlans'
 import SubscriptionPaymentPage from './pages/SubscriptionPaymentPage'
 import NotFound from './pages/NotFound'
@@ -129,6 +130,7 @@ function AppLayout() {
           <Route path="/payment/vnpay-return" element={<VnPayReturn />} />
           <Route path="/payment/momo-return" element={<MoMoReturn />} />
           <Route path="/payment/zalopay-return" element={<ZaloPayReturn />} />
+          <Route path="/payment/payos-return" element={<PayOSReturn />} />
           <Route path="/booking-confirmation/:id" element={<BookingConfirmation />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/vip" element={<VipPlans />} />

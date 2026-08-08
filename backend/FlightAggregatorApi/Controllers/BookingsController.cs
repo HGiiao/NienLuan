@@ -15,16 +15,18 @@ public class BookingsController : ControllerBase
     private readonly VnPayService _vnPay;
     private readonly MoMoService _moMo;
     private readonly ZaloPayService _zaloPay;
+    private readonly PayOSService _payOS;
     private readonly ILogger<BookingsController> _logger;
     private readonly EmailService _email;
     private static readonly Random _rng = new();
 
-    public BookingsController(ApplicationDbContext db, VnPayService vnPay, MoMoService moMo, ZaloPayService zaloPay, ILogger<BookingsController> logger, EmailService email)
+    public BookingsController(ApplicationDbContext db, VnPayService vnPay, MoMoService moMo, ZaloPayService zaloPay, PayOSService payOS, ILogger<BookingsController> logger, EmailService email)
     {
         _db = db;
         _vnPay = vnPay;
         _moMo = moMo;
         _zaloPay = zaloPay;
+        _payOS = payOS;
         _logger = logger;
         _email = email;
     }
@@ -183,7 +185,7 @@ public class BookingsController : ControllerBase
         var amount = booking.TotalPrice - (booking.DiscountAmount ?? 0);
         if (amount <= 0) amount = booking.TotalPrice;
 
-        if (provider == "momo" || provider == "zalopay" || provider == "vnpay")
+        if (provider == "momo" || provider == "zalopay" || provider == "vnpay" || provider == "payos")
         {
             booking.PaymentProvider = provider;
             booking.PaymentMethod = "e_wallet";
@@ -219,6 +221,20 @@ public class BookingsController : ControllerBase
                         var ip = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "127.0.0.1";
                         paymentUrl = _vnPay.CreatePaymentUrl(booking.Id, amount, $"Ve247 booking #{booking.Id}", ip);
                         providerTransactionId = booking.Id.ToString();
+                        break;
+                    }
+                    case "payos":
+                    {
+                        if (!_payOS.IsConfigured)
+                            return BadRequest(new { message = "PayOS chưa được cấu hình API key. Vui lòng thử phương thức khác." });
+
+                        var result = await _payOS.CreatePaymentAsync(
+                            booking.Id, amount, $"Ve247 Booking {booking.Id}",
+                            booking.User?.FullName, booking.User?.Email, booking.User?.Phone);
+                        if (result == null || string.IsNullOrEmpty(result.CheckoutUrl))
+                            return BadRequest(new { message = "PayOS: Không tạo được link thanh toán" });
+                        paymentUrl = result.CheckoutUrl;
+                        providerTransactionId = result.Id;
                         break;
                     }
                 }

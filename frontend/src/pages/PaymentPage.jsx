@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { useUser } from '@clerk/clerk-react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { CreditCard, Wallet, Building2, CheckCircle, XCircle, Plane, Train, ArrowRight, Ticket, Home, RefreshCw, Shield, Ban, Loader } from 'lucide-react'
+import { CreditCard, Wallet, Building2, CheckCircle, XCircle, Plane, Train, Bus, ArrowRight, Ticket, Home, RefreshCw, Shield, Ban, Loader } from 'lucide-react'
 import { getBooking, processPayment } from '../services/api'
 import { formatCurrencyVnd } from '../utils/formatters'
 
@@ -63,9 +63,9 @@ export default function PaymentPage() {
       getBooking(bookingId)
         .then(res => {
           setBooking(res.data)
-          const i = res.data.flight || res.data.train
+          const i = res.data.flight || res.data.train || res.data.bus
           setItem(i)
-          setType(res.data.flight ? 'flight' : 'train')
+          setType(res.data.flight ? 'flight' : res.data.train ? 'train' : 'bus')
         })
         .catch(() => setError('Không tìm thấy thông tin đặt chỗ'))
     }
@@ -103,7 +103,10 @@ export default function PaymentPage() {
   }, [booking, error])
 
   const isFlight = type === 'flight'
+  const isBus = type === 'bus'
   const method = paymentMethods.find(m => m.id === (booking?.paymentMethod || selectedMethod))
+  const provider = booking?.paymentProvider || location.state?.walletProvider || null
+  const isSandbox = !['momo', 'zalopay', 'vnpay', 'payos'].includes(provider)
 
   if (error && !booking) {
     return (
@@ -127,10 +130,12 @@ export default function PaymentPage() {
       className="max-w-lg mx-auto px-4 py-6 md:py-10"
     >
       {/* badge test mode */}
-      <div className="flex items-center justify-center gap-1.5 mb-4 text-xs font-semibold text-primary-400 bg-primary-500/10 px-3 py-1.5 rounded-full border border-primary-500/20 w-fit mx-auto">
-        <Ban className="w-3.5 h-3.5" />
-        Cổng thanh toán Sandbox — giao dịch luôn thành công
-      </div>
+      {isSandbox && (
+        <div className="flex items-center justify-center gap-1.5 mb-4 text-xs font-semibold text-primary-400 bg-primary-500/10 px-3 py-1.5 rounded-full border border-primary-500/20 w-fit mx-auto">
+          <Ban className="w-3.5 h-3.5" />
+          Cổng thanh toán Sandbox — giao dịch luôn thành công
+        </div>
+      )}
 
       <AnimatePresence mode="wait">
         {status === 'processing' && (
@@ -235,11 +240,11 @@ export default function PaymentPage() {
                       ? 'bg-primary-500/10 text-primary-500'
                       : 'bg-primary-500/10 text-primary-500'
                   }`}>
-                    {isFlight ? <Plane className="w-5 h-5" /> : <Train className="w-5 h-5" />}
+                    {isFlight ? <Plane className="w-5 h-5" /> : isBus ? <Bus className="w-5 h-5" /> : <Train className="w-5 h-5" />}
                   </div>
                   <div>
                     <p className="font-semibold text-[var(--color-text-primary)]">
-                      {isFlight ? `${item.airlineCode}${(item.id % 900) + 100}` : item.trainCode}
+                      {isFlight ? `${item.airlineCode}${(item.id % 900) + 100}` : isBus ? item.busCode : item.trainCode}
                     </p>
                     <p className="text-sm text-[var(--color-text-secondary)]">
                       {item.departureLocation} <ArrowRight className="w-3 h-3 inline" /> {item.arrivalLocation}

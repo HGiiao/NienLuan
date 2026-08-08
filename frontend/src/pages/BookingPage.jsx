@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { useUser } from '@clerk/clerk-react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Plane, Train, ArrowRight, User, Mail, Phone, MapPin, CreditCard, Wallet, Building2, Clock, Shield, LogIn, Loader, Check, Tag, Percent, CalendarDays, VenetianMask, Globe, FileText, Heart, AlertCircle, Receipt, X, Smartphone } from 'lucide-react'
-import { createBooking, getFlight, getTrain, validatePromoCode, getPublicPromoCodes } from '../services/api'
+import { Plane, Train, Bus, ArrowRight, User, Mail, Phone, MapPin, CreditCard, Wallet, Building2, Clock, Shield, LogIn, Loader, Check, Tag, Percent, CalendarDays, VenetianMask, Globe, FileText, Heart, AlertCircle, Receipt, X, Smartphone } from 'lucide-react'
+import { createBooking, getFlight, getTrain, getBus, validatePromoCode, getPublicPromoCodes } from '../services/api'
 import { formatCurrencyVnd, formatDurationMs } from '../utils/formatters'
 import InsuranceCard from '../components/InsuranceCard'
 import BankTransferPanel from '../components/BankTransferPanel'
@@ -15,31 +15,24 @@ function getStoredUser() {
 
 const paymentMethods = [
   { id: 'credit_card', label: 'Thẻ tín dụng', icon: CreditCard, desc: 'Visa, MasterCard, JCB' },
-  { id: 'e_wallet', label: 'Ví điện tử', icon: Wallet, desc: 'Momo, ZaloPay, VNPay' },
+  { id: 'e_wallet', label: 'Ví điện tử', icon: Wallet, desc: 'VNPay, PayOS' },
   { id: 'bank_transfer', label: 'Chuyển khoản', icon: Building2, desc: 'Quét mã VietQR' },
 ]
 
 const walletProviders = [
-  {
-    id: 'momo',
-    label: 'MoMo',
-    desc: 'Ví điện tử MoMo',
-    colors: 'from-pink-500 to-rose-600',
-    short: 'M',
-  },
-  {
-    id: 'zalopay',
-    label: 'ZaloPay',
-    desc: 'Ví ZaloPay trên Zalo',
-    colors: 'from-sky-500 to-blue-600',
-    short: 'Z',
-  },
   {
     id: 'vnpay',
     label: 'VNPay',
     desc: 'VNPay QR, ngân hàng nội địa',
     colors: 'from-orange-500 to-amber-600',
     short: 'VN',
+  },
+  {
+    id: 'payos',
+    label: 'PayOS',
+    desc: 'VietQR qua ngân hàng',
+    colors: 'from-emerald-500 to-teal-600',
+    short: 'P',
   },
 ]
 
@@ -85,7 +78,7 @@ export default function BookingPage() {
   useEffect(() => {
     if (isAuth && !item) {
       setFetching(true)
-      const fn = type === 'flight' ? getFlight : getTrain
+      const fn = type === 'flight' ? getFlight : type === 'bus' ? getBus : getTrain
       fn(id)
         .then(r => setItem(r.data))
         .catch(() => setError('Không thể tải thông tin vé'))
@@ -148,6 +141,17 @@ export default function BookingPage() {
   }
 
   const isFlight = type === 'flight'
+  const isBus = type === 'bus'
+  const itemCode = isFlight
+    ? `${item.airlineCode || item.code}${(item.id % 900) + 100}`
+    : isBus
+      ? (item.busCode || item.code)
+      : (item.trainCode || item.code)
+  const itemName = isFlight
+    ? (item.airlineName || item.name)
+    : isBus
+      ? (item.busCompany || item.name)
+      : (item.coachClass ? `Hạng ${item.coachClass}` : item.name)
   const totalPrice = item.price + (form?.insurance || 0)
   const promoDiscount = promoApplied
     ? Math.min(totalPrice * (Number(promoApplied.discountPercent) || 0) / 100, Number(promoApplied.maxDiscount) || 0)
@@ -201,7 +205,7 @@ export default function BookingPage() {
     }
 
     if (form.paymentMethod === 'e_wallet' && !walletProvider) {
-      errors.walletProvider = 'Vui lòng chọn ví thanh toán (MoMo, ZaloPay hoặc VNPay)'
+      errors.walletProvider = 'Vui lòng chọn ví thanh toán (VNPay hoặc PayOS)'
     }
 
     const phoneRegex = /^(0[3|5|7|8|9])[0-9]{8}$/
@@ -274,7 +278,8 @@ export default function BookingPage() {
         address: form.address,
         paymentMethod: form.paymentMethod,
         flightId: isFlight ? item.id : null,
-        trainId: !isFlight ? item.id : null,
+        trainId: !isFlight && !isBus ? item.id : null,
+        busId: isBus ? item.id : null,
         passengers: 1,
         promoCode: promoApplied?.code || null,
         discountAmount: discountAmount || null,
@@ -309,7 +314,7 @@ export default function BookingPage() {
       {/* Header */}
       <div className="text-center mb-8">
         <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-gradient-to-br from-primary-500 to-primary-600 text-white mb-4 shadow-lg shadow-primary-500/20">
-          {isFlight ? <Plane className="w-6 h-6" /> : <Train className="w-6 h-6" />}
+          {isFlight ? <Plane className="w-6 h-6" /> : isBus ? <Bus className="w-6 h-6" /> : <Train className="w-6 h-6" />}
         </div>
         <h1 className="text-2xl md:text-3xl font-bold text-[var(--color-text-primary)]">Đặt vé</h1>
         <p className="text-[var(--color-text-secondary)] mt-1">Vui lòng nhập thông tin để hoàn tất đặt vé</p>
@@ -792,14 +797,14 @@ export default function BookingPage() {
                 ? 'bg-primary-500/10 text-primary-500'
                 : 'bg-primary-500/10 text-primary-500'
             }`}>
-              {isFlight ? <Plane className="w-5 h-5" /> : <Train className="w-5 h-5" />}
+              {isFlight ? <Plane className="w-5 h-5" /> : isBus ? <Bus className="w-5 h-5" /> : <Train className="w-5 h-5" />}
             </div>
             <div>
               <p className="font-semibold text-[var(--color-text-primary)]">
-                {isFlight ? `${item.airlineCode}${(item.id % 900) + 100}` : item.trainCode}
+                {itemCode}
               </p>
               <p className="text-xs text-[var(--color-text-tertiary)]">
-                {isFlight ? item.airlineName : `Hạng ${item.coachClass}`}
+                {itemName}
               </p>
             </div>
           </div>

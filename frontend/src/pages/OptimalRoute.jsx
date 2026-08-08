@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  Route as RouteIcon, Plane, Train, MapPin, CalendarDays,
+  Route as RouteIcon, Plane, Train, Bus, MapPin, CalendarDays,
   DollarSign, TrendingUp, TrendingDown, Lightbulb, Bell, BellOff, Plus,
   Trash2, Target, ArrowRight, AlertCircle, Check, Loader,
 } from 'lucide-react'
@@ -112,10 +112,10 @@ function RouteTab({ form, setForm, handleSearch, routes, loading, directCheapest
                     <div className="flex items-center gap-3">
                       <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 300, delay: i * 0.08 }}
                         className={`inline-flex items-center justify-center w-9 h-9 rounded-xl text-sm font-bold text-white ${i === 0 ? 'bg-primary-500 shadow-lg shadow-primary-500/20' : 'bg-primary-500'}`}>{i + 1}</motion.span>
-                      <div>
-                        <span className="font-semibold text-[var(--color-text-primary)]">{isMultiLeg ? 'Lộ trình kết hợp' : 'Bay thẳng'}</span>
-                        {route.label !== 'direct' && <span className="text-xs text-[var(--color-text-tertiary)] ml-2">({route.label})</span>}
-                      </div>
+              <div>
+                <span className="font-semibold text-[var(--color-text-primary)]">{isMultiLeg ? 'Lộ trình kết hợp' : segments[0]?.type === 'flight' ? 'Bay thẳng' : 'Đi thẳng'}</span>
+                {route.label !== 'direct' && <span className="text-xs text-[var(--color-text-tertiary)] ml-2">({route.label})</span>}
+              </div>
                     </div>
                     <div className="flex items-center gap-4">
                       {savings > 0 && <span className="text-xs font-bold text-white bg-[var(--color-success)] px-2.5 py-1 rounded-lg">-{formatCurrencyVnd(savings)}</span>}
@@ -139,7 +139,7 @@ function RouteTab({ form, setForm, handleSearch, routes, loading, directCheapest
                           >
                             <div className="relative z-10 mt-1">
                               <div className="w-9 h-9 rounded-xl flex items-center justify-center text-sm shadow-sm bg-primary-500 text-white">
-                                {seg.type === 'flight' ? <Plane className="w-4 h-4" /> : <Train className="w-4 h-4" />}
+                                {seg.type === 'flight' ? <Plane className="w-4 h-4" /> : seg.type === 'bus' ? <Bus className="w-4 h-4" /> : <Train className="w-4 h-4" />}
                               </div>
                             </div>
                             <div className="flex-1 min-w-0">
@@ -151,7 +151,7 @@ function RouteTab({ form, setForm, handleSearch, routes, loading, directCheapest
                               )}
                               <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                                 <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-primary-500 text-white">
-                                  {seg.type === 'flight' ? <Plane className="w-3 h-3 inline" /> : <Train className="w-3 h-3 inline" />} {seg.code}
+                                  {seg.type === 'flight' ? <Plane className="w-3 h-3 inline" /> : seg.type === 'bus' ? <Bus className="w-3 h-3 inline" /> : <Train className="w-3 h-3 inline" />} {seg.code}
                                 </span>
                                 <span className="text-sm font-medium text-[var(--color-text-primary)]">{seg.name}</span>
                               </div>
@@ -188,7 +188,7 @@ function RouteTab({ form, setForm, handleSearch, routes, loading, directCheapest
             <MapPin className="w-7 h-7 text-[var(--color-text-tertiary)]" />
           </div>
           <p className="text-sm font-semibold text-[var(--color-text-secondary)] mb-1">Nhập thông tin để tìm lộ trình tối ưu</p>
-          <p className="text-xs text-[var(--color-text-tertiary)]">Hệ thống sẽ gợi ý lộ trình kết hợp máy bay và tàu hỏa tiết kiệm nhất</p>
+          <p className="text-xs text-[var(--color-text-tertiary)]">Hệ thống sẽ gợi ý lộ trình kết hợp máy bay, xe khách và tàu hỏa tiết kiệm nhất</p>
         </motion.div>
       )}
     </motion.div>
@@ -479,7 +479,7 @@ export default function OptimalRoute() {
             </div>
             <div>
               <h1 className="text-xl md:text-2xl font-bold text-[var(--color-text-primary)]">Lộ trình & Cảnh báo giá</h1>
-              <p className="text-sm text-[var(--color-text-secondary)]">Kết hợp máy bay & tàu hỏa — Theo dõi giá vé</p>
+              <p className="text-sm text-[var(--color-text-secondary)]">Kết hợp máy bay, xe khách & tàu hỏa — Theo dõi giá vé</p>
             </div>
           </div>
         </div>

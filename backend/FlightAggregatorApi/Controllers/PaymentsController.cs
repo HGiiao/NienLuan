@@ -13,14 +13,16 @@ public class PaymentsController : ControllerBase
     private readonly VnPayService _vnPay;
     private readonly MoMoService _moMo;
     private readonly ZaloPayService _zaloPay;
+    private readonly PayOSService _payOS;
     private readonly ILogger<PaymentsController> _logger;
 
-    public PaymentsController(ApplicationDbContext db, VnPayService vnPay, MoMoService moMo, ZaloPayService zaloPay, ILogger<PaymentsController> logger)
+    public PaymentsController(ApplicationDbContext db, VnPayService vnPay, MoMoService moMo, ZaloPayService zaloPay, PayOSService payOS, ILogger<PaymentsController> logger)
     {
         _db = db;
         _vnPay = vnPay;
         _moMo = moMo;
         _zaloPay = zaloPay;
+        _payOS = payOS;
         _logger = logger;
     }
 
@@ -207,6 +209,89 @@ public class PaymentsController : ControllerBase
         {
             _logger.LogError(ex, "ZaloPay IPN processing error");
             return Ok(new { return_code = -1, return_message = "Internal Error" });
+        }
+    }
+
+    // ================= PayOS =================
+    [HttpPost("payos-return")]
+    public async Task<IActionResult> PayOSReturn([FromQuery] Dictionary<string, string> queryParams)
+    {
+        var paymentLinkId = queryParams.GetValueOrDefault("id", "");
+        var status = queryParams.GetValueOrDefault("status", "");
+        var orderCodeStr = queryParams.GetValueOrDefault("orderCode", "");
+        var code = queryParams.GetValueOrDefault("code", "");
+
+        // Authoritative status check via PayOS API (query params can be spoofed)
+        PayOSPaymentStatus? info = null;
+        if (!string.IsNullOrEmpty(paymentLinkId))
+            info = await _payOS.GetPaymentInfoAsync(paymentLinkId);
+
+        var isPaid = info?.Status == "PAID" || (status == "PAID" && code == "00");
+
+        if (isPaid && int.TryParse(orderCodeStr, out var orderCode))
+        {
+            var reference = info?.Transactions?.FirstOrDefault()?.Reference ?? paymentLinkId;
+            var booking = await _db.Bookings.FindAsync((long)orderCode);
+            if (booking != null && booking.Status == "Pending")
+            {
+                booking.Status = "Confirmed";
+                booking.TransactionId = $"PAYOS_{reference}";
+                booking.PaymentProvider = "payos";
+                await _db.SaveChangesAsync();
+                _logger.LogInformation("PayOS return: Booking #{Id} confirmed via ref {Ref}",
+                    orderCode, reference);
+            }
+
+            return Ok(new
+            {
+                success = true,
+                transactionId = $"PAYOS_{reference}",
+                message = "Thanh toán thành công",
+            });
+        }
+
+        return Ok(new
+        {
+            success = false,
+            message = status == "CANCELLED" || code == "cancel"
+                ? "Đơn hàng đã bị hủy"
+                : "Thanh toán chưa hoàn tất",
+        });
+    }
+
+    [HttpPost("payos-ipn")]
+    public async Task<IActionResult> PayOSIpn()
+    {
+        try
+        {
+            string rawBody;
+            using (var reader = new StreamReader(Request.Body))
+                rawBody = await reader.ReadToEndAsync();
+
+            var valid = _payOS.VerifyWebhook(rawBody, out var data);
+            if (!valid || data == null)
+                return Ok(new { error = 1, message = "Invalid signature" });
+
+            if (data.Code == "00")
+            {
+                var booking = await _db.Bookings.FindAsync((long)data.OrderCode);
+                if (booking != null && booking.Status == "Pending")
+                {
+                    booking.Status = "Confirmed";
+                    booking.TransactionId = $"PAYOS_{data.Reference}";
+                    booking.PaymentProvider = "payos";
+                    await _db.SaveChangesAsync();
+                    _logger.LogInformation("PayOS IPN: Booking #{Id} confirmed via ref {Ref}",
+                        data.OrderCode, data.Reference);
+                }
+            }
+
+            return Ok(new { error = 0, message = "OK" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "PayOS IPN processing error");
+            return Ok(new { error = -1, message = "Internal Error" });
         }
     }
 }

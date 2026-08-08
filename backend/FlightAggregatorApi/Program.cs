@@ -22,6 +22,7 @@ builder.Services.AddScoped<EmailService>();
 builder.Services.AddScoped<VnPayService>();
 builder.Services.AddScoped<MoMoService>();
 builder.Services.AddScoped<ZaloPayService>();
+builder.Services.AddScoped<PayOSService>();
 builder.Services.AddScoped<SeedDataService>();
 
 builder.Services.Configure<VietQrOptions>(

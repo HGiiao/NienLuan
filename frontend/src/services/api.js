@@ -34,6 +34,7 @@ export const processPayment = (id, data) => api.post(`/api/bookings/${id}/pay`, 
 export const verifyVnPayReturn = (params) => api.post('/api/payments/vnpay-return', params)
 export const verifyMoMoReturn = (params) => api.post('/api/payments/momo-return', params)
 export const verifyZaloPayReturn = (params) => api.post('/api/payments/zalopay-return', params)
+export const verifyPayOSReturn = (params) => api.post('/api/payments/payos-return', params)
 
 export const register = (data) => api.post('/api/auth/register', data)
 export const login = (data) => api.post('/api/auth/login', data)

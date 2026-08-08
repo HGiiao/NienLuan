@@ -32,13 +32,13 @@ npm run build      # Production build
 - **CSS**: TailwindCSS v4 `@theme` in `index.css`, biến màu CSS custom (--color-bg, --color-bg-card, --color-text-primary, --color-text-secondary, --color-text-tertiary, --color-border, --color-surface-50)
 - **Font**: Inter (Google Fonts) + Geist (variable font cho weight)
 - **Dark mode**: `ThemeContext` + localStorage `ve247-theme`, toggle button
-- **Gmail SMTP**: `nggiao01@gmail.com`, App Password `qdii hzzz oidz lnyz` trong `appsettings.json` section `Email`
+- **Gmail SMTP**: `nggiao01@gmail.com`, App Password (*** — xem `appsettings.json` local, không commit lên repo) trong `appsettings.json` section `Email`
 
 ## Current state
 
 ### Backend — hoàn chỉnh
 - **20 controllers**: Admin, Auth, Bookings, Buses, CommunityTips, Corporate, Flights, Hotel, Insurance, Locations, Notifications, Payments, PriceAlert, Prices, PromoCodes, Reviews, Share, Subscription, Trains, VietQr
-- **RouteOptimizerService** (355 dòng): multi-leg journey planner (2-3 chặng, qua hub HAN/SGN/DAD/CXR/PQC/HCM)
+- **RouteOptimizerService**: multi-leg journey planner (2-3 chặng, qua hub HAN/SGN/DAD/CXR/PQC/HCM) — hỗ trợ **3 phương tiện (máy bay/tàu hỏa/xe khách)** với mọi tổ hợp mode (2 chặng 3×3, 3 chặng 3×3×3), constraint chuyển tiếp 1-6h (lý tưởng 2-3h), cache 5 phút
 - **PriceHistoryService**: trend data (min/max/avg) theo ngày
 - **PriceAggregatorService**: query flights/trains theo route
 - **PriceStreamService** (`Services/PriceStreamService.cs`): BackgroundService biến động giá ±5% mỗi 30s trên 8 tuyến phổ biến, broadcast qua SignalR PriceHub
@@ -51,9 +51,9 @@ npm run build      # Production build
 - **Cache/Memory**: `AddMemoryCache()` đã register, dùng để lưu pending registration + OTP (10 phút)
 - **Known issue**: Build warnings `NU1903` (Microsoft.OpenApi 2.0.0 vulnerability), decimal columns thiếu `HasColumnType`
 - **Payment gateways (Lần 23)**:
-  - `POST /api/bookings/{id}/pay` — nhận `provider` (`momo`/`zalopay`/`vnpay` hoặc mặc định `test_mode`). **e_wallet thật**: tạo URL thanh toán qua gateway rồi redirect (`success=true, redirect=true, paymentUrl`). Các method khác (credit_card/bank_transfer/test) → sandbox luôn `Confirmed`
-  - `PaymentsController`: `vnpay-return`/`vnpay-ipn`, `momo-return`/`momo-ipn`, `zalopay-return`/`zalopay-ipn` — verify chữ ký (HMAC) rồi confirm booking, set `TransactionId` prefix `VNPAY_`/`MOMO_`/`ZALOPAY_`, `VnPayTransactionNo`, `PaymentProvider`
-  - `Services/VnPayService.cs` (HMAC-SHA512, vnp_ params, 15p expire), `Services/MoMoService.cs` (captureWallet, HMAC-SHA256), `Services/ZaloPayService.cs` (HMAC-SHA256, embed_data redirecturl)
+  - `POST /api/bookings/{id}/pay` — nhận `provider` (`momo`/`zalopay`/`vnpay`/`payos` hoặc mặc định `test_mode`). **e_wallet thật**: tạo URL thanh toán qua gateway rồi redirect (`success=true, redirect=true, paymentUrl`). Các method khác (credit_card/bank_transfer/test) → sandbox luôn `Confirmed`
+  - `PaymentsController`: `vnpay-return`/`vnpay-ipn`, `momo-return`/`momo-ipn`, `zalopay-return`/`zalopay-ipn`, `payos-return`/`payos-ipn` — verify chữ ký (HMAC) rồi confirm booking, set `TransactionId` prefix `VNPAY_`/`MOMO_`/`ZALOPAY_`/`PAYOS_`, `VnPayTransactionNo`, `PaymentProvider`
+  - `Services/VnPayService.cs` (HMAC-SHA512, vnp_ params, 15p expire), `Services/MoMoService.cs` (captureWallet, HMAC-SHA256), `Services/ZaloPayService.cs` (HMAC-SHA256, embed_data redirecturl), `Services/PayOSService.cs` (HMAC-SHA256, /v2/payment-requests, checkoutUrl redirect, webhook verify)
   - `VietQrController` + `VietQrService`: `POST /api/vietqr/generate` gọi `https://api.vietqr.io/v2/generate` (x-client-id/x-api-key) tạo mã QR chuyển khoản. Nếu chưa cấu hình ClientId/ApiKey → trả `success:false`
   - Config trong `appsettings.json`: section `VnPay` (TmnCode/HashSecret), `MoMo` (PartnerCode/AccessKey/SecretKey), `ZaloPay` (AppId/Key1/Key2), `VietQr` (ClientId/ApiKey)
   - Gửi email xác nhận booking qua `SendBookingConfirmationAsync` sau khi thanh toán thành công (sandbox + gateway đều gửi)
@@ -72,8 +72,8 @@ npm run build      # Production build
 - **Search autocomplete**: `LocationInput` component gợi ý mã sân bay/tên thành phố khi gõ, dùng ở HeroSearch + SearchFlights + SearchTrains + SearchBuses + PriceComparison + OptimalRoute
 
 ### Chưa triển khai
-- Unit tests, Dockerfile, CI/CD
-- MoMo/ZaloPay cần điền real key (PartnerCode/AccessKey/SecretKey, AppId/Key1/Key2) + VietQr ClientId/ApiKey trước khi deploy — hiện để trống nên chỉ chạy được VNPay + sandbox + VietQR UI (local QR fallback)
+- Dockerfile (CI/CD đã có: `.github/workflows/ci.yml` — dotnet test + npm build trên push/PR)
+- MoMo/ZaloPay/VietQR/PayOS cần điền real key trước khi deploy — hiện chỉ VNPay (sandbox) + sandbox chạy được. **Khuyến nghị dùng PayOS** (đăng ký cá nhân bằng CCCD, dễ nhất)
 - Seat selection (đã xoá — over-engineering cho price aggregator), review/rating
 - Debounce search (300ms)
 
@@ -147,6 +147,7 @@ npm run build      # Production build
 | `/payment/vnpay-return` | VnPayReturn | Redirect về từ VNPay: verify + kết quả |
 | `/payment/momo-return` | MoMoReturn | Redirect về từ MoMo: verify + kết quả |
 | `/payment/zalopay-return` | ZaloPayReturn | Redirect về từ ZaloPay: verify + kết quả |
+| `/payment/payos-return` | PayOSReturn | Redirect về từ PayOS: verify + kết quả |
 | `/booking-confirmation/:id` | BookingConfirmation | (cũ — keep cho backward compat) |
 | `/bookings` | Bookings | Tra cứu đặt chỗ theo email |
 | `/profile` | Profile | Thông tin cá nhân + inline editing (name, phone) |
@@ -295,6 +296,8 @@ frontend/src/
 | POST | `/api/payments/momo-ipn` | PaymentsController |
 | POST | `/api/payments/zalopay-return` | PaymentsController (verify HMAC-SHA256 + confirm booking) |
 | POST | `/api/payments/zalopay-ipn` | PaymentsController |
+| POST | `/api/payments/payos-return` | PaymentsController (verify status qua PayOS API + confirm booking) |
+| POST | `/api/payments/payos-ipn` | PaymentsController (webhook, verify HMAC-SHA256) |
 | POST | `/api/vietqr/generate` | VietQrController (gọi VietQR API tạo QR, fallback local) |
 | **PromoCodes** | | |
 | GET | `/api/promo-codes/public` | PromoCodesController (mã đang active cho PromoBanner) |
@@ -351,6 +354,73 @@ sqlcmd -i database/schema.sql
 - `docs/DEPLOYMENT_GUIDE.md` — Azure setup
 
 ## Session history (lần gần nhất)
+
+### Lần 28 — 08/08/2026 — CI pipeline GitHub Actions
+
+- Tạo `.github/workflows/ci.yml` — chạy tự động trên push/PR vào `main`:
+  - **Job Backend**: ubuntu-latest + `setup-dotnet@v4` (10.0.x) → `dotnet restore` → `dotnet build --no-restore -c Release` → `dotnet test --no-build -c Release` (working-directory `backend/FlightAggregatorApi.Tests`, build cả ProjectReference main project, **14/14 tests pass**, chỉ warning NU1903 known)
+  - **Job Frontend**: ubuntu-latest + `setup-node@v4` (Node 22, `cache: npm` với `cache-dependency-path: frontend/package-lock.json`) → `npm ci` → `npm run build` (0 error, chunk warning known)
+- **Verify local (mô phỏng CI)**: Release build + test PASS 14/14; `npm ci` local bị lỗi file lock (Windows — dev server/antivirus đang giữ file, KHÔNG phải lỗi workflow; runner CI sạch sẽ OK), dùng `npm install` + `npm run build` → ✓ built 7.33s
+- **Fix xUnit2031**: thay `Assert.Single(routes.Where(...))` → `Assert.Single(routes, predicate)` (6 chỗ) — bỏ warning analyzer
+- **Lưu ý**: chưa có `global.json`/lockfile .NET → `dotnet-version: 10.0.x` tự động lấy SDK mới nhất 10.x; chưa push lên GitHub nên chưa thấy badge Actions
+
+
+### Lần 27 — 08/08/2026 — Unit tests xUnit cho RouteOptimizerService
+
+- Tạo test project mới `backend/FlightAggregatorApi.Tests/` (xUnit 2.9.2 + Microsoft.NET.Test.Sdk 17.13 + EF Core InMemory 10.0.8, `ProjectReference` → FlightAggregatorApi)
+- `RouteOptimizerServiceTests.cs` — 14 tests, mỗi test dùng InMemory DB riêng (guid) + `MemoryCache` mới + `NullLogger`:
+  - Direct bus route
+  - 2 chặng: **flight→bus**, **bus→flight**, **bus→train**, **train→bus** (kiểm tra Type, Label "Qua X", TotalPrice, TransferWait)
+  - 3 chặng: **flight→train→bus** (Label "Qua DAD, CXR", tổng TransferWait 4.5h) + 3 chặng với transfer giữa <1h bị loại
+  - Constraint chuyển tiếp 1-6h: <1h loại, >6h loại, **boundary chính xác 1h và 6h đều hợp lệ**
+  - Date range filter (chuyến ngoài khoảng ngày bị bỏ)
+  - Sorting: cheapest (rẻ nhất lên đầu), fastest (bay thẳng 1.5h lên đầu)
+  - Cache hit trong TTL (query lặp trả kết quả cũ dù DB đã thêm vé rẻ hơn)
+- **Verify**: `dotnet test` — **14/14 passed**, 1s
+- Build: Backend 0 error
+
+
+### Lần 26 — 08/08/2026 — Lộ trình tối ưu hỗ trợ 3 phương tiện (thêm xe khách)
+
+- **Backend `RouteOptimizerService.cs`** — refactor lớn: thêm xe khách vào route optimizer. Load thêm `Buses` (filter theo `BusDate` + hub), chuyển 3 entity thành `RouteSegment` chung (`FromFlight`/`FromTrain`/`FromBus` với `Type = flight/train/bus`, `Code = AirlineCode/TrainCode/BusCode`, `Name = AirlineName/TrainName/BusCompany`), thay 4 overload `Combine` + 2 overload `Combine3` bằng **generic `Combine2`/`Combine3`** trên `List<RouteSegment>`. Giờ hỗ trợ mọi tổ hợp: 2 chặng (3×3 = 9 tổ hợp flight/train/bus qua 1 hub), 3 chặng (3×3×3 = 27 tổ hợp qua 2 hub). Direct route giờ gồm cả xe khách. Giữ nguyên 5 preferences (cheapest/fastest/fewest_stops/earliest_arrival/balanced) + DistinctBy + Take(10) + cache
+- **`OptimalRoute.jsx`** — segment bus hiển thị icon Bus, badge code, label direct type-aware ("Bay thẳng" cho flight, "Đi thẳng" cho train/bus), cập nhật copy "Kết hợp máy bay, xe khách & tàu hỏa". Click segment bus → `/booking/bus/{id}`
+- **`BookingPage.jsx`** — hỗ trợ đặt vé type `bus`: fetch `getBus` khi state mất, gửi `busId` trong `createBooking` (trước đây nhầm gửi `trainId` cho bus), icon Bus, hiển thị `busCode`/`busCompany`, thêm fallback `item.code`/`item.name` cho segment từ OptimalRoute (RouteSegment không có `airlineCode`/`busCode`)
+- **Verify**: Backend build 0 error (warning NU1903 + CS8629 known), Frontend build 0 error
+- **Lưu ý**: Chưa restart server (cần Stop-Process PID cũ trước khi chạy exe mới — theo quy tắc Lần 25). Không chạy server test port khác vì `Program.cs` re-seed cưỡng chế sẽ xoá dữ liệu flights/trains
+
+
+### Lần 24 — 02/08/2026 — Thêm PayOS thay cho MoMo/ZaloPay/VietQR real key
+
+- **Lý do**: User không lấy được real key MoMo/ZaloPay/VietQR → chọn thêm PayOS. Lưu ý quan trọng: PayOS **KHÔNG có sandbox riêng** (xác nhận từ docs chính thức `payos.vn/docs/moi-truong-test/`) — chạy production API `https://api-merchant.payos.vn`, đăng ký bằng SĐT + xác thực CCCD cá nhân + liên kết tài khoản ngân hàng → test với số tiền nhỏ thật. Vẫn dễ hơn MoMo/ZaloPay (không cần đăng ký doanh nghiệp)
+- **Backend**:
+  - `Services/PayOSService.cs` mới: `CreatePaymentAsync` (POST `/v2/payment-requests`, header `x-client-id`/`x-api-key`, signature HMAC-SHA256 checksum key theo `amount=...&cancelUrl=...&description=...&orderCode=...&returnUrl=...` sort theo alphabet, expiredAt 30 phút), `GetPaymentInfoAsync` (GET `/v2/payment-requests/{id}` để verify status `PAID`), `VerifyWebhook` (HMAC-SHA256 checksum key trên raw `data` JSON trong body). `IsConfigured` kiểm tra 3 key
+  - `orderCode = (int)booking.Id` (mapping 1-1, dùng lại trong return handler)
+  - `BookingsController` `POST /{id}/pay`: thêm provider `payos` vào nhánh e-wallet → tạo checkoutUrl + redirect (`success=true, redirect=true, paymentUrl`). Nếu chưa cấu hình key → `BadRequest` "PayOS chưa được cấu hình API key..."
+  - `PaymentsController`: thêm `payos-return` (verify status qua API PayOS, không tin query params, confirm booking + `TransactionId = PAYOS_{reference}` + `PaymentProvider = payos`) và `payos-ipn` (webhook, verify signature, confirm khi `data.Code == "00"`)
+  - `appsettings.json`: section `PayOS` (ClientId/ApiKey/ChecksumKey để trống, ApiUrl, ReturnUrl, WebhookUrl, ExpiredAfterMinutes)
+- **Frontend**:
+  - `BookingPage.jsx`: thêm wallet provider PayOS (emerald/teal) vào `walletProviders`, cập nhật desc "MoMo, ZaloPay, VNPay, PayOS" + validation message
+  - `pages/PayOSReturn.jsx` mới (mirror VnPayReturn, đọc `code`/`id`/`cancel`/`status`/`orderCode`, gọi `verifyPayOSReturn`, hiển thị kết quả; hỗ trợ bus)
+  - `App.jsx`: route `/payment/payos-return`
+  - `api.js`: `verifyPayOSReturn`
+  - `PaymentPage.jsx`: badge "Sandbox" chỉ hiện khi provider là phương thức sandbox (`credit_card`/`bank_transfer`/`test`, không hiện cho momo/zalopay/vnpay/payos); fix fetch booking hỗ trợ bus + hiển thị icon/code xe khách
+- **Build**: Backend 0 error (build ra thư mục temp vì exe đang bị lock bởi server PID 4484 — known issue), Frontend 0 error
+- **Cần làm khi deploy**: Đăng ký https://my.payos.vn → xác thực CCCD → liên kết ngân hàng → tạo kênh thanh toán → điền ClientId/ApiKey/ChecksumKey vào appsettings.json. Trước khi có key: chọn PayOS sẽ báo "PayOS chưa được cấu hình"
+- **Lần 24 bổ sung (02/08/2026)**: User điền key PayOS thật vào `appsettings.json` (3 key — *** KHÔNG commit lên repo) → xác minh auth OK (GET payment link không tồn tại trả `code:101 "Ma thanh toán không tồn tại"`). Server cũ PID 4484 → dừng, build lại, chạy lại (PID mới 14904, port 5000, `/health` OK). **Ẩn MoMo/ZaloPay khỏi UI đặt vé** (user quyết định sau khi research: MoMo cần hồ sơ doanh nghiệp M4B + giấy phép kinh doanh; ZaloPay API cần liên hệ BD + ký hợp đồng — không lấy kiểu cá nhân được như PayOS): `BookingPage.jsx` xoá 2 provider `momo`/`zalopay` khỏi `walletProviders`, desc `"VNPay, PayOS"`, validation `"Vui lòng chọn ví thanh toán (VNPay hoặc PayOS)"`. Giữ nguyên code backend MoMo/ZaloPay + routes return (`/payment/momo-return`, `/payment/zalopay-return`) + `PaymentPage.isSandbox` list — để dành cho tương lai nếu lấy được key. Build frontend 0 error
+
+### Lần 25 — 02/08/2026 — Fix VNPay "sai chữ ký số" + key sandbox thật
+
+- **Lý do**: User báo lỗi "sai chữ ký số" khi thanh toán VNPay. 2 nguyên nhân:
+  1. `appsettings.json` section `VnPay` dùng key placeholder (TmnCode `2QXUI4J4`, HashSecret `SECRETKEY123456789`) → mọi chữ ký đều sai
+  2. `Services/VnPayService.cs` dùng `HttpUtility.UrlEncode` → hex **chữ thường** (`%3a`/`%2f`), trong khi VNPay (code PHP/Node demo chính thức) dùng hex **chữ hoa** (`%3A`/`%2F`) + dấu cách `+` → hash lệch
+- **Fix**: User đăng ký tài khoản merchant test VNPay → điền key sandbox thật vào `appsettings.json` (TmnCode/HashSecret — *** KHÔNG commit lên repo), SandboxUrl `https://sandbox.vnpayment.vn/paymentv2/vpcpay.html`. `VnPayService.cs`: đổi `using System.Web` → `using System.Net` + toàn bộ `HttpUtility.UrlEncode` → `WebUtility.UrlEncode` (5 chỗ: build hashData ×2, vnp_SecureHash query, verify hashData ×2). `WebUtility.UrlEncode` cho space → `+`, hex UPPERCASE — khớp chuẩn VNPay (đã test thực nghiệm trên .NET 10)
+- **Verify end-to-end**:
+  - Tạo payment URL: `POST /api/bookings/{id}/pay` provider `vnpay` → trả `paymentUrl` đúng chuẩn (`vnp_TmnCode=<sandbox-tmn>`, `vnp_ReturnUrl=http%3A%2F%2Flocalhost%3A5173...`, `vnp_OrderInfo=Ve247+booking+%2317`)
+  - Tự tính lại HMAC-SHA512 độc lập (chuẩn PHP VNPay: sort key, urlencode `+`/hex hoa) → **khớp 100%** với `vnp_SecureHash`
+  - Mô phỏng return thành công (ResponseCode=00, thẻ NCB, TransactionNo) → `POST /api/payments/vnpay-return` → `success:true, transactionId: VNPAY_14358187` → booking 17 `Status = Confirmed`, `PaymentProvider = vnpay`, `VnPayTransactionNo = 14358187`
+- **Lưu ý**: Merchant admin `https://sandbox.vnpayment.vn/merchantv2/` (đăng nhập bằng email user — KHÔNG ghi mật khẩu vào repo). Thẻ test NCB `9704198526191432198` (NGUYEN VAN A, 07/15, OTP 123456). Lỗi "timer is not defined" trên trang sandbox là lỗi JS phía VNPay (`custom.min.js`), không ảnh hưởng hash/thanh toán. IPN cùng logic verify (chưa test thật — VNPay sẽ gọi từ server họ)
+- **Server**: PID 14904 → dừng, build lại (0 error, warning NU1903 known), chạy lại PID 18716, port 5000, `/health` OK
+- **Chẩn đoán "Hosting failed to start" (02/08/2026)**: User chạy thêm instance backend trong khi PID 18716 đã chiếm port 5000 → Kestrel không bind được → `Microsoft.Extensions.Hosting.Internal.Host[11] Hosting failed to start`. Xác nhận không phải lỗi code: chạy instance test trên port 5001 (`ASPNETCORE_URLS=http://localhost:5001`) start thành công (seed OK, listening OK) rồi kill. **Quy tắc**: trước khi `dotnet run`/chạy exe phải `Stop-Process -Id <PID cũ>` (hoặc `Get-NetTCPConnection -LocalPort 5000 -State Listen` để tìm PID)
 
 ### Lần 23 — 01/08/2026 — Payment gateways thật (VNPay/MoMo/ZaloPay/VietQR) + Promo code + Filters mở rộng
 
@@ -538,7 +608,7 @@ sqlcmd -i database/schema.sql
 - **Design lại Email template**: Tiếng Việt có dấu, gradient header xanh, OTP monospace 40px, CTA button
 - **Tạo Profile page**: Cover gradient, avatar initials, stats, info cards, quick actions, logout
 - **Tạo Price Alerts feature**: Backend model + controller (5 endpoints), frontend page, API functions, runtime migration
-- **Gmail App Password hiện tại**: `qdii hzzz oidz lnyz`
+- **Gmail App Password hiện tại**: *** (xem appsettings.json local — KHÔNG commit lên repo)
 
 ### Lần 3 — 15/07/2026
 - **Thêm pagination**: Pagination component + fix stale closure
