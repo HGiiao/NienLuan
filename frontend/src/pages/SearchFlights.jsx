@@ -6,11 +6,13 @@ import FlightCard from '../components/FlightCard'
 import TicketDetailModal from '../components/TicketDetailModal'
 import PriceFilter from '../components/PriceFilter'
 import BookingOptionsModal from '../components/BookingOptionsModal'
+import PriceWatchModal from '../components/PriceWatchModal'
 
 import LocationInput from '../components/LocationInput'
 import { getFlights, predictPrice, createPriceAlert, getPriceAlerts } from '../services/api'
 import { formatCurrencyVnd } from '../utils/formatters'
 import { PageHeader, SearchForm, SkeletonList, EmptyState, Pagination } from '../ui'
+import useRefetchOnTabVisible from '../hooks/useRefetchOnTabVisible'
 
 const PAGE_SIZE = 20
 
@@ -52,6 +54,7 @@ export default function SearchFlights() {
 
   const [bookingItem, setBookingItem] = useState(null)
   const [detailItem, setDetailItem] = useState(null)
+  const [watchItem, setWatchItem] = useState(null)
   const [prediction, setPrediction] = useState(null)
   const [buyNowFilter, setBuyNowFilter] = useState(false)
   const [watchMsg, setWatchMsg] = useState('')
@@ -59,9 +62,9 @@ export default function SearchFlights() {
   const [ratingSummary, setRatingSummary] = useState(null)
   const [showReviewModal, setShowReviewModal] = useState(false)
 
-  const fetchFlights = async (params, pageNum = 1, filterOverride) => {
+  const fetchFlights = async (params, pageNum = 1, filterOverride, silent = false) => {
     const f = filterOverride || filters
-    setLoading(true)
+    if (!silent) setLoading(true)
     setError('')
     try {
       const res = await getFlights({ ...params, ...f, page: pageNum, pageSize: PAGE_SIZE })
@@ -87,8 +90,10 @@ export default function SearchFlights() {
     } catch (err) {
       console.error('[SearchFlights] Error:', err.response?.data || err.message)
       setError(err.response?.data?.message || 'Không thể tải danh sách chuyến bay')
-      setItems([]); setOutboundItems([]); setReturnItems([])
-      setTotal(0); setOutboundTotal(0); setReturnTotal(0)
+      if (!silent) {
+        setItems([]); setOutboundItems([]); setReturnItems([])
+        setTotal(0); setOutboundTotal(0); setReturnTotal(0)
+      }
     } finally { setLoading(false) }
   }
 
@@ -108,6 +113,12 @@ export default function SearchFlights() {
     setPage(1); setOutboundPage(1); setReturnPage(1)
     fetchFlights(searchParamsObj, 1, filters)
   }, [filters])
+
+  // Reload dữ liệu khi tab được mở/chuyển tới — fetch silent (không flash skeleton)
+  useRefetchOnTabVisible(() => {
+    if (!query.from || !query.to) return
+    fetchFlights(searchParamsObj, isRoundTrip ? outboundPage : page, filters, true)
+  })
 
   const handleSearch = () => {
     setHasSearched(true)
@@ -177,15 +188,22 @@ export default function SearchFlights() {
     return items
   }, [items, buyNowFilter, prediction])
 
-  const handleWatch = async (flight) => {
+  const handleWatch = (flight) => {
     const stored = (() => { try { return JSON.parse(sessionStorage.getItem('user')) } catch { return null } })()
     if (!stored?.email) { navigate('/auth?redirect=/flights'); return }
+    if (watchedIds.has(flight.id)) return
+    setWatchItem(flight)
+  }
+
+  const confirmWatch = async (targetPrice) => {
+    if (!watchItem) return
+    const stored = (() => { try { return JSON.parse(sessionStorage.getItem('user')) } catch { return null } })()
     try {
-      if (watchedIds.has(flight.id)) return
-      await createPriceAlert({ email: stored.email, routeFrom: flight.departureLocation, routeTo: flight.arrivalLocation, targetPrice: flight.price * 0.9 })
-      setWatchedIds(prev => new Set(prev).add(flight.id))
-      setWatchMsg(`Đã theo dõi giá vé ${formatCurrencyVnd(flight.price)}!`)
-      setTimeout(() => setWatchMsg(''), 4000)
+      await createPriceAlert({ email: stored.email, routeFrom: watchItem.departureLocation, routeTo: watchItem.arrivalLocation, targetPrice, itemId: watchItem.id, mode: 'flight' })
+      setWatchedIds(prev => new Set(prev).add(watchItem.id))
+      setWatchMsg(`Đã theo dõi — sẽ thông báo khi giá vé ≤ ${formatCurrencyVnd(targetPrice)}`)
+      setTimeout(() => setWatchMsg(''), 6000)
+      setWatchItem(null)
     } catch (err) {
       setWatchMsg(err.response?.data?.message || 'Không thể theo dõi giá')
       setTimeout(() => setWatchMsg(''), 4000)
@@ -395,6 +413,15 @@ export default function SearchFlights() {
           item={detailItem}
           type="flight"
           onClose={() => setDetailItem(null)}
+        />
+      )}
+
+      {watchItem && (
+        <PriceWatchModal
+          item={watchItem}
+          type="flight"
+          onClose={() => setWatchItem(null)}
+          onConfirm={confirmWatch}
         />
       )}
     </motion.div>

@@ -6,11 +6,13 @@ import BusCard from '../components/BusCard'
 import TicketDetailModal from '../components/TicketDetailModal'
 import PriceFilter from '../components/PriceFilter'
 import BookingOptionsModal from '../components/BookingOptionsModal'
+import PriceWatchModal from '../components/PriceWatchModal'
 
 import LocationInput from '../components/LocationInput'
 import { getBuses, createPriceAlert } from '../services/api'
 import { formatCurrencyVnd } from '../utils/formatters'
 import { PageHeader, SearchForm, SkeletonList, EmptyState, Pagination } from '../ui'
+import useRefetchOnTabVisible from '../hooks/useRefetchOnTabVisible'
 
 const PAGE_SIZE = 20
 
@@ -52,12 +54,13 @@ export default function SearchBuses() {
 
   const [bookingItem, setBookingItem] = useState(null)
   const [detailItem, setDetailItem] = useState(null)
+  const [watchItem, setWatchItem] = useState(null)
   const [watchMsg, setWatchMsg] = useState('')
   const [watchedIds, setWatchedIds] = useState(new Set())
 
-  const fetchBuses = async (params, pageNum = 1, filterOverride) => {
+  const fetchBuses = async (params, pageNum = 1, filterOverride, silent = false) => {
     const f = filterOverride || filters
-    setLoading(true)
+    if (!silent) setLoading(true)
     setError('')
     try {
       const res = await getBuses({ ...params, ...f, page: pageNum, pageSize: PAGE_SIZE })
@@ -80,8 +83,10 @@ export default function SearchBuses() {
     } catch (err) {
       console.error('[SearchBuses] Error:', err.response?.data || err.message)
       setError(err.response?.data?.message || 'Không thể tải danh sách xe khách')
-      setItems([]); setOutboundItems([]); setReturnItems([])
-      setTotal(0); setOutboundTotal(0); setReturnTotal(0)
+      if (!silent) {
+        setItems([]); setOutboundItems([]); setReturnItems([])
+        setTotal(0); setOutboundTotal(0); setReturnTotal(0)
+      }
     } finally { setLoading(false) }
   }
 
@@ -101,6 +106,12 @@ export default function SearchBuses() {
     setPage(1); setOutboundPage(1); setReturnPage(1)
     fetchBuses(searchParamsObj, 1, filters)
   }, [filters])
+
+  // Reload dữ liệu khi tab được mở/chuyển tới — fetch silent (không flash skeleton)
+  useRefetchOnTabVisible(() => {
+    if (!query.from || !query.to) return
+    fetchBuses(searchParamsObj, isRoundTrip ? outboundPage : page, filters, true)
+  })
 
   const handleSearch = () => {
     setHasSearched(true)
@@ -123,15 +134,22 @@ export default function SearchBuses() {
     fetchBuses(searchParamsObj, newPage, filters)
   }
 
-  const handleWatch = async (bus) => {
+  const handleWatch = (bus) => {
     const stored = (() => { try { return JSON.parse(sessionStorage.getItem('user')) } catch { return null } })()
     if (!stored?.email) { navigate('/auth?redirect=/buses'); return }
+    if (watchedIds.has(bus.id)) return
+    setWatchItem(bus)
+  }
+
+  const confirmWatch = async (targetPrice) => {
+    if (!watchItem) return
+    const stored = (() => { try { return JSON.parse(sessionStorage.getItem('user')) } catch { return null } })()
     try {
-      if (watchedIds.has(bus.id)) return
-      await createPriceAlert({ email: stored.email, routeFrom: bus.departureLocation, routeTo: bus.arrivalLocation, targetPrice: bus.price * 0.9 })
-      setWatchedIds(prev => new Set(prev).add(bus.id))
-      setWatchMsg(`Đã theo dõi giá vé ${formatCurrencyVnd(bus.price)}!`)
-      setTimeout(() => setWatchMsg(''), 4000)
+      await createPriceAlert({ email: stored.email, routeFrom: watchItem.departureLocation, routeTo: watchItem.arrivalLocation, targetPrice, itemId: watchItem.id, mode: 'bus' })
+      setWatchedIds(prev => new Set(prev).add(watchItem.id))
+      setWatchMsg(`Đã theo dõi — sẽ thông báo khi giá vé ≤ ${formatCurrencyVnd(targetPrice)}`)
+      setTimeout(() => setWatchMsg(''), 6000)
+      setWatchItem(null)
     } catch (err) {
       setWatchMsg(err.response?.data?.message || 'Không thể theo dõi giá')
       setTimeout(() => setWatchMsg(''), 4000)
@@ -355,6 +373,15 @@ export default function SearchBuses() {
           item={detailItem}
           type="bus"
           onClose={() => setDetailItem(null)}
+        />
+      )}
+
+      {watchItem && (
+        <PriceWatchModal
+          item={watchItem}
+          type="bus"
+          onClose={() => setWatchItem(null)}
+          onConfirm={confirmWatch}
         />
       )}
     </motion.div>

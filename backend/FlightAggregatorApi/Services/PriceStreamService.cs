@@ -139,5 +139,10 @@ public class PriceStreamService : BackgroundService
                 timestamp = DateTime.UtcNow,
             });
         }
+
+        // Tự động kiểm tra cảnh báo giá mỗi chu kỳ: khi giá đạt/thấp hơn mục tiêu
+        // của user → gửi email + thông báo ngay, không cần user bấm "Kiểm tra giá".
+        var alertService = scope.ServiceProvider.GetRequiredService<PriceAlertService>();
+        await alertService.CheckAlertsAsync(db);
     }
 }

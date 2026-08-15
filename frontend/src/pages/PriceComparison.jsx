@@ -6,13 +6,13 @@ import {
   WifiOff, RefreshCcw, Bell
 } from 'lucide-react'
 import LocationInput from '../components/LocationInput'
-import PriceHeatmap from '../components/PriceHeatmap'
 import CommunityTips from '../components/CommunityTips'
 import CarbonBadge from '../components/CarbonBadge'
 import { useNavigate } from 'react-router-dom'
 import { compareRoutes, getPriceTrends, predictPrice, getCurrentPrices } from '../services/api'
 import { formatCurrencyVnd, formatDurationMs } from '../utils/formatters'
 import usePriceStream from '../hooks/usePriceStream'
+import useRefetchOnTabVisible from '../hooks/useRefetchOnTabVisible'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList,
   LineChart, Line, Area, AreaChart, Legend,
@@ -354,6 +354,75 @@ function CompareSection({
   )
 }
 
+const MODES = [
+  { id: 'flight', label: 'Máy bay', icon: Plane },
+  { id: 'bus', label: 'Xe khách', icon: Bus },
+  { id: 'train', label: 'Tàu hỏa', icon: Train },
+]
+
+const modeLabel = (id) => MODES.find(m => m.id === id)?.label || 'Máy bay'
+
+function ModeDropdown({ value, onChange }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+
+  useEffect(() => {
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const current = MODES.find(m => m.id === value) || MODES[0]
+  const Icon = current.icon
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen(v => !v)}
+        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text-primary)] hover:border-primary-500/40 hover:text-primary-400 transition-all"
+      >
+        <Icon className="w-3.5 h-3.5 text-primary-500" />
+        {current.label}
+        <ChevronDown className={`w-3.5 h-3.5 text-[var(--color-text-tertiary)] transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.15 }}
+            className="absolute right-0 top-full mt-1.5 z-20 w-44 bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl shadow-lg overflow-hidden"
+          >
+            {MODES.map(m => {
+              const MIcon = m.icon
+              const active = m.id === value
+              return (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => { onChange(m.id); setOpen(false) }}
+                  className={`w-full flex items-center gap-2 px-3.5 py-2.5 text-xs font-medium transition-colors ${
+                    active
+                      ? 'bg-primary-500/10 text-primary-500'
+                      : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-border)]/20'
+                  }`}
+                >
+                  <MIcon className="w-3.5 h-3.5" />
+                  {m.label}
+                  {active && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-primary-500" />}
+                </button>
+              )
+            })}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
 const TABS = [
   { id: 'results', label: 'Kết quả' },
   { id: 'trends', label: 'Xu hướng' },
@@ -368,6 +437,7 @@ export default function PriceComparison() {
   const [activeTab, setActiveTab] = useState('results')
   const [compareData, setCompareData] = useState(null)
   const [trendData, setTrendData] = useState([])
+  const [trendMode, setTrendMode] = useState('flight') // 'flight' | 'train' | 'bus'
   const [prediction, setPrediction] = useState(null)
   const [compareLoading, setCompareLoading] = useState(false)
   const [trendLoading, setTrendLoading] = useState(false)
@@ -394,11 +464,11 @@ export default function PriceComparison() {
     } catch { setCompareData(null) } finally { setCompareLoading(false) }
   }, [])
 
-  const fetchTrends = useCallback(async (q) => {
+  const fetchTrends = useCallback(async (q, mode = trendMode) => {
     if (!q.from || !q.to) return
     setTrendLoading(true)
     try {
-      const res = await getPriceTrends({ from: q.from, to: q.to, days: q.days })
+      const res = await getPriceTrends({ from: q.from, to: q.to, days: q.days, mode })
       const mapped = res.data.map(d => ({
         ...d,
         date: d.date ? (typeof d.date === 'string' ? d.date.substring(0, 10) : d.date) : '',
@@ -409,7 +479,13 @@ export default function PriceComparison() {
       setTrendData(mapped)
       setLastUpdated(new Date())
     } catch { setTrendData([]) } finally { setTrendLoading(false) }
-  }, [])
+  }, [trendMode])
+
+  const changeTrendMode = (mode) => {
+    setTrendMode(mode)
+    setTrendData([]) // tránh hiển thị nhầm dữ liệu phương tiện cũ trong lúc tải
+    fetchTrends(query, mode)
+  }
 
   const fetchAll = useCallback(async (q) => {
     fetchCompare(q)
@@ -437,6 +513,11 @@ export default function PriceComparison() {
     }
     return () => { clearTimeout(debounceRef.current) }
   }, [])
+
+  // Reload dữ liệu khi tab được mở/chuyển tới (mở tab mới, chuyển tab, khôi phục từ bfcache)
+  useRefetchOnTabVisible(() => {
+    if (query.from && query.to) fetchAll(query)
+  })
 
   useEffect(() => {
     if (!lastUpdate) return
@@ -782,15 +863,25 @@ export default function PriceComparison() {
                   </motion.div>
                 )}
 
-                {activeTab === 'trends' && !trendLoading && trendData.length > 0 && (
-                  <motion.div key="trends" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}>
-                    <div className="flex items-center gap-2 mb-4">
-                      <TrendingUp className="w-5 h-5 text-primary-500" />
-                      <h2 className="text-lg font-bold text-[var(--color-text-primary)]">Xu hướng giá</h2>
-                      <span className="text-xs text-[var(--color-text-tertiary)] font-mono">
-                        {query.from} → {query.to}
-                      </span>
+                {activeTab === 'trends' && trendData.length > 0 && (
+                  <motion.div key={`trends-${trendMode}`} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}>
+                    <div className="flex flex-wrap items-center gap-3 mb-4">
+                      <div className="flex items-center gap-2">
+                        <TrendingUp className="w-5 h-5 text-primary-500" />
+                        <h2 className="text-lg font-bold text-[var(--color-text-primary)]">Xu hướng giá</h2>
+                        <span className="text-xs text-[var(--color-text-tertiary)] font-mono">
+                          {query.from} → {query.to}
+                        </span>
+                      </div>
+                      <div className="ml-auto">
+                        <ModeDropdown value={trendMode} onChange={changeTrendMode} />
+                      </div>
                     </div>
+                    <p className="text-xs text-[var(--color-text-tertiary)] -mt-2 mb-4">
+                      Đang xem xu hướng giá <span className="font-semibold text-[var(--color-text-primary)]">
+                        {modeLabel(trendMode).toLowerCase()}
+                      </span> trên tuyến {query.from} → {query.to} — {query.days} ngày gần nhất
+                    </p>
 
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
                       {[
@@ -865,12 +956,26 @@ export default function PriceComparison() {
                     </div>
 
                     <div className="bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-2xl overflow-hidden shadow-sm mt-6">
-                      <div className="px-5 py-3.5 border-b border-[var(--color-border)] flex items-center justify-between">
-                        <h3 className="font-semibold text-[var(--color-text-primary)] text-sm flex items-center gap-2">
-                          <BarChart3 className="w-4 h-4 text-primary-500" />
-                          Chi tiết giá theo ngày
-                        </h3>
-                        <span className="text-[11px] text-[var(--color-text-tertiary)]">{trendData.length} ngày</span>
+                      <div className="px-5 py-3.5 border-b border-[var(--color-border)]">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <BarChart3 className="w-4 h-4 text-primary-500" />
+                            <h3 className="font-semibold text-[var(--color-text-primary)] text-sm">
+                              Giá vé theo ngày — {modeLabel(trendMode)}
+                            </h3>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[11px] text-[var(--color-text-tertiary)]">{trendData.length} ngày</span>
+                            <ModeDropdown value={trendMode} onChange={changeTrendMode} />
+                          </div>
+                        </div>
+                        <p className="text-xs text-[var(--color-text-tertiary)] mt-1">
+                          Giá thấp nhất / trung bình / cao nhất của{' '}
+                          <span className="font-medium text-[var(--color-text-secondary)]">
+                            {modeLabel(trendMode).toLowerCase()}
+                          </span>{' '}
+                          trên tuyến {query.from} → {query.to} theo từng ngày · Cột "Biến động" = % thay đổi so với ngày liền trước
+                        </p>
                       </div>
                       <div className="overflow-x-auto max-h-[300px] overflow-y-auto scrollbar-thin">
                         {/* Desktop table */}
@@ -938,8 +1043,15 @@ export default function PriceComparison() {
                 )}
 
                 {activeTab === 'trends' && (!trendData.length) && (
-                  <motion.div key="trends-empty" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }} className="py-12 text-center text-sm text-[var(--color-text-tertiary)]">
-                    Chưa có dữ liệu xu hướng cho tuyến này.
+                  <motion.div key={`trends-empty-${trendMode}`} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }} className="py-12 text-center">
+                    {trendLoading ? (
+                      <div className="flex flex-col items-center gap-3">
+                        <div className="w-8 h-8 border-3 border-primary-500 border-t-transparent rounded-full animate-spin" />
+                        <p className="text-sm text-[var(--color-text-tertiary)]">Đang tải xu hướng giá...</p>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-[var(--color-text-tertiary)]">Chưa có dữ liệu xu hướng cho tuyến này.</p>
+                    )}
                   </motion.div>
                 )}
 
@@ -955,18 +1067,6 @@ export default function PriceComparison() {
         </>
       )}
 
-      {query.from && query.to && (
-        <div className="mt-8">
-          <PriceHeatmap
-            from={query.from}
-            onSelectDate={(to, date) => {
-              setQuery(q => ({ ...q, to, date }))
-              localStorage.setItem('compareQuery', JSON.stringify({ ...query, to, date }))
-              fetchAll({ ...query, to, date })
-            }}
-          />
-        </div>
-      )}
     </motion.div>
   )
 }

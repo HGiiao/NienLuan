@@ -61,8 +61,49 @@ public class Booking
     [MaxLength(500)]
     public string? SpecialRequests { get; set; }
 
+    // ---- Snapshot vé tại thời điểm đặt (dùng cho chính sách hoàn đổi & trạng thái đã đi) ----
+
+    /// <summary>Hạng vé snapshot: Flight.SeatClass / Train.CoachClass / Bus.CoachClass lúc đặt.</summary>
+    [MaxLength(50)]
+    public string? SeatClass { get; set; }
+
+    /// <summary>Đơn giá snapshot lúc đặt (trước thuế/phí) — dùng để tính mức hoàn theo chính sách.</summary>
+    public decimal? UnitPrice { get; set; }
+
+    /// <summary>Giờ khởi hành snapshot — xác định trạng thái "đã đi" (đánh giá chuyến đi) và hạn hoàn đổi.</summary>
+    public DateTime? DepartureTime { get; set; }
+
+    /// <summary>Số tiền hoàn trả thực tế khi hủy (tính theo chính sách "Hủy chuyến" trong chi tiết vé).</summary>
+    public decimal? RefundAmount { get; set; }
+
+    // ---- Computed (không lưu DB) — backend điền khi trả API để frontend hiển thị chính xác ----
+
+    [System.ComponentModel.DataAnnotations.Schema.NotMapped]
+    public bool? HasDeparted { get; set; }
+
+    [System.ComponentModel.DataAnnotations.Schema.NotMapped]
+    public bool? CanCancel { get; set; }
+
+    [System.ComponentModel.DataAnnotations.Schema.NotMapped]
+    public bool? CanReview { get; set; }
+
+    [System.ComponentModel.DataAnnotations.Schema.NotMapped]
+    public int? RefundPercent { get; set; }
+
+    [System.ComponentModel.DataAnnotations.Schema.NotMapped]
+    public decimal? RefundPreview { get; set; }
+
+    [System.ComponentModel.DataAnnotations.Schema.NotMapped]
+    public string? CancelPolicyLabel { get; set; }
+
+    [System.ComponentModel.DataAnnotations.Schema.NotMapped]
+    public double? HoursToDeparture { get; set; }
+
     public User User { get; set; } = null!;
     public Flight? Flight { get; set; }
     public Train? Train { get; set; }
     public Bus? Bus { get; set; }
+
+    /// <summary>Các chặng của booking gộp (lộ trình kết hợp). Rỗng với booking 1 chuyến thông thường.</summary>
+    public List<BookingSegment> Segments { get; set; } = new();
 }

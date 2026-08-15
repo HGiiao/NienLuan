@@ -12,12 +12,14 @@ public class PriceAlertController : ControllerBase
 {
     private readonly ApplicationDbContext _db;
     private readonly EmailService _email;
+    private readonly PriceAlertService _priceAlerts;
     private readonly ILogger<PriceAlertController> _logger;
 
-    public PriceAlertController(ApplicationDbContext db, EmailService email, ILogger<PriceAlertController> logger)
+    public PriceAlertController(ApplicationDbContext db, EmailService email, PriceAlertService priceAlerts, ILogger<PriceAlertController> logger)
     {
         _db = db;
         _email = email;
+        _priceAlerts = priceAlerts;
         _logger = logger;
     }
 
@@ -30,19 +32,19 @@ public class PriceAlertController : ControllerBase
         if (request.TargetPrice <= 0)
             return BadRequest(new { message = "Giá mục tiêu phải lớn hơn 0" });
 
-        var lowest = await _db.Flights
-            .Where(f => f.DepartureLocation == request.RouteFrom && f.ArrivalLocation == request.RouteTo)
-            .OrderBy(f => f.Price)
-            .Select(f => (decimal?)f.Price)
-            .FirstOrDefaultAsync();
+        var lowest = await PriceAlertService.GetLowestPriceAsync(_db, request.RouteFrom, request.RouteTo);
 
-        if (lowest == null)
+        // Theo dõi một chuyến cụ thể từ card → lấy giá của chính chuyến đó làm giá hiện tại
+        decimal? itemPrice = null;
+        if (request.ItemId.HasValue && !string.IsNullOrWhiteSpace(request.Mode))
         {
-            lowest = await _db.Trains
-                .Where(t => t.DepartureLocation == request.RouteFrom && t.ArrivalLocation == request.RouteTo)
-                .OrderBy(t => t.Price)
-                .Select(t => (decimal?)t.Price)
-                .FirstOrDefaultAsync();
+            itemPrice = request.Mode.ToLower() switch
+            {
+                "flight" => (await _db.Flights.FindAsync(request.ItemId.Value))?.Price,
+                "train" => (await _db.Trains.FindAsync(request.ItemId.Value))?.Price,
+                "bus" => (await _db.Buses.FindAsync(request.ItemId.Value))?.Price,
+                _ => null,
+            };
         }
 
         var alert = new PriceAlert
@@ -51,7 +53,9 @@ public class PriceAlertController : ControllerBase
             RouteFrom = request.RouteFrom,
             RouteTo = request.RouteTo,
             TargetPrice = request.TargetPrice,
-            CurrentPrice = lowest,
+            CurrentPrice = itemPrice ?? lowest,
+            ItemId = request.ItemId,
+            Mode = request.Mode,
             IsActive = true,
         };
 
@@ -88,6 +92,8 @@ public class PriceAlertController : ControllerBase
                 a.RouteTo,
                 a.TargetPrice,
                 a.CurrentPrice,
+                a.ItemId,
+                a.Mode,
                 a.IsActive,
                 a.CreatedAt,
                 a.NotifiedAt,
@@ -129,69 +135,9 @@ public class PriceAlertController : ControllerBase
         if (string.IsNullOrWhiteSpace(email))
             return BadRequest(new { message = "Email không được để trống" });
 
-        var alerts = await _db.PriceAlerts
-            .Where(a => a.Email == email && a.IsActive && a.NotifiedAt == null)
-            .ToListAsync();
+        var result = await _priceAlerts.CheckAlertsAsync(_db, email);
 
-        var triggered = new List<object>();
-
-        foreach (var alert in alerts)
-        {
-            var lowestFlight = await _db.Flights
-                .Where(f => f.DepartureLocation == alert.RouteFrom && f.ArrivalLocation == alert.RouteTo)
-                .OrderBy(f => f.Price)
-                .FirstOrDefaultAsync();
-
-            var lowestTrain = await _db.Trains
-                .Where(t => t.DepartureLocation == alert.RouteFrom && t.ArrivalLocation == alert.RouteTo)
-                .OrderBy(t => t.Price)
-                .FirstOrDefaultAsync();
-
-            var lowestPrice = Math.Min(
-                lowestFlight?.Price ?? decimal.MaxValue,
-                lowestTrain?.Price ?? decimal.MaxValue
-            );
-
-            alert.CurrentPrice = lowestPrice == decimal.MaxValue ? null : lowestPrice;
-
-            if (lowestPrice != decimal.MaxValue && lowestPrice <= alert.TargetPrice)
-            {
-                alert.NotifiedAt = DateTime.UtcNow;
-                triggered.Add(new
-                {
-                    alert.Id,
-                    alert.RouteFrom,
-                    alert.RouteTo,
-                    alert.TargetPrice,
-                    CurrentPrice = lowestPrice,
-                    alert.Email,
-                });
-
-                try
-                {
-                    await _email.SendPriceAlertAsync(alert.Email, alert.RouteFrom, alert.RouteTo, alert.TargetPrice, lowestPrice);
-                    _logger.LogInformation("Đã gửi email cảnh báo giá đến {Email} cho tuyến {From}→{To}", alert.Email, alert.RouteFrom, alert.RouteTo);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Gửi email cảnh báo giá thất bại đến {Email}", alert.Email);
-                }
-
-                _db.Notifications.Add(new Notification
-                {
-                    Email = alert.Email,
-                    Type = "price_drop",
-                    Title = $"Giá vé {alert.RouteFrom} → {alert.RouteTo} đã giảm!",
-                    Message = $"Giá hiện tại {lowestPrice:N0}đ thấp hơn mục tiêu {alert.TargetPrice:N0}đ.",
-                    Link = $"/flights?from={alert.RouteFrom}&to={alert.RouteTo}",
-                    CreatedAt = DateTime.UtcNow,
-                });
-            }
-        }
-
-        await _db.SaveChangesAsync();
-
-        return Ok(new { triggered, message = $"Kiểm tra {alerts.Count} cảnh báo, {triggered.Count} cảnh báo kích hoạt" });
+        return Ok(new { triggered = result.Triggered, message = $"Kiểm tra {result.Count} cảnh báo, {result.Triggered.Count} cảnh báo kích hoạt" });
     }
 }
 
@@ -201,4 +147,10 @@ public class CreatePriceAlertRequest
     public string RouteFrom { get; set; } = string.Empty;
     public string RouteTo { get; set; } = string.Empty;
     public decimal TargetPrice { get; set; }
+
+    /// <summary>Id chuyến cụ thể được theo dõi (Flight/Train/Bus) — không bắt buộc.</summary>
+    public long? ItemId { get; set; }
+
+    /// <summary>flight / train / bus.</summary>
+    public string? Mode { get; set; }
 }

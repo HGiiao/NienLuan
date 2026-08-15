@@ -19,6 +19,13 @@ public class PriceAlert
 
     public decimal? CurrentPrice { get; set; }
 
+    /// <summary>Id của chuyến cụ thể được theo dõi (Flight/Train/Bus) — null = theo dõi theo tuyến (cũ).</summary>
+    public long? ItemId { get; set; }
+
+    /// <summary>Loại phương tiện của item được theo dõi: flight / train / bus.</summary>
+    [MaxLength(20)]
+    public string? Mode { get; set; }
+
     public bool IsActive { get; set; } = true;
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

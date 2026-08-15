@@ -13,6 +13,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<PriceHistory> PriceHistories => Set<PriceHistory>();
     public DbSet<User> Users => Set<User>();
     public DbSet<Booking> Bookings => Set<Booking>();
+    public DbSet<BookingSegment> BookingSegments => Set<BookingSegment>();
     public DbSet<PriceAlert> PriceAlerts => Set<PriceAlert>();
     public DbSet<Review> Reviews => Set<Review>();
     public DbSet<CommunityTip> CommunityTips => Set<CommunityTip>();
@@ -28,6 +29,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<HotelBooking> HotelBookings => Set<HotelBooking>();
     public DbSet<PriceConfig> PriceConfigs => Set<PriceConfig>();
     public DbSet<PromoCode> PromoCodes => Set<PromoCode>();
+    public DbSet<LuckyWheelSpin> LuckyWheelSpins => Set<LuckyWheelSpin>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -55,11 +57,18 @@ public class ApplicationDbContext : DbContext
             entity.HasIndex(e => e.Price);
             entity.HasOne(e => e.Flight).WithMany().HasForeignKey(e => e.FlightId).OnDelete(DeleteBehavior.SetNull);
             entity.HasOne(e => e.Train).WithMany().HasForeignKey(e => e.TrainId).OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne(e => e.Bus).WithMany().HasForeignKey(e => e.BusId).OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<User>(entity =>
         {
             entity.HasIndex(e => e.Email).IsUnique();
+        });
+
+        modelBuilder.Entity<BookingSegment>(entity =>
+        {
+            entity.HasIndex(e => e.BookingId);
+            entity.HasOne(e => e.Booking).WithMany(b => b.Segments).HasForeignKey(e => e.BookingId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<Booking>(entity =>
@@ -89,6 +98,12 @@ public class ApplicationDbContext : DbContext
         {
             entity.HasIndex(e => e.Email);
             entity.HasIndex(e => new { e.Email, e.IsRead });
+        });
+
+        modelBuilder.Entity<LuckyWheelSpin>(entity =>
+        {
+            entity.HasIndex(e => e.Email);
+            entity.HasIndex(e => new { e.Email, e.CreatedAt });
         });
 
         modelBuilder.Entity<BookingInsurance>(entity =>

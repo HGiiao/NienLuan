@@ -33,13 +33,14 @@ public class PricesController : ControllerBase
     public async Task<IActionResult> GetTrends(
         [FromQuery] string from,
         [FromQuery] string to,
-        [FromQuery] int days = 7)
+        [FromQuery] int days = 7,
+        [FromQuery] string mode = "flight")
     {
         days = days switch { 7 => 7, 14 => 14, 30 => 30, _ => 7 };
         if (string.IsNullOrWhiteSpace(from) || string.IsNullOrWhiteSpace(to))
             return BadRequest(new { message = "Thiếu điểm đi/đến" });
 
-        var data = await _historyService.GetTrendData(from.Trim().ToUpperInvariant(), to.Trim().ToUpperInvariant(), days);
+        var data = await _historyService.GetTrendData(from.Trim().ToUpperInvariant(), to.Trim().ToUpperInvariant(), days, mode);
         return Ok(data);
     }
 

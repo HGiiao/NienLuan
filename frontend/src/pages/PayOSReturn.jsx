@@ -38,9 +38,12 @@ export default function PayOSReturn() {
 
         if (data.success) {
           setTransactionId(data.transactionId || '')
+          // Dùng bookingId thật backend trả về (orderCode ≠ booking Id)
+          const realId = data.bookingId || params.orderCode
+          setBookingId(realId)
           // Fetch updated booking info
           try {
-            const bookingRes = await getBooking(params.orderCode)
+            const bookingRes = await getBooking(realId)
             setBooking(bookingRes.data)
           } catch {}
           setStatus('success')
@@ -114,16 +117,20 @@ export default function PayOSReturn() {
               <div className="flex items-center gap-3">
                 <div className="flex-1">
                   <p className="font-semibold text-[var(--color-text-primary)]">
-                    {booking.flight
-                      ? `${booking.flight.departureLocation || ''} - ${booking.flight.arrivalLocation || ''}`
-                      : booking.train
-                        ? `${booking.train.departureLocation || ''} - ${booking.train.arrivalLocation || ''}`
-                        : booking.bus
-                          ? `${booking.bus.departureLocation || ''} - ${booking.bus.arrivalLocation || ''}`
-                          : 'Chi tiết chuyến đi'}
+                    {booking.segments?.length
+                      ? `${booking.segments[0].departureLocation || ''} → ${booking.segments[booking.segments.length - 1].arrivalLocation || ''} (${booking.segments.length} chặng)`
+                      : booking.flight
+                        ? `${booking.flight.departureLocation || ''} - ${booking.flight.arrivalLocation || ''}`
+                        : booking.train
+                          ? `${booking.train.departureLocation || ''} - ${booking.train.arrivalLocation || ''}`
+                          : booking.bus
+                            ? `${booking.bus.departureLocation || ''} - ${booking.bus.arrivalLocation || ''}`
+                            : 'Chi tiết chuyến đi'}
                   </p>
                   <p className="text-sm text-[var(--color-text-secondary)]">
-                    {booking.flight?.airlineName || booking.train?.trainName || booking.bus?.busCompany || ''}
+                    {booking.segments?.length
+                      ? 'Lộ trình kết hợp'
+                      : booking.flight?.airlineName || booking.train?.trainName || booking.bus?.busCompany || ''}
                   </p>
                 </div>
               </div>

@@ -12,13 +12,25 @@ public class PriceHistoryService
         _db = db;
     }
 
-    public async Task<List<PriceTrendDto>> GetTrendData(string from, string to, int days)
+    /// <summary>
+    /// Lấy xu hướng giá theo từng ngày cho một loại phương tiện.
+    /// </summary>
+    /// <param name="mode">"flight" | "train" | "bus" | "all" (mặc định flight khi rỗng)</param>
+    public async Task<List<PriceTrendDto>> GetTrendData(string from, string to, int days, string mode = "flight")
     {
         var since = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-days));
+        mode = (mode ?? "all").Trim().ToLowerInvariant();
+        var valid = mode is "flight" or "train" or "bus" or "all";
+        if (!valid) mode = "all";
 
-        var data = await _db.PriceHistories
+        IQueryable<Models.PriceHistory> query = _db.PriceHistories
             .AsNoTracking()
-            .Where(p => p.RouteFrom == from && p.RouteTo == to && p.RecordedDate >= since)
+            .Where(p => p.RouteFrom == from && p.RouteTo == to && p.RecordedDate >= since);
+
+        if (mode != "all")
+            query = query.Where(p => p.Mode == mode);
+
+        var data = await query
             .GroupBy(p => p.RecordedDate)
             .Select(g => new PriceTrendDto
             {
@@ -31,6 +43,25 @@ public class PriceHistoryService
             .ToListAsync();
 
         return data;
+    }
+
+    /// <summary>
+    /// Ghi 1 mốc giá vào lịch sử cho một phương tiện (flight/train/bus).
+    /// </summary>
+    public async Task RecordPrice(string mode, long? flightId, long? trainId, long? busId, string from, string to, decimal price)
+    {
+        _db.PriceHistories.Add(new Models.PriceHistory
+        {
+            Mode = mode is "train" ? "train" : mode is "bus" ? "bus" : "flight",
+            FlightId = flightId,
+            TrainId = trainId,
+            BusId = busId,
+            RouteFrom = from,
+            RouteTo = to,
+            Price = price,
+            RecordedDate = DateOnly.FromDateTime(DateTime.UtcNow)
+        });
+        await _db.SaveChangesAsync();
     }
 
     public async Task RecordPrice(long? flightId, long? trainId, string from, string to, decimal price)

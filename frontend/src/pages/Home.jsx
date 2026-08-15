@@ -10,7 +10,7 @@ import {
 } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, AreaChart, Area, Line, LineChart } from 'recharts'
 import HeroSearch from '../components/HeroSearch'
-import PromoBanner from '../components/PromoBanner'
+import LuckyWheel from '../components/LuckyWheel'
 import { formatCurrencyVnd } from '../utils/formatters'
 
 const stats = [
@@ -30,20 +30,20 @@ const features = [
 ]
 
 const trendData = [
-  { day: 'T2', price: 1520000, flight: 1520000, train: 980000 },
-  { day: 'T3', price: 1480000, flight: 1480000, train: 950000 },
-  { day: 'T4', price: 1350000, flight: 1350000, train: 920000 },
-  { day: 'T5', price: 1280000, flight: 1280000, train: 890000 },
-  { day: 'T6', price: 1320000, flight: 1320000, train: 910000 },
-  { day: 'T7', price: 1450000, flight: 1450000, train: 960000 },
-  { day: 'CN', price: 1380000, flight: 1380000, train: 940000 },
+  { day: 'T2', price: 1520000, flight: 1520000, bus: 720000, train: 980000 },
+  { day: 'T3', price: 1480000, flight: 1480000, bus: 690000, train: 950000 },
+  { day: 'T4', price: 1350000, flight: 1350000, bus: 650000, train: 920000 },
+  { day: 'T5', price: 1280000, flight: 1280000, bus: 620000, train: 890000 },
+  { day: 'T6', price: 1320000, flight: 1320000, bus: 640000, train: 910000 },
+  { day: 'T7', price: 1450000, flight: 1450000, bus: 700000, train: 960000 },
+  { day: 'CN', price: 1380000, flight: 1380000, bus: 680000, train: 940000 },
 ]
 
 const liveComparison = [
-  { route: 'HAN → SGN', flight: 1170000, train: 890000, diff: 'Máy bay đắt hơn 31%' },
-  { route: 'HAN → DAD', flight: 650000, train: 480000, diff: 'Máy bay đắt hơn 35%' },
-  { route: 'SGN → DAD', flight: 780000, train: 520000, diff: 'Máy bay đắt hơn 50%' },
-  { route: 'HAN → CXR', flight: 890000, train: 610000, diff: 'Tàu hỏa tiết kiệm 31%' },
+  { route: 'HAN → SGN', flight: 1170000, bus: 690000, train: 890000 },
+  { route: 'HAN → DAD', flight: 650000, bus: 460000, train: 480000 },
+  { route: 'SGN → DAD', flight: 780000, bus: 500000, train: 520000 },
+  { route: 'HAN → CXR', flight: 890000, bus: 750000, train: 610000 },
 ]
 
 const steps = [
@@ -176,29 +176,37 @@ export default function Home() {
               <div className="flex items-center gap-2 mb-4">
                 <BarChart4 className="w-4 h-4 text-primary-500" />
                 <span className="text-xs font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wider">
-                  Máy bay vs Tàu hỏa
+                  Máy bay vs Xe khách vs Tàu hỏa
                 </span>
               </div>
               <div className="space-y-2.5">
-                {liveComparison.map((item, i) => (
-                  <div key={i} className="flex items-center justify-between py-2.5 px-3 rounded-xl bg-[var(--color-surface-50)] hover:bg-[var(--color-border)]/30 transition-colors">
-                    <span className="text-sm font-semibold text-[var(--color-text-primary)] min-w-[100px]">{item.route}</span>
-                    <div className="flex items-center gap-4 text-xs">
-                      <span className="flex items-center gap-1">
-                        <Plane className="w-3 h-3 text-primary-400" />
-                        <span className="font-semibold text-[var(--color-text-primary)]">{formatCurrencyVnd(item.flight)}</span>
-                      </span>
-                      <span className="text-[var(--color-text-tertiary)]">vs</span>
-                      <span className="flex items-center gap-1">
-                        <Train className="w-3 h-3 text-primary-400" />
-                        <span className="font-semibold text-[var(--color-text-primary)]">{formatCurrencyVnd(item.train)}</span>
-                      </span>
-                      <span className="text-[11px] font-medium text-primary-600 bg-primary-50 px-2 py-0.5 rounded-full">
-                        {item.diff}
-                      </span>
+                {liveComparison.map((item, i) => {
+                  const cheapestAlt = Math.min(item.bus, item.train)
+                  const diffPct = Math.round(((item.flight - cheapestAlt) / item.flight) * 100)
+                  const cheapestLabel = item.bus <= item.train ? 'Xe khách' : 'Tàu hỏa'
+                  return (
+                    <div key={i} className="flex flex-wrap items-center justify-between gap-y-1.5 py-2.5 px-3 rounded-xl bg-[var(--color-surface-50)] hover:bg-[var(--color-border)]/30 transition-colors">
+                      <span className="text-sm font-semibold text-[var(--color-text-primary)] min-w-[90px]">{item.route}</span>
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+                        <span className="flex items-center gap-1">
+                          <Plane className="w-3 h-3 text-primary-400" />
+                          <span className="font-semibold text-[var(--color-text-primary)]">{formatCurrencyVnd(item.flight)}</span>
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Bus className="w-3 h-3 text-primary-400" />
+                          <span className="font-semibold text-[var(--color-text-primary)]">{formatCurrencyVnd(item.bus)}</span>
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Train className="w-3 h-3 text-primary-400" />
+                          <span className="font-semibold text-[var(--color-text-primary)]">{formatCurrencyVnd(item.train)}</span>
+                        </span>
+                        <span className="text-[11px] font-medium text-primary-600 bg-primary-50 px-2 py-0.5 rounded-full">
+                          {cheapestLabel} rẻ hơn {diffPct}%
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
 
@@ -212,11 +220,15 @@ export default function Home() {
                 </div>
                 <div className="flex items-center gap-1">
                   <div className="flex items-center gap-1 text-[10px]">
-                    <span className="w-2 h-2 rounded-full bg-primary-500 inline-block" />
+                    <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: 'var(--color-chart-1)' }} />
                     <span className="text-[var(--color-text-tertiary)]">Bay</span>
                   </div>
                   <div className="flex items-center gap-1 text-[10px] ml-2">
-                    <span className="w-2 h-2 rounded-full bg-primary-500 inline-block" />
+                    <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: 'var(--color-chart-3)' }} />
+                    <span className="text-[var(--color-text-tertiary)]">Xe khách</span>
+                  </div>
+                  <div className="flex items-center gap-1 text-[10px] ml-2">
+                    <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: 'var(--color-chart-2)' }} />
                     <span className="text-[var(--color-text-tertiary)]">Tàu</span>
                   </div>
                 </div>
@@ -230,6 +242,7 @@ export default function Home() {
                     formatter={(value) => formatCurrencyVnd(value)}
                   />
                   <Line type="monotone" dataKey="flight" stroke="var(--color-chart-1)" strokeWidth={2} dot={false} />
+                  <Line type="monotone" dataKey="bus" stroke="var(--color-chart-3)" strokeWidth={2} dot={false} />
                   <Line type="monotone" dataKey="train" stroke="var(--color-chart-2)" strokeWidth={2} dot={false} />
                 </LineChart>
               </ResponsiveContainer>
@@ -320,7 +333,7 @@ export default function Home() {
         </div>
       </section>
 
-      <PromoBanner />
+      <LuckyWheel />
 
       {/* Seasonal Destinations — Hero + Small Cards */}
       {(() => {

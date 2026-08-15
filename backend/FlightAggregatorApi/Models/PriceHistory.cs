@@ -7,6 +7,11 @@ public class PriceHistory
     public long Id { get; set; }
     public long? FlightId { get; set; }
     public long? TrainId { get; set; }
+    public long? BusId { get; set; }
+
+    /// <summary>Loại phương tiện: "flight" | "train" | "bus".</summary>
+    [MaxLength(20)]
+    public string Mode { get; set; } = "flight";
 
     [MaxLength(50)]
     public string RouteFrom { get; set; } = string.Empty;
@@ -20,4 +25,5 @@ public class PriceHistory
 
     public Flight? Flight { get; set; }
     public Train? Train { get; set; }
+    public Bus? Bus { get; set; }
 }

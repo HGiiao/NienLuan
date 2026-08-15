@@ -6,11 +6,13 @@ import TrainCard from '../components/TrainCard'
 import TicketDetailModal from '../components/TicketDetailModal'
 import PriceFilter from '../components/PriceFilter'
 import BookingOptionsModal from '../components/BookingOptionsModal'
+import PriceWatchModal from '../components/PriceWatchModal'
 
 import LocationInput from '../components/LocationInput'
 import { getTrains, predictPrice, createPriceAlert } from '../services/api'
 import { formatCurrencyVnd } from '../utils/formatters'
 import { PageHeader, SearchForm, SkeletonList, EmptyState, Pagination } from '../ui'
+import useRefetchOnTabVisible from '../hooks/useRefetchOnTabVisible'
 
 const PAGE_SIZE = 20
 
@@ -52,14 +54,15 @@ export default function SearchTrains() {
 
   const [bookingItem, setBookingItem] = useState(null)
   const [detailItem, setDetailItem] = useState(null)
+  const [watchItem, setWatchItem] = useState(null)
   const [prediction, setPrediction] = useState(null)
   const [buyNowFilter, setBuyNowFilter] = useState(false)
   const [watchMsg, setWatchMsg] = useState('')
   const [watchedIds, setWatchedIds] = useState(new Set())
 
-  const fetchTrains = async (params, pageNum = 1, filterOverride) => {
+  const fetchTrains = async (params, pageNum = 1, filterOverride, silent = false) => {
     const f = filterOverride || filters
-    setLoading(true)
+    if (!silent) setLoading(true)
     setError('')
     try {
       const res = await getTrains({ ...params, ...f, page: pageNum, pageSize: PAGE_SIZE })
@@ -85,8 +88,10 @@ export default function SearchTrains() {
     } catch (err) {
       console.error('[SearchTrains] Error:', err.response?.data || err.message)
       setError(err.response?.data?.message || 'Không thể tải danh sách chuyến tàu')
-      setItems([]); setOutboundItems([]); setReturnItems([])
-      setTotal(0); setOutboundTotal(0); setReturnTotal(0)
+      if (!silent) {
+        setItems([]); setOutboundItems([]); setReturnItems([])
+        setTotal(0); setOutboundTotal(0); setReturnTotal(0)
+      }
     } finally { setLoading(false) }
   }
 
@@ -106,6 +111,12 @@ export default function SearchTrains() {
     setPage(1); setOutboundPage(1); setReturnPage(1)
     fetchTrains(searchParamsObj, 1, filters)
   }, [filters])
+
+  // Reload dữ liệu khi tab được mở/chuyển tới — fetch silent (không flash skeleton)
+  useRefetchOnTabVisible(() => {
+    if (!query.from || !query.to) return
+    fetchTrains(searchParamsObj, isRoundTrip ? outboundPage : page, filters, true)
+  })
 
   const handleSearch = () => {
     setHasSearched(true)
@@ -133,15 +144,22 @@ export default function SearchTrains() {
     return items
   }, [items, buyNowFilter, prediction])
 
-  const handleWatch = async (train) => {
+  const handleWatch = (train) => {
     const stored = (() => { try { return JSON.parse(sessionStorage.getItem('user')) } catch { return null } })()
     if (!stored?.email) { navigate('/auth?redirect=/trains'); return }
+    if (watchedIds.has(train.id)) return
+    setWatchItem(train)
+  }
+
+  const confirmWatch = async (targetPrice) => {
+    if (!watchItem) return
+    const stored = (() => { try { return JSON.parse(sessionStorage.getItem('user')) } catch { return null } })()
     try {
-      if (watchedIds.has(train.id)) return
-      await createPriceAlert({ email: stored.email, routeFrom: train.departureLocation, routeTo: train.arrivalLocation, targetPrice: train.price * 0.9 })
-      setWatchedIds(prev => new Set(prev).add(train.id))
-      setWatchMsg(`Đã theo dõi giá vé ${formatCurrencyVnd(train.price)}!`)
-      setTimeout(() => setWatchMsg(''), 4000)
+      await createPriceAlert({ email: stored.email, routeFrom: watchItem.departureLocation, routeTo: watchItem.arrivalLocation, targetPrice, itemId: watchItem.id, mode: 'train' })
+      setWatchedIds(prev => new Set(prev).add(watchItem.id))
+      setWatchMsg(`Đã theo dõi — sẽ thông báo khi giá vé ≤ ${formatCurrencyVnd(targetPrice)}`)
+      setTimeout(() => setWatchMsg(''), 6000)
+      setWatchItem(null)
     } catch (err) {
       setWatchMsg(err.response?.data?.message || 'Không thể theo dõi giá')
       setTimeout(() => setWatchMsg(''), 4000)
@@ -379,6 +397,15 @@ export default function SearchTrains() {
           item={detailItem}
           type="train"
           onClose={() => setDetailItem(null)}
+        />
+      )}
+
+      {watchItem && (
+        <PriceWatchModal
+          item={watchItem}
+          type="train"
+          onClose={() => setWatchItem(null)}
+          onConfirm={confirmWatch}
         />
       )}
     </motion.div>

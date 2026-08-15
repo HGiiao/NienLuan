@@ -1,13 +1,14 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Route as RouteIcon, Plane, Train, Bus, MapPin, CalendarDays,
   DollarSign, TrendingUp, TrendingDown, Lightbulb, Bell, BellOff, Plus,
-  Trash2, Target, ArrowRight, AlertCircle, Check, Loader,
+  Trash2, Target, ArrowRight, AlertCircle, Check, Loader, Ticket,
 } from 'lucide-react'
 import LocationInput from '../components/LocationInput'
 import { getOptimalRoute, getPriceAlerts, createPriceAlert, deletePriceAlert, togglePriceAlert, checkPriceAlerts } from '../services/api'
+import useRefetchOnTabVisible from '../hooks/useRefetchOnTabVisible'
 import { formatCurrencyVnd } from '../utils/formatters'
 import { useUser } from '@clerk/clerk-react'
 
@@ -70,7 +71,7 @@ function LiveIndicator({ connected = true }) {
   )
 }
 
-function RouteTab({ form, setForm, handleSearch, routes, loading, directCheapest, onBook }) {
+function RouteTab({ form, setForm, handleSearch, routes, loading, directCheapest, onBook, onBookRoute }) {
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}>
       {loading && (
@@ -174,6 +175,22 @@ function RouteTab({ form, setForm, handleSearch, routes, loading, directCheapest
                         )
                       })}
                     </div>
+
+                    {isMultiLeg && onBookRoute && (
+                      <div className="mt-4 pt-4 border-t border-[var(--color-border)] flex items-center justify-between gap-3">
+                        <p className="text-xs text-[var(--color-text-tertiary)]">
+                          Mua <span className="font-bold text-[var(--color-text-primary)]">{segments.length} vé</span> cùng lúc trong 1 lần đặt
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => onBookRoute(route)}
+                          className="flex items-center gap-2 bg-gradient-to-r from-primary-500 to-primary-600 text-white px-4 py-2.5 rounded-xl text-sm font-bold hover:shadow-lg hover:shadow-primary-500/20 transition-all shadow-md"
+                        >
+                          <Ticket className="w-4 h-4" />
+                          Đặt cả lộ trình — {formatCurrencyVnd(route.totalPrice)}
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </motion.div>
               )
@@ -224,6 +241,9 @@ function AlertsTab() {
     if (!isAuthed) { navigate('/auth'); return }
     loadAlerts()
   }, [isAuthed, loadAlerts, navigate])
+
+  // Reload danh sách cảnh báo khi tab được mở/chuyển tới
+  useRefetchOnTabVisible(loadAlerts)
 
   const handleCreate = async (e) => {
     e.preventDefault()
@@ -444,9 +464,11 @@ export default function OptimalRoute() {
   const [routes, setRoutes] = useState([])
   const [loading, setLoading] = useState(false)
   const [directCheapest, setDirectCheapest] = useState(null)
+  const searchedRef = useRef(false)
 
   const handleSearch = useCallback(async () => {
     if (!form.originCity || !form.destinationCity || !form.startDate) return
+    searchedRef.current = true
     setLoading(true)
     try {
       const res = await getOptimalRoute({
@@ -463,6 +485,11 @@ export default function OptimalRoute() {
       setDirectCheapest(data.find(r => r.label === 'direct') || null)
     } catch { setRoutes([]) } finally { setLoading(false) }
   }, [form])
+
+  // Reload lộ trình đã tìm khi tab được mở/chuyển tới (chỉ khi đã từng tìm kiếm)
+  useRefetchOnTabVisible(() => {
+    if (searchedRef.current) handleSearch()
+  })
 
   return (
     <motion.div
@@ -592,7 +619,7 @@ export default function OptimalRoute() {
 
         <div className="p-4 md:p-5">
           <AnimatePresence mode="wait">
-            {tab === 'route' && <RouteTab key="route" form={form} setForm={setForm} handleSearch={handleSearch} routes={routes} loading={loading} directCheapest={directCheapest} onBook={(item) => navigate(`/booking/${item.type}/${item.id}`, { state: { item } })} />}
+            {tab === 'route' && <RouteTab key="route" form={form} setForm={setForm} handleSearch={handleSearch} routes={routes} loading={loading} directCheapest={directCheapest} onBook={(item) => navigate(`/booking/${item.type}/${item.id}`, { state: { item } })} onBookRoute={(route) => navigate(`/booking/multi/route`, { state: { route } })} />}
             {tab === 'alerts' && <AlertsTab key="alerts" />}
           </AnimatePresence>
         </div>

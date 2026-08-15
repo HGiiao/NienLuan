@@ -27,7 +27,7 @@ public class PaymentsController : ControllerBase
     }
 
     [HttpPost("vnpay-return")]
-    public async Task<IActionResult> VnPayReturn([FromQuery] Dictionary<string, string> queryParams)
+    public async Task<IActionResult> VnPayReturn([FromBody] Dictionary<string, string> queryParams)
     {
         var result = _vnPay.VerifyReturnQuery(queryParams);
 
@@ -151,7 +151,7 @@ public class PaymentsController : ControllerBase
 
     // ================= ZaloPay =================
     [HttpPost("zalopay-return")]
-    public async Task<IActionResult> ZaloPayReturn([FromForm] Dictionary<string, string> form)
+    public async Task<IActionResult> ZaloPayReturn([FromBody] Dictionary<string, string> form)
     {
         var data = form.GetValueOrDefault("data", "");
         var mac = form.GetValueOrDefault("mac", "");
@@ -214,7 +214,7 @@ public class PaymentsController : ControllerBase
 
     // ================= PayOS =================
     [HttpPost("payos-return")]
-    public async Task<IActionResult> PayOSReturn([FromQuery] Dictionary<string, string> queryParams)
+    public async Task<IActionResult> PayOSReturn([FromBody] Dictionary<string, string> queryParams)
     {
         var paymentLinkId = queryParams.GetValueOrDefault("id", "");
         var status = queryParams.GetValueOrDefault("status", "");
@@ -257,6 +257,7 @@ public class PaymentsController : ControllerBase
             return Ok(new
             {
                 success = true,
+                bookingId = booking.Id,
                 transactionId = $"PAYOS_{reference}",
                 message = "Thanh toán thành công",
             });

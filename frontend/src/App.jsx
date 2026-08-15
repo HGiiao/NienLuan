@@ -1,6 +1,7 @@
 import { useEffect, createContext, useContext, useState } from 'react'
-import { useLocation, BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
-import { ClerkProvider, useUser, AuthenticateWithRedirectCallback } from '@clerk/clerk-react'
+import { useLocation, useNavigate, BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
+import { ClerkProvider, useUser, useClerk } from '@clerk/clerk-react'
+import { Loader, AlertCircle } from 'lucide-react'
 import Navbar from './components/Navbar'
 import Footer from './components/Footer'
 import ChatBot from './components/ChatBot'
@@ -57,19 +58,81 @@ function ThemeProvider({ children }) {
   )
 }
 
-function ClerkSync() {
-  const { isSignedIn, user } = useUser()
+function SsoCallback() {
+  const { handleRedirectCallback } = useClerk()
+  const navigate = useNavigate()
+  const [error, setError] = useState('')
 
   useEffect(() => {
-    const tabAuth = sessionStorage.getItem('ve247-auth')
+    let cancelled = false
+    handleRedirectCallback({
+      // Nếu đăng ký OAuth còn thiếu thông tin (vd: SĐT bắt buộc) → quay về app
+      // để bổ sung thay vì bị ném sang trang hosted của Clerk.
+      continueSignUpUrl: '/auth?mode=continue-signup',
+    })
+      .catch((err) => {
+        if (cancelled) return
+        console.error('[SsoCallback error]', err)
+        const isSignUpRelated = (err?.errors || []).some(e =>
+          String(e?.code || '').toLowerCase().includes('sign_up') ||
+          String(e?.message || '').toLowerCase().includes('sign-up'))
+        if (isSignUpRelated) {
+          navigate('/auth?mode=continue-signup', { replace: true })
+          return
+        }
+        const msg = err?.errors?.[0]?.message || err?.message || 'Không thể hoàn tất đăng nhập. Vui lòng thử lại.'
+        setError(msg)
+      })
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-4 bg-[var(--color-bg)]">
+        <div className="max-w-md w-full text-center">
+          <div className="w-14 h-14 rounded-2xl bg-red-500/10 flex items-center justify-center mx-auto mb-4">
+            <AlertCircle className="w-7 h-7 text-red-500" />
+          </div>
+          <h2 className="text-lg font-bold text-[var(--color-text-primary)] mb-2">Đăng nhập không thành công</h2>
+          <p className="text-sm text-[var(--color-text-secondary)] mb-6">{error}</p>
+          <button
+            onClick={() => navigate('/auth')}
+            className="px-6 py-3 bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-xl font-semibold hover:opacity-90 transition-opacity"
+          >
+            Quay lại trang đăng nhập
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-[var(--color-bg)]">
+      <div className="text-center">
+        <Loader className="w-8 h-8 animate-spin text-primary-500 mx-auto mb-3" />
+        <p className="text-sm text-[var(--color-text-secondary)]">Đang xử lý đăng nhập...</p>
+      </div>
+    </div>
+  )
+}
+
+function ClerkSync() {
+  const { isSignedIn, user } = useUser()
+  const tabAuth = sessionStorage.getItem('ve247-auth')
+
+  useEffect(() => {
     if (isSignedIn && user) {
+      // Chỉ sync sau khi flow đăng nhập trong app hoàn tất (ve247-auth được set),
+      // tránh ghi đè user backend đang đăng nhập bằng session Clerk nền.
       if (!tabAuth) return
+      const email = user.primaryEmailAddress?.emailAddress || ''
+      if (!email) return
       fetch(`${import.meta.env.VITE_API_URL || ''}/api/auth/clerk-sync`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          email: user.primaryEmailAddress?.emailAddress || '',
+          email,
           fullName: user.fullName || '',
           phone: user.primaryPhoneNumber?.phoneNumber || '',
         }),
@@ -86,7 +149,7 @@ function ClerkSync() {
         } catch {}
       }
     }
-  }, [isSignedIn, user])
+  }, [isSignedIn, user, tabAuth])
 
   return null
 }
@@ -137,7 +200,7 @@ function AppLayout() {
           <Route path="/profile" element={<Profile />} />
           <Route path="/vip" element={<VipPlans />} />
           <Route path="/auth" element={<LoginRegister />} />
-          <Route path="/auth/sso-callback" element={<AuthenticateWithRedirectCallback />} />
+          <Route path="/auth/sso-callback" element={<SsoCallback />} />
           <Route path="/admin/login" element={<AdminLogin />} />
           <Route path="/admin" element={<AdminGuard><AdminDashboard /></AdminGuard>} />
           <Route path="/admin/*" element={<AdminGuard><AdminDashboard /></AdminGuard>} />

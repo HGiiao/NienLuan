@@ -6,7 +6,11 @@ using FlightAggregatorApi.Hubs;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers().AddJsonOptions(options =>
-    options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles);
+{
+    options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
+    // Mọi DateTime trả về luôn ở dạng UTC (kèm 'Z') để trình duyệt parse đúng
+    options.JsonSerializerOptions.Converters.Add(new FlightAggregatorApi.Services.UtcDateTimeConverter());
+});
 builder.Services.AddOpenApi();
 
 var connString = builder.Configuration.GetConnectionString("AzureSqlDb")
@@ -19,6 +23,7 @@ builder.Services.AddScoped<PriceHistoryService>();
 builder.Services.AddScoped<PricePredictionService>();
 builder.Services.AddScoped<RouteOptimizerService>();
 builder.Services.AddScoped<EmailService>();
+builder.Services.AddScoped<PriceAlertService>();
 builder.Services.AddScoped<VnPayService>();
 builder.Services.AddScoped<MoMoService>();
 builder.Services.AddScoped<ZaloPayService>();
@@ -86,10 +91,13 @@ END
 
 IF OBJECT_ID('PriceHistories', 'U') IS NULL
 BEGIN
-CREATE TABLE PriceHistories (Id BIGINT PRIMARY KEY IDENTITY(1,1), FlightId BIGINT NULL, TrainId BIGINT NULL, RouteFrom NVARCHAR(50) NOT NULL, RouteTo NVARCHAR(50) NOT NULL, Price DECIMAL(18,2) NOT NULL, RecordedDate DATE NOT NULL, CreatedAt DATETIME2 DEFAULT GETUTCDATE(), CONSTRAINT FK_PriceHistory_Flight FOREIGN KEY (FlightId) REFERENCES Flights(Id) ON DELETE SET NULL, CONSTRAINT FK_PriceHistory_Train FOREIGN KEY (TrainId) REFERENCES Trains(Id) ON DELETE SET NULL);
+CREATE TABLE PriceHistories (Id BIGINT PRIMARY KEY IDENTITY(1,1), FlightId BIGINT NULL, TrainId BIGINT NULL, BusId BIGINT NULL, Mode NVARCHAR(20) NOT NULL DEFAULT 'flight', RouteFrom NVARCHAR(50) NOT NULL, RouteTo NVARCHAR(50) NOT NULL, Price DECIMAL(18,2) NOT NULL, RecordedDate DATE NOT NULL, CreatedAt DATETIME2 DEFAULT GETUTCDATE(), CONSTRAINT FK_PriceHistory_Flight FOREIGN KEY (FlightId) REFERENCES Flights(Id) ON DELETE SET NULL, CONSTRAINT FK_PriceHistory_Train FOREIGN KEY (TrainId) REFERENCES Trains(Id) ON DELETE SET NULL, CONSTRAINT FK_PriceHistory_Bus FOREIGN KEY (BusId) REFERENCES Buses(Id) ON DELETE SET NULL);
 CREATE INDEX IX_PriceHistory_Route_Date ON PriceHistories (RouteFrom, RouteTo, RecordedDate);
 CREATE INDEX IX_PriceHistory_Price ON PriceHistories (Price);
 END
+
+IF COL_LENGTH('PriceHistories', 'BusId') IS NULL ALTER TABLE PriceHistories ADD BusId BIGINT NULL;
+IF COL_LENGTH('PriceHistories', 'Mode') IS NULL ALTER TABLE PriceHistories ADD Mode NVARCHAR(20) NOT NULL DEFAULT 'flight';
 
 IF OBJECT_ID('Users', 'U') IS NULL
 BEGIN
@@ -99,13 +107,29 @@ END
 
 IF OBJECT_ID('Bookings', 'U') IS NULL
 BEGIN
-CREATE TABLE Bookings (Id BIGINT PRIMARY KEY IDENTITY(1,1), UserId BIGINT NOT NULL, FlightId BIGINT NULL, TrainId BIGINT NULL, BusId BIGINT NULL, BookingDate DATETIME2 DEFAULT GETUTCDATE(), Status NVARCHAR(50) NOT NULL DEFAULT 'Pending', TotalPrice DECIMAL(18,2) NOT NULL, Passengers INT NOT NULL DEFAULT 1, Address NVARCHAR(500) NULL, PaymentMethod NVARCHAR(50) NULL, TransactionId NVARCHAR(100) NULL, VnPayTransactionNo NVARCHAR(50) NULL, CONSTRAINT FK_Bookings_User FOREIGN KEY (UserId) REFERENCES Users(Id), CONSTRAINT FK_Bookings_Flight FOREIGN KEY (FlightId) REFERENCES Flights(Id) ON DELETE SET NULL, CONSTRAINT FK_Bookings_Train FOREIGN KEY (TrainId) REFERENCES Trains(Id) ON DELETE SET NULL, CONSTRAINT FK_Bookings_Bus FOREIGN KEY (BusId) REFERENCES Buses(Id) ON DELETE SET NULL);
+CREATE TABLE Bookings (Id BIGINT PRIMARY KEY IDENTITY(1,1), UserId BIGINT NOT NULL, FlightId BIGINT NULL, TrainId BIGINT NULL, BusId BIGINT NULL, BookingDate DATETIME2 DEFAULT GETUTCDATE(), Status NVARCHAR(50) NOT NULL DEFAULT 'Pending', TotalPrice DECIMAL(18,2) NOT NULL, Passengers INT NOT NULL DEFAULT 1, Address NVARCHAR(500) NULL, PaymentMethod NVARCHAR(50) NULL, TransactionId NVARCHAR(100) NULL, VnPayTransactionNo NVARCHAR(50) NULL, SeatClass NVARCHAR(50) NULL, UnitPrice DECIMAL(18,2) NULL, DepartureTime DATETIME2 NULL, RefundAmount DECIMAL(18,2) NULL, CONSTRAINT FK_Bookings_User FOREIGN KEY (UserId) REFERENCES Users(Id), CONSTRAINT FK_Bookings_Flight FOREIGN KEY (FlightId) REFERENCES Flights(Id) ON DELETE SET NULL, CONSTRAINT FK_Bookings_Train FOREIGN KEY (TrainId) REFERENCES Trains(Id) ON DELETE SET NULL, CONSTRAINT FK_Bookings_Bus FOREIGN KEY (BusId) REFERENCES Buses(Id) ON DELETE SET NULL);
 CREATE INDEX IX_Bookings_UserId ON Bookings (UserId);
 CREATE INDEX IX_Bookings_Status ON Bookings (Status);
 END
 
+IF OBJECT_ID('BookingSegments', 'U') IS NULL
+BEGIN
+CREATE TABLE BookingSegments (Id BIGINT PRIMARY KEY IDENTITY(1,1), BookingId BIGINT NOT NULL, Mode NVARCHAR(20) NOT NULL DEFAULT 'flight', ItemId BIGINT NOT NULL, Code NVARCHAR(50) NOT NULL DEFAULT '', Name NVARCHAR(200) NOT NULL DEFAULT '', DepartureLocation NVARCHAR(50) NOT NULL DEFAULT '', ArrivalLocation NVARCHAR(50) NOT NULL DEFAULT '', DepartureTime DATETIME2 NOT NULL, ArrivalTime DATETIME2 NOT NULL, Price DECIMAL(18,2) NOT NULL DEFAULT 0, SeatClass NVARCHAR(50) NULL, CONSTRAINT FK_BookingSegments_Booking FOREIGN KEY (BookingId) REFERENCES Bookings(Id) ON DELETE CASCADE);
+CREATE INDEX IX_BookingSegments_BookingId ON BookingSegments (BookingId);
+END
+
 IF OBJECT_ID('PriceAlerts', 'U') IS NULL
 CREATE TABLE PriceAlerts (Id BIGINT PRIMARY KEY IDENTITY(1,1), Email NVARCHAR(255) NOT NULL, RouteFrom NVARCHAR(50) NOT NULL, RouteTo NVARCHAR(50) NOT NULL, TargetPrice DECIMAL(18,2) NOT NULL, CurrentPrice DECIMAL(18,2) NULL, IsActive BIT NOT NULL DEFAULT 1, CreatedAt DATETIME2 NOT NULL DEFAULT GETUTCDATE(), NotifiedAt DATETIME2 NULL);
+
+IF OBJECT_ID('LuckyWheelSpins', 'U') IS NULL
+BEGIN
+CREATE TABLE LuckyWheelSpins (Id BIGINT PRIMARY KEY IDENTITY(1,1), Email NVARCHAR(255) NOT NULL, Won BIT NOT NULL DEFAULT 0, Code NVARCHAR(50) NULL, CreatedAt DATETIME2 NOT NULL DEFAULT GETUTCDATE());
+CREATE INDEX IX_LuckyWheelSpins_Email ON LuckyWheelSpins (Email);
+CREATE INDEX IX_LuckyWheelSpins_Email_CreatedAt ON LuckyWheelSpins (Email, CreatedAt);
+END
+
+IF COL_LENGTH('PriceAlerts', 'ItemId') IS NULL ALTER TABLE PriceAlerts ADD ItemId BIGINT NULL;
+IF COL_LENGTH('PriceAlerts', 'Mode') IS NULL ALTER TABLE PriceAlerts ADD Mode NVARCHAR(20) NULL;
 
 DROP TABLE IF EXISTS PriceFreezes;
 
@@ -139,9 +163,15 @@ IF COL_LENGTH('Bookings', 'EmergencyContactPhone') IS NULL ALTER TABLE Bookings 
 IF COL_LENGTH('Bookings', 'SpecialRequests') IS NULL ALTER TABLE Bookings ADD SpecialRequests NVARCHAR(500) NULL;
 IF COL_LENGTH('Bookings', 'PromoCode') IS NULL ALTER TABLE Bookings ADD PromoCode NVARCHAR(50) NULL;
 IF COL_LENGTH('Bookings', 'DiscountAmount') IS NULL ALTER TABLE Bookings ADD DiscountAmount DECIMAL(18,2) NULL;
+IF COL_LENGTH('Bookings', 'SeatClass') IS NULL ALTER TABLE Bookings ADD SeatClass NVARCHAR(50) NULL;
+IF COL_LENGTH('Bookings', 'UnitPrice') IS NULL ALTER TABLE Bookings ADD UnitPrice DECIMAL(18,2) NULL;
+IF COL_LENGTH('Bookings', 'DepartureTime') IS NULL ALTER TABLE Bookings ADD DepartureTime DATETIME2 NULL;
+IF COL_LENGTH('Bookings', 'RefundAmount') IS NULL ALTER TABLE Bookings ADD RefundAmount DECIMAL(18,2) NULL;
 
 IF OBJECT_ID('Reviews', 'U') IS NULL
-CREATE TABLE Reviews (Id BIGINT PRIMARY KEY IDENTITY(1,1), FlightId BIGINT NULL, TrainId BIGINT NULL, UserId BIGINT NULL, Email NVARCHAR(255) NOT NULL, AuthorName NVARCHAR(255) NOT NULL, Rating INT NOT NULL, Comment NVARCHAR(2000) NOT NULL, CreatedAt DATETIME2 NOT NULL DEFAULT GETUTCDATE(), CONSTRAINT FK_Reviews_Flight FOREIGN KEY (FlightId) REFERENCES Flights(Id) ON DELETE SET NULL, CONSTRAINT FK_Reviews_Train FOREIGN KEY (TrainId) REFERENCES Trains(Id) ON DELETE SET NULL);
+CREATE TABLE Reviews (Id BIGINT PRIMARY KEY IDENTITY(1,1), FlightId BIGINT NULL, TrainId BIGINT NULL, BusId BIGINT NULL, BookingId BIGINT NULL, UserId BIGINT NULL, Email NVARCHAR(255) NOT NULL, AuthorName NVARCHAR(255) NOT NULL, Rating INT NOT NULL, Comment NVARCHAR(2000) NOT NULL, CreatedAt DATETIME2 NOT NULL DEFAULT GETUTCDATE(), CONSTRAINT FK_Reviews_Flight FOREIGN KEY (FlightId) REFERENCES Flights(Id) ON DELETE SET NULL, CONSTRAINT FK_Reviews_Train FOREIGN KEY (TrainId) REFERENCES Trains(Id) ON DELETE SET NULL, CONSTRAINT FK_Reviews_Bus FOREIGN KEY (BusId) REFERENCES Buses(Id) ON DELETE SET NULL);
+IF COL_LENGTH('Reviews', 'BusId') IS NULL ALTER TABLE Reviews ADD BusId BIGINT NULL;
+IF COL_LENGTH('Reviews', 'BookingId') IS NULL ALTER TABLE Reviews ADD BookingId BIGINT NULL;
 
 IF OBJECT_ID('CommunityTips', 'U') IS NULL
 CREATE TABLE CommunityTips (Id BIGINT PRIMARY KEY IDENTITY(1,1), RouteFrom NVARCHAR(50) NOT NULL, RouteTo NVARCHAR(50) NOT NULL, Tip NVARCHAR(2000) NOT NULL, Category NVARCHAR(50) NOT NULL DEFAULT '', AuthorName NVARCHAR(255) NOT NULL, Email NVARCHAR(255) NOT NULL, Upvotes INT NOT NULL DEFAULT 0, CreatedAt DATETIME2 NOT NULL DEFAULT GETUTCDATE());

@@ -51,6 +51,9 @@ export default function Profile() {
   const [reviewCount, setReviewCount] = useState(0)
 
   const stored = (() => { try { return JSON.parse(sessionStorage.getItem('user')) } catch { return null } })()
+  // Khi đăng nhập bằng Clerk → ưu tiên dữ liệu Clerk, KHÔNG dùng user cũ trong sessionStorage
+  const clerkEmail = clerkUser?.primaryEmailAddress?.emailAddress || ''
+  const isClerkAuth = !!isSignedIn
 
   useEffect(() => {
     if (!stored && !isSignedIn) { navigate('/auth'); return }
@@ -71,7 +74,8 @@ export default function Profile() {
 
     const loadAlerts = async () => {
       const u = (() => { try { return JSON.parse(sessionStorage.getItem('user')) } catch { return null } })()
-      const email = u?.email || clerkUser?.primaryEmailAddress?.emailAddress
+      // Ưu tiên email Clerk nếu đang đăng nhập Clerk (tránh lấy alerts của tài khoản cũ)
+      const email = isSignedIn && clerkUser ? clerkUser.primaryEmailAddress?.emailAddress || '' : (u?.email || '')
       if (!email) return
       setAlertsLoading(true)
       try {
@@ -95,14 +99,15 @@ export default function Profile() {
     }
 
     const u = (() => { try { return JSON.parse(sessionStorage.getItem('user')) } catch { return null } })()
-    const email = clerkUser?.primaryEmailAddress?.emailAddress || u?.email
+    const email = isSignedIn && clerkUser ? clerkUser.primaryEmailAddress?.emailAddress || '' : (u?.email || '')
     if (email) loadStats(email)
   }, [navigate, isSignedIn, clerkUser])
 
   const data = {
-    name: profile?.fullName || stored?.fullName || clerkUser?.fullName || 'Người dùng',
-    email: profile?.email || stored?.email || clerkUser?.primaryEmailAddress?.emailAddress || '',
-    phone: profile?.phone || stored?.phone || clerkUser?.primaryPhoneNumber?.phoneNumber || '',
+    // Ưu tiên: profile backend → Clerk (nếu đang đăng nhập Clerk) → user cũ trong sessionStorage
+    name: profile?.fullName || (isClerkAuth ? clerkUser?.fullName : stored?.fullName) || 'Người dùng',
+    email: profile?.email || clerkEmail || stored?.email || '',
+    phone: profile?.phone || (isClerkAuth ? clerkUser?.primaryPhoneNumber?.phoneNumber || '' : stored?.phone || '') || '',
     verified: profile?.isEmailVerified ?? true,
     joined: profile?.createdAt ? new Date(profile.createdAt).toLocaleDateString('vi-VN') : '—',
   }

@@ -35,6 +35,9 @@ export default function PaymentPage() {
   const [booking, setBooking] = useState(location.state?.booking || null)
   const [item, setItem] = useState(location.state?.item || null)
   const [type, setType] = useState(location.state?.type || null)
+  const [segments, setSegments] = useState(null)
+  const isMultiLeg = type === 'multi' || (booking?.segments?.length || 0) > 0
+  const multiSegs = segments || booking?.segments || []
   const [status, setStatus] = useState('processing')
   const [error, setError] = useState('')
   const [transactionId, setTransactionId] = useState('')
@@ -63,9 +66,16 @@ export default function PaymentPage() {
       getBooking(bookingId)
         .then(res => {
           setBooking(res.data)
-          const i = res.data.flight || res.data.train || res.data.bus
-          setItem(i)
-          setType(res.data.flight ? 'flight' : res.data.train ? 'train' : 'bus')
+          if (res.data.segments?.length) {
+            // Lộ trình kết hợp: nhiều chặng trong 1 booking
+            setSegments(res.data.segments)
+            setItem(res.data.segments[0])
+            setType('multi')
+          } else {
+            const i = res.data.flight || res.data.train || res.data.bus
+            setItem(i)
+            setType(res.data.flight ? 'flight' : res.data.train ? 'train' : 'bus')
+          }
         })
         .catch(() => setError('Không tìm thấy thông tin đặt chỗ'))
     }
@@ -236,19 +246,39 @@ export default function PaymentPage() {
 
                 <div className="flex items-center gap-3">
                   <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${
-                    isFlight
+                    isMultiLeg
                       ? 'bg-primary-500/10 text-primary-500'
-                      : 'bg-primary-500/10 text-primary-500'
+                      : isFlight
+                        ? 'bg-primary-500/10 text-primary-500'
+                        : 'bg-primary-500/10 text-primary-500'
                   }`}>
-                    {isFlight ? <Plane className="w-5 h-5" /> : isBus ? <Bus className="w-5 h-5" /> : <Train className="w-5 h-5" />}
+                    {isMultiLeg ? <Ticket className="w-5 h-5" /> : isFlight ? <Plane className="w-5 h-5" /> : isBus ? <Bus className="w-5 h-5" /> : <Train className="w-5 h-5" />}
                   </div>
                   <div>
-                    <p className="font-semibold text-[var(--color-text-primary)]">
-                      {isFlight ? `${item.airlineCode}${(item.id % 900) + 100}` : isBus ? item.busCode : item.trainCode}
-                    </p>
-                    <p className="text-sm text-[var(--color-text-secondary)]">
-                      {item.departureLocation} <ArrowRight className="w-3 h-3 inline" /> {item.arrivalLocation}
-                    </p>
+                    {isMultiLeg ? (
+                      <>
+                        <p className="font-semibold text-[var(--color-text-primary)]">Lộ trình kết hợp ({multiSegs.length} chặng)</p>
+                        <p className="text-sm text-[var(--color-text-secondary)]">
+                          {multiSegs.map((s, i) => (
+                            <span key={i}>
+                              {i > 0 && <ArrowRight className="w-3 h-3 inline mx-1" />}
+                              {s.departureLocation}
+                            </span>
+                          ))}
+                          <ArrowRight className="w-3 h-3 inline mx-1" />
+                          {multiSegs[multiSegs.length - 1]?.arrivalLocation}
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="font-semibold text-[var(--color-text-primary)]">
+                          {isFlight ? `${item.airlineCode}${(item.id % 900) + 100}` : isBus ? item.busCode : item.trainCode}
+                        </p>
+                        <p className="text-sm text-[var(--color-text-secondary)]">
+                          {item.departureLocation} <ArrowRight className="w-3 h-3 inline" /> {item.arrivalLocation}
+                        </p>
+                      </>
+                    )}
                   </div>
                   <div className={`ml-auto px-3 py-1 rounded-lg border text-xs font-semibold ${statusConfig.Confirmed.class}`}>
                     {statusConfig.Confirmed.label}

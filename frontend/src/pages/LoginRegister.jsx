@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { useSignIn, useUser } from '@clerk/clerk-react'
+import { useSignIn, useSignUp, useUser } from '@clerk/clerk-react'
 import {
   Plane, Train, Globe, Briefcase, Mail, Lock, Eye, EyeOff,
   Phone, Check, AlertCircle, Loader, MailCheck, User,
@@ -68,10 +68,101 @@ export default function LoginRegister() {
   const navigate = useNavigate()
   const location = useLocation()
   const params = new URLSearchParams(location.search)
-  const redirectTo = params.get('redirect') || '/'
+  const isContinueSignUp = params.get('mode') === 'continue-signup'
+  const redirectTo = params.get('redirect') || (isContinueSignUp ? sessionStorage.getItem('ve247-auth-redirect') : null) || '/'
 
   const { isSignedIn, isLoaded } = useUser()
   const { signIn, setActive } = useSignIn()
+  const { signUp, setActive: setActiveSignUp } = useSignUp()
+
+  // Trạng thái cho bước "hoàn tất đăng ký OAuth" (bổ sung SĐT + OTP)
+  const [continueStep, setContinueStep] = useState('phone') // 'phone' | 'otp'
+  const [continuePhone, setContinuePhone] = useState('')
+  const [continueOtp, setContinueOtp] = useState('')
+  const [continueLoading, setContinueLoading] = useState(false)
+  const [continueError, setContinueError] = useState('')
+  const [continueSuccess, setContinueSuccess] = useState('')
+
+  const normalizePhone = (p) => {
+    const d = p.replace(/[^\d+]/g, '')
+    if (d.startsWith('+')) return d
+    if (d.startsWith('84')) return '+' + d
+    if (d.startsWith('0')) return '+84' + d.slice(1)
+    return '+84' + d
+  }
+
+  // Chuyển lỗi SMS của Clerk sang thông báo tiếng Việt dễ hiểu + hướng dẫn khắc phục
+  const clerkPhoneError = (err, fallback) => {
+    const raw = err?.errors?.[0]?.message || err?.errors?.[0]?.longMessage || err?.message || ''
+    if (/unsupported country|country code|not supported|cannot send sms/i.test(raw)) {
+      return 'Clerk chưa cho phép gửi SMS tới số Việt Nam (+84). Vào Clerk Dashboard → SMS → Settings → bật quốc gia "Việt Nam (+84)" trong danh sách cho phép (hoặc cấu hình Twilio riêng). Có thể test nhanh bằng số Mỹ +1 555-01xx với mã 424242.'
+    }
+    return raw || fallback
+  }
+
+  const handleContinuePhone = async (e) => {
+    e.preventDefault()
+    setContinueError('')
+    if (!continuePhone.trim()) return setContinueError('Vui lòng nhập số điện thoại')
+    if (!/^(0|\+84|84)[3-9]\d{8}$/.test(continuePhone.replace(/[\s-]/g, ''))) {
+      return setContinueError('Số điện thoại không hợp lệ (vd: 0912345678)')
+    }
+    setContinueLoading(true)
+    try {
+      const res = await signUp.update({ phoneNumber: normalizePhone(continuePhone) })
+      if (res.status === 'missing_requirements' && (res.unverifiedFields || []).includes('phone_number')) {
+        await signUp.preparePhoneNumberVerification({ strategy: 'phone_code' })
+        setContinueStep('otp')
+        setContinueSuccess('Mã xác thực đã gửi đến ' + continuePhone)
+      } else if (res.status === 'complete') {
+        await setActiveSignUp({ session: res.createdSessionId })
+        sessionStorage.setItem('ve247-auth', 'true')
+        sessionStorage.removeItem('ve247-auth-redirect')
+        navigate(redirectTo, { replace: true })
+      } else {
+        setContinueError('Cần bổ sung thêm thông tin. Vui lòng thử lại.')
+      }
+    } catch (err) {
+      setContinueError(clerkPhoneError(err, 'Không thể cập nhật số điện thoại'))
+    } finally {
+      setContinueLoading(false)
+    }
+  }
+
+  const handleContinueOtp = async (e) => {
+    e.preventDefault()
+    setContinueError('')
+    if (!continueOtp) return setContinueError('Vui lòng nhập mã xác thực')
+    setContinueLoading(true)
+    try {
+      const res = await signUp.attemptPhoneNumberVerification({ code: continueOtp })
+      if (res.status === 'complete') {
+        await setActiveSignUp({ session: res.createdSessionId })
+        sessionStorage.setItem('ve247-auth', 'true')
+        sessionStorage.removeItem('ve247-auth-redirect')
+        navigate(redirectTo, { replace: true })
+      } else {
+        setContinueError('Xác thực chưa hoàn tất. Vui lòng thử lại.')
+      }
+    } catch (err) {
+      setContinueError(clerkPhoneError(err, 'Mã xác thực không đúng'))
+    } finally {
+      setContinueLoading(false)
+    }
+  }
+
+  const handleResendContinueOtp = async () => {
+    setContinueError('')
+    setContinueLoading(true)
+    try {
+      await signUp.preparePhoneNumberVerification({ strategy: 'phone_code' })
+      setContinueSuccess('Mã xác thực mới đã được gửi đến ' + continuePhone)
+    } catch (err) {
+      setContinueError(clerkPhoneError(err, 'Không thể gửi lại mã'))
+    } finally {
+      setContinueLoading(false)
+    }
+  }
 
   useEffect(() => {
     if (isLoaded && isSignedIn && !sessionStorage.getItem('ve247-auth')) {
@@ -86,6 +177,7 @@ export default function LoginRegister() {
   const handleSocialLogin = async (provider) => {
     if (!signIn) return
     try {
+      sessionStorage.setItem('ve247-auth-redirect', redirectTo)
       await signIn.authenticateWithRedirect({
         strategy: `oauth_${provider}`,
         redirectUrl: window.location.origin + '/auth/sso-callback',
@@ -111,7 +203,7 @@ export default function LoginRegister() {
         navigate(redirectTo)
       }
     } catch (err) {
-      setError(err.errors?.[0]?.message || 'Đăng nhập bằng SĐT thất bại')
+      setError(clerkPhoneError(err, 'Đăng nhập bằng SĐT thất bại'))
       triggerShake()
     }
   }
@@ -266,6 +358,117 @@ export default function LoginRegister() {
           </div>
 
           <div className="bg-[var(--color-bg-card)] rounded-3xl shadow-xl shadow-black/20 border border-[var(--color-border)] overflow-hidden">
+            {isContinueSignUp ? (
+              !signUp ? (
+                <div className="p-6 text-center space-y-4">
+                  <div className="w-14 h-14 rounded-2xl bg-amber-500/10 flex items-center justify-center mx-auto">
+                    <AlertCircle className="w-7 h-7 text-amber-500" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-[var(--color-text-primary)]">Phiên đăng ký không còn hiệu lực</h3>
+                    <p className="text-sm text-[var(--color-text-secondary)] mt-1">Vui lòng đăng nhập lại bằng Google để bắt đầu lại.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => navigate('/auth')}
+                    className="w-full bg-gradient-to-r from-primary-500 to-primary-600 text-white py-3 rounded-xl font-semibold"
+                  >
+                    Quay lại đăng nhập
+                  </button>
+                </div>
+              ) : (
+              <div className="p-6 space-y-4">
+                <div className="text-center mb-4">
+                  <div className="w-14 h-14 rounded-2xl bg-primary-500/10 flex items-center justify-center mx-auto mb-3">
+                    <Phone className="w-7 h-7 text-primary-500" />
+                  </div>
+                  <h3 className="text-lg font-bold text-[var(--color-text-primary)]">Hoàn tất đăng ký</h3>
+                  <p className="text-sm text-[var(--color-text-secondary)] mt-1">
+                    {continueStep === 'otp'
+                      ? 'Nhập mã xác thực được gửi đến số điện thoại của bạn'
+                      : 'Tài khoản Google của bạn cần bổ sung số điện thoại để hoàn tất đăng ký'}
+                  </p>
+                </div>
+
+                {continueStep === 'phone' ? (
+                  <form onSubmit={handleContinuePhone} className="space-y-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-[var(--color-text-tertiary)] mb-1.5 uppercase tracking-wider">Số điện thoại</label>
+                      <div className="relative">
+                        <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-text-tertiary)]" />
+                        <input
+                          className="w-full border border-[var(--color-border)] rounded-xl pl-10 pr-3.5 py-3 text-sm text-[var(--color-text-primary)] focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none bg-[var(--color-bg)] placeholder:text-[var(--color-text-tertiary)]"
+                          placeholder="0912345678"
+                          value={continuePhone}
+                          onChange={e => setContinuePhone(e.target.value.replace(/[^\d+]/g, '').slice(0, 15))}
+                        />
+                      </div>
+                    </div>
+                    {continueError && (
+                      <motion.p initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} className="text-sm text-[var(--color-danger)] bg-[var(--color-danger)]/10 px-3.5 py-2.5 rounded-xl flex items-center gap-2">
+                        <AlertCircle className="w-4 h-4" /><span>{continueError}</span>
+                      </motion.p>
+                    )}
+                    <motion.button
+                      type="submit"
+                      disabled={continueLoading}
+                      whileHover={{ scale: 1.01 }}
+                      whileTap={{ scale: 0.98 }}
+                      className="w-full bg-gradient-to-r from-primary-500 to-primary-600 text-white py-3.5 rounded-xl font-semibold shadow-lg shadow-primary-500/20 disabled:opacity-60"
+                    >
+                      {continueLoading ? <span className="flex items-center justify-center gap-2"><Loader className="w-4 h-4 animate-spin" />Đang gửi mã...</span> : 'Gửi mã xác thực'}
+                    </motion.button>
+                  </form>
+                ) : (
+                  <form onSubmit={handleContinueOtp} className="space-y-4">
+                    {continueSuccess && (
+                      <motion.p initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} className="text-sm text-[var(--color-success)] bg-[var(--color-success)]/10 px-3.5 py-2.5 rounded-xl flex items-center gap-2">
+                        <Check className="w-4 h-4" /><span>{continueSuccess}</span>
+                      </motion.p>
+                    )}
+                    <div>
+                      <label className="block text-xs font-semibold text-[var(--color-text-tertiary)] mb-1.5 uppercase tracking-wider">Mã xác thực</label>
+                      <input
+                        className="w-full border border-[var(--color-border)] rounded-xl px-4 py-3.5 text-center text-2xl tracking-[0.5em] font-bold text-[var(--color-text-primary)] focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none bg-[var(--color-bg)]"
+                        placeholder="000000"
+                        maxLength={6}
+                        value={continueOtp}
+                        onChange={e => setContinueOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                        autoFocus
+                      />
+                    </div>
+                    {continueError && (
+                      <motion.p initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} className="text-sm text-[var(--color-danger)] bg-[var(--color-danger)]/10 px-3.5 py-2.5 rounded-xl flex items-center gap-2">
+                        <AlertCircle className="w-4 h-4" /><span>{continueError}</span>
+                      </motion.p>
+                    )}
+                    <motion.button
+                      type="submit"
+                      disabled={continueLoading || continueOtp.length < 6}
+                      whileHover={{ scale: 1.01 }}
+                      whileTap={{ scale: 0.98 }}
+                      className="w-full bg-gradient-to-r from-primary-500 to-primary-600 text-white py-3.5 rounded-xl font-semibold shadow-lg shadow-primary-500/20 disabled:opacity-60"
+                    >
+                      {continueLoading ? <span className="flex items-center justify-center gap-2"><Loader className="w-4 h-4 animate-spin" />Đang xác thực...</span> : 'Hoàn tất đăng ký'}
+                    </motion.button>
+
+                    <div className="text-center">
+                      <button type="button" onClick={handleResendContinueOtp} disabled={continueLoading} className="text-xs text-primary-500 font-semibold hover:underline disabled:opacity-50">
+                        Gửi lại mã xác thực
+                      </button>
+                    </div>
+                  </form>
+                )}
+
+                <p className="text-xs text-[var(--color-text-tertiary)] text-center">
+                  <button type="button" onClick={() => { sessionStorage.removeItem('ve247-auth-redirect'); navigate('/auth') }} className="text-primary-500 font-semibold hover:underline">
+                    Quay lại đăng nhập
+                  </button>
+                </p>
+              </div>
+              )
+            ) : (
+              <>
             <div className="relative bg-[var(--color-border)]/30 p-1.5 mx-5 mt-5 rounded-2xl">
               <motion.div
                 className="absolute top-1.5 bottom-1.5 w-[calc(50%-3px)] bg-[var(--color-bg-card)] rounded-xl shadow-sm border border-[var(--color-border)]"
@@ -508,7 +711,9 @@ export default function LoginRegister() {
                 </p>
               </motion.form>
               )}
-            </AnimatePresence>
+              </AnimatePresence>
+              </>
+            )}
           </div>
         </motion.div>
       </div>

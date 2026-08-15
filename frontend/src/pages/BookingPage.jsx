@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react'
-import { useParams, useNavigate, useLocation } from 'react-router-dom'
+import { useParams, useNavigate, useLocation, Link } from 'react-router-dom'
 import { useUser } from '@clerk/clerk-react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Plane, Train, Bus, ArrowRight, User, Mail, Phone, MapPin, CreditCard, Wallet, Building2, Clock, Shield, LogIn, Loader, Check, Tag, Percent, CalendarDays, VenetianMask, Globe, FileText, Heart, AlertCircle, Receipt, X, Smartphone } from 'lucide-react'
-import { createBooking, getFlight, getTrain, getBus, validatePromoCode, getPublicPromoCodes } from '../services/api'
+import { Plane, Train, Bus, Ticket, ArrowRight, User, Mail, Phone, MapPin, CreditCard, Wallet, Building2, Clock, Shield, LogIn, Loader, Check, Tag, Percent, CalendarDays, VenetianMask, Globe, FileText, Heart, AlertCircle, Receipt, X, Smartphone, Gift } from 'lucide-react'
+import { createBooking, getFlight, getTrain, getBus, validatePromoCode, getLuckyWheelHistory } from '../services/api'
 import { formatCurrencyVnd, formatDurationMs } from '../utils/formatters'
 import InsuranceCard from '../components/InsuranceCard'
 import BankTransferPanel from '../components/BankTransferPanel'
@@ -47,6 +47,9 @@ export default function BookingPage() {
   const authReady = isLoaded || !!localUser
 
   const [item, setItem] = useState(location.state?.item || null)
+  // Lộ trình kết hợp: mảng các chặng { type, id, code, name, departureLocation, arrivalLocation, departureTime, arrivalTime, price }
+  const [segments, setSegments] = useState(location.state?.route?.segments || null)
+  const isMultiLeg = type === 'multi' && Array.isArray(segments) && segments.length > 1
   const [fetching, setFetching] = useState(false)
   const [form, setForm] = useState({
     fullName: '', email: '', phone: '', address: '',
@@ -62,7 +65,7 @@ export default function BookingPage() {
   const [promoApplied, setPromoApplied] = useState(null)
   const [promoChecking, setPromoChecking] = useState(false)
   const [promoError, setPromoError] = useState('')
-  const [publicPromos, setPublicPromos] = useState([])
+  const [wonPromos, setWonPromos] = useState([])
   const [transferRef, setTransferRef] = useState('')
   const [cardInfo, setCardInfo] = useState(null)
   const [walletProvider, setWalletProvider] = useState('')
@@ -76,7 +79,7 @@ export default function BookingPage() {
   }, [authReady, isAuth, type, id, navigate])
 
   useEffect(() => {
-    if (isAuth && !item) {
+    if (isAuth && !item && !isMultiLeg) {
       setFetching(true)
       const fn = type === 'flight' ? getFlight : type === 'bus' ? getBus : getTrain
       fn(id)
@@ -100,11 +103,15 @@ export default function BookingPage() {
     }
   }, [isAuth])
 
+  const userEmail = localUser?.email || clerkUser?.primaryEmailAddress?.emailAddress || ''
+
+  // Chỉ hiển thị mã giảm giá tài khoản này đã trúng từ vòng quay may mắn
   useEffect(() => {
-    getPublicPromoCodes()
-      .then(res => setPublicPromos(res.data || []))
-      .catch(() => {})
-  }, [])
+    if (!isAuth || !userEmail) return
+    getLuckyWheelHistory(userEmail)
+      .then(res => setWonPromos(res.data || []))
+      .catch(() => setWonPromos([]))
+  }, [isAuth, userEmail])
 
   if (!authReady) {
     return (
@@ -117,7 +124,23 @@ export default function BookingPage() {
 
   if (!isAuth) return null
 
-  if (!item) {
+  // Lộ trình kết hợp bị mất dữ liệu (vd: refresh trang — location.state bị xóa) → hướng dẫn quay lại
+  if (type === 'multi' && !isMultiLeg) {
+    return (
+      <div className="max-w-lg mx-auto px-4 py-20 text-center">
+        <div className="w-16 h-16 rounded-full bg-[var(--color-danger)]/10 flex items-center justify-center mx-auto mb-4">
+          <Ticket className="w-7 h-7 text-[var(--color-danger)]" />
+        </div>
+        <h2 className="text-xl font-bold text-[var(--color-text-primary)] mb-2">Phiên đặt vé đã hết hạn</h2>
+        <p className="text-[var(--color-text-secondary)] mb-6">Thông tin lộ trình chỉ có hiệu lực khi đến từ trang Lộ trình & Cảnh báo. Vui lòng quay lại chọn lại lộ trình.</p>
+        <button onClick={() => navigate('/optimal-route')} className="bg-gradient-to-r from-primary-500 to-primary-600 text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg hover:shadow-primary-500/20 transition-all shadow-md">
+          Quay lại trang lộ trình
+        </button>
+      </div>
+    )
+  }
+
+  if (!item && !isMultiLeg) {
     if (fetching) {
       return (
         <div className="max-w-lg mx-auto px-4 py-20 text-center">
@@ -142,17 +165,23 @@ export default function BookingPage() {
 
   const isFlight = type === 'flight'
   const isBus = type === 'bus'
-  const itemCode = isFlight
-    ? `${item.airlineCode || item.code}${(item.id % 900) + 100}`
-    : isBus
-      ? (item.busCode || item.code)
-      : (item.trainCode || item.code)
-  const itemName = isFlight
-    ? (item.airlineName || item.name)
-    : isBus
-      ? (item.busCompany || item.name)
-      : (item.coachClass ? `Hạng ${item.coachClass}` : item.name)
-  const totalPrice = item.price + (form?.insurance || 0)
+  const itemCode = item
+    ? (isFlight
+        ? `${item.airlineCode || item.code}${(item.id % 900) + 100}`
+        : isBus
+          ? (item.busCode || item.code)
+          : (item.trainCode || item.code))
+    : ''
+  const itemName = item
+    ? (isFlight
+        ? (item.airlineName || item.name)
+        : isBus
+          ? (item.busCompany || item.name)
+          : (item.coachClass ? `Hạng ${item.coachClass}` : item.name))
+    : ''
+  const totalPrice = isMultiLeg
+    ? segments.reduce((s, seg) => s + Number(seg.price || 0), 0) + (form?.insurance || 0)
+    : item.price + (form?.insurance || 0)
   const promoDiscount = promoApplied
     ? Math.min(totalPrice * (Number(promoApplied.discountPercent) || 0) / 100, Number(promoApplied.maxDiscount) || 0)
     : 0
@@ -187,8 +216,6 @@ export default function BookingPage() {
     } catch { setPromoError('Lỗi kiểm tra mã. Vui lòng thử lại.') }
     finally { setPromoChecking(false) }
   }
-
-  const availablePromos = publicPromos.filter(p => p.minOrderValue <= totalPrice)
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -277,9 +304,10 @@ export default function BookingPage() {
         phone: form.phone,
         address: form.address,
         paymentMethod: form.paymentMethod,
-        flightId: isFlight ? item.id : null,
-        trainId: !isFlight && !isBus ? item.id : null,
-        busId: isBus ? item.id : null,
+        flightId: isMultiLeg ? null : (isFlight ? item.id : null),
+        trainId: isMultiLeg ? null : (!isFlight && !isBus ? item.id : null),
+        busId: isMultiLeg ? null : (isBus ? item.id : null),
+        segments: isMultiLeg ? segments.map(s => ({ mode: s.type, itemId: s.id })) : null,
         passengers: 1,
         promoCode: promoApplied?.code || null,
         discountAmount: discountAmount || null,
@@ -314,10 +342,14 @@ export default function BookingPage() {
       {/* Header */}
       <div className="text-center mb-8">
         <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-gradient-to-br from-primary-500 to-primary-600 text-white mb-4 shadow-lg shadow-primary-500/20">
-          {isFlight ? <Plane className="w-6 h-6" /> : isBus ? <Bus className="w-6 h-6" /> : <Train className="w-6 h-6" />}
+          {isMultiLeg ? <Ticket className="w-6 h-6" /> : isFlight ? <Plane className="w-6 h-6" /> : isBus ? <Bus className="w-6 h-6" /> : <Train className="w-6 h-6" />}
         </div>
-        <h1 className="text-2xl md:text-3xl font-bold text-[var(--color-text-primary)]">Đặt vé</h1>
-        <p className="text-[var(--color-text-secondary)] mt-1">Vui lòng nhập thông tin để hoàn tất đặt vé</p>
+        <h1 className="text-2xl md:text-3xl font-bold text-[var(--color-text-primary)]">{isMultiLeg ? 'Đặt lộ trình kết hợp' : 'Đặt vé'}</h1>
+        <p className="text-[var(--color-text-secondary)] mt-1">
+          {isMultiLeg
+            ? `Mua ${segments.length} vé cùng lúc — nhập thông tin 1 lần cho cả lộ trình`
+            : 'Vui lòng nhập thông tin để hoàn tất đặt vé'}
+        </p>
       </div>
 
       {/* Step indicator */}
@@ -710,24 +742,36 @@ export default function BookingPage() {
                     {promoChecking ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : 'Áp dụng'}
                   </button>
                 </div>
-                {availablePromos.length > 0 && (
+                {wonPromos.length > 0 ? (
                   <div className="mt-3">
-                    <p className="text-[11px] text-[var(--color-text-tertiary)] mb-2">Mã giảm giá đang có cho bạn:</p>
+                    <p className="text-[11px] text-[var(--color-text-tertiary)] mb-2">Mã giảm giá bạn đã nhận từ vòng quay may mắn:</p>
                     <div className="flex flex-wrap gap-2">
-                      {availablePromos.map(p => (
-                        <button
-                          key={p.code}
-                          type="button"
-                          disabled={promoChecking}
-                          onClick={() => { setPromoCode(p.code); setPromoError(''); applyPromo(p.code) }}
-                          className="group flex items-center gap-2 px-3 py-2 rounded-xl border border-dashed border-primary-500/40 bg-primary-500/5 hover:bg-primary-500/10 hover:border-primary-500 transition-all disabled:opacity-50"
-                        >
-                          <Percent className="w-3.5 h-3.5 text-primary-500 shrink-0" />
-                          <span className="text-xs font-bold text-primary-500">{p.code}</span>
-                          <span className="text-[11px] text-[var(--color-text-secondary)]">{p.description}</span>
-                        </button>
-                      ))}
+                      {wonPromos.map(p => {
+                        const applicable = Number(p.minOrderValue || 0) <= totalPrice
+                        return (
+                          <button
+                            key={p.code}
+                            type="button"
+                            disabled={!applicable || promoChecking}
+                            onClick={() => { setPromoCode(p.code); setPromoError(''); applyPromo(p.code) }}
+                            title={!applicable ? `Áp dụng cho đơn từ ${formatCurrencyVnd(p.minOrderValue)}` : p.description}
+                            className="group flex items-center gap-2 px-3 py-2 rounded-xl border border-dashed border-primary-500/40 bg-primary-500/5 hover:bg-primary-500/10 hover:border-primary-500 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                          >
+                            <Percent className="w-3.5 h-3.5 text-primary-500 shrink-0" />
+                            <span className="text-xs font-bold text-primary-500">{p.code}</span>
+                            <span className="text-[11px] text-[var(--color-text-secondary)]">{p.description}</span>
+                          </button>
+                        )
+                      })}
                     </div>
+                  </div>
+                ) : (
+                  <div className="mt-3 flex items-start gap-2 text-xs text-[var(--color-text-tertiary)] bg-[var(--color-bg)] border border-[var(--color-border)] rounded-xl px-3 py-2.5 leading-snug">
+                    <Gift className="w-4 h-4 text-accent-500 shrink-0 mt-0.5" />
+                    <span>
+                      Bạn chưa có mã giảm giá nào.{' '}
+                      <Link to="/" className="text-primary-500 font-semibold hover:underline">Quay vòng quay may mắn</Link> để nhận mã!
+                    </span>
                   </div>
                 )}
               </>
@@ -788,56 +832,90 @@ export default function BookingPage() {
             <div className="w-8 h-8 rounded-lg bg-primary-500/10 flex items-center justify-center text-primary-500">
               <Clock className="w-4 h-4" />
             </div>
-            <h2 className="text-base font-bold text-[var(--color-text-primary)] leading-tight">Chi tiết vé</h2>
+            <h2 className="text-base font-bold text-[var(--color-text-primary)] leading-tight">{isMultiLeg ? 'Chi tiết lộ trình' : 'Chi tiết vé'}</h2>
           </div>
 
-          <div className="flex items-center gap-3 pb-3 border-b border-[var(--color-border)]">
-            <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${
-              isFlight
-                ? 'bg-primary-500/10 text-primary-500'
-                : 'bg-primary-500/10 text-primary-500'
-            }`}>
-              {isFlight ? <Plane className="w-5 h-5" /> : isBus ? <Bus className="w-5 h-5" /> : <Train className="w-5 h-5" />}
-            </div>
-            <div>
-              <p className="font-semibold text-[var(--color-text-primary)]">
-                {itemCode}
-              </p>
-              <p className="text-xs text-[var(--color-text-tertiary)]">
-                {itemName}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3 py-2">
-            <div className="flex-1 text-right">
-              <div className="text-xl font-bold text-[var(--color-text-primary)]">{fmtTime(item.departureTime)}</div>
-              <div className="text-sm font-medium text-[var(--color-text-secondary)]">{item.departureLocation}</div>
-            </div>
-            <div className="flex flex-col items-center px-2">
-              <div className="text-[10px] text-[var(--color-text-tertiary)] mb-1">{duration || `${Math.floor((new Date(item.arrivalTime) - new Date(item.departureTime)) / 3600000)}h ${Math.floor(((new Date(item.arrivalTime) - new Date(item.departureTime)) % 3600000) / 60000)}m`}</div>
-              <div className="relative">
-                <ArrowRight className="w-4 h-4 text-primary-500" />
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="w-1.5 h-1.5 rounded-full bg-primary-500 animate-pulse" />
+          {isMultiLeg ? (
+            <div className="space-y-3">
+              {segments.map((seg, i) => (
+                <div key={i} className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] p-3">
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <div className="w-7 h-7 rounded-lg bg-primary-500/10 flex items-center justify-center text-primary-500 shrink-0">
+                      {seg.type === 'flight' ? <Plane className="w-3.5 h-3.5" /> : seg.type === 'bus' ? <Bus className="w-3.5 h-3.5" /> : <Train className="w-3.5 h-3.5" />}
+                    </div>
+                    <span className="text-xs font-bold text-primary-500 px-1.5 py-0.5 rounded bg-primary-500/10">{seg.code}</span>
+                    <span className="text-xs text-[var(--color-text-secondary)] truncate">{seg.name}</span>
+                    <span className="ml-auto text-xs font-bold text-primary-500 shrink-0">{formatCurrencyVnd(seg.price)}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className="font-semibold text-[var(--color-text-primary)]">{seg.departureLocation}</span>
+                    <span className="text-[var(--color-text-tertiary)]">{fmtTime(seg.departureTime)}</span>
+                    <ArrowRight className="w-3 h-3 text-primary-500" />
+                    <span className="font-semibold text-[var(--color-text-primary)]">{seg.arrivalLocation}</span>
+                    <span className="text-[var(--color-text-tertiary)]">{fmtTime(seg.arrivalTime)}</span>
+                  </div>
                 </div>
+              ))}
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-[var(--color-text-secondary)]">Tổng {segments.length} vé</span>
+                <span className="font-bold text-[var(--color-text-primary)]">{formatCurrencyVnd(segments.reduce((s, seg) => s + Number(seg.price || 0), 0))}</span>
               </div>
             </div>
-            <div className="flex-1">
-              <div className="text-xl font-bold text-[var(--color-text-primary)]">{fmtTime(item.arrivalTime)}</div>
-              <div className="text-sm font-medium text-[var(--color-text-secondary)]">{item.arrivalLocation}</div>
+          ) : (
+            <div className="flex items-center gap-3 pb-3 border-b border-[var(--color-border)]">
+              <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${
+                isFlight
+                  ? 'bg-primary-500/10 text-primary-500'
+                  : 'bg-primary-500/10 text-primary-500'
+              }`}>
+                {isFlight ? <Plane className="w-5 h-5" /> : isBus ? <Bus className="w-5 h-5" /> : <Train className="w-5 h-5" />}
+              </div>
+              <div>
+                <p className="font-semibold text-[var(--color-text-primary)]">
+                  {itemCode}
+                </p>
+                <p className="text-xs text-[var(--color-text-tertiary)]">
+                  {itemName}
+                </p>
+              </div>
             </div>
-          </div>
+          )}
 
-          <div className="flex items-center gap-2 text-xs text-[var(--color-text-tertiary)] pb-3 border-b border-[var(--color-border)]">
-            <Clock className="w-3.5 h-3.5" />
-            {fmtDate(item.departureTime)}
-          </div>
+          {!isMultiLeg && (
+            <>
+              <div className="flex items-center gap-3 py-2">
+                <div className="flex-1 text-right">
+                  <div className="text-xl font-bold text-[var(--color-text-primary)]">{fmtTime(item.departureTime)}</div>
+                  <div className="text-sm font-medium text-[var(--color-text-secondary)]">{item.departureLocation}</div>
+                </div>
+                <div className="flex flex-col items-center px-2">
+                  <div className="text-[10px] text-[var(--color-text-tertiary)] mb-1">{duration || `${Math.floor((new Date(item.arrivalTime) - new Date(item.departureTime)) / 3600000)}h ${Math.floor(((new Date(item.arrivalTime) - new Date(item.departureTime)) % 3600000) / 60000)}m`}</div>
+                  <div className="relative">
+                    <ArrowRight className="w-4 h-4 text-primary-500" />
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="w-1.5 h-1.5 rounded-full bg-primary-500 animate-pulse" />
+                    </div>
+                  </div>
+                </div>
+                <div className="flex-1">
+                  <div className="text-xl font-bold text-[var(--color-text-primary)]">{fmtTime(item.arrivalTime)}</div>
+                  <div className="text-sm font-medium text-[var(--color-text-secondary)]">{item.arrivalLocation}</div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 text-xs text-[var(--color-text-tertiary)] pb-3 border-b border-[var(--color-border)]">
+                <Clock className="w-3.5 h-3.5" />
+                {fmtDate(item.departureTime)}
+              </div>
+            </>
+          )}
 
           <div className="space-y-3 text-sm">
             <div className="flex justify-between">
-              <span className="text-[var(--color-text-secondary)]">Đơn giá</span>
-              <span className="font-semibold text-[var(--color-text-primary)]">{formatCurrencyVnd(item.price)}</span>
+              <span className="text-[var(--color-text-secondary)]">{isMultiLeg ? 'Tổng giá vé' : 'Đơn giá'}</span>
+              <span className="font-semibold text-[var(--color-text-primary)]">
+                {isMultiLeg ? formatCurrencyVnd(segments.reduce((s, seg) => s + Number(seg.price || 0), 0)) : formatCurrencyVnd(item.price)}
+              </span>
             </div>
             {form.paymentMethod && (
               <div className="flex justify-between">

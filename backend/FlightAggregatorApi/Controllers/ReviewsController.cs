@@ -20,6 +20,7 @@ public class ReviewsController : ControllerBase
     public async Task<IActionResult> GetList(
         [FromQuery] long? flightId,
         [FromQuery] long? trainId,
+        [FromQuery] long? busId,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 10)
     {
@@ -29,6 +30,8 @@ public class ReviewsController : ControllerBase
             query = query.Where(r => r.FlightId == flightId);
         if (trainId.HasValue)
             query = query.Where(r => r.TrainId == trainId);
+        if (busId.HasValue)
+            query = query.Where(r => r.BusId == busId);
 
         var total = await query.CountAsync();
         var items = await query
@@ -43,7 +46,8 @@ public class ReviewsController : ControllerBase
     [HttpGet("summary")]
     public async Task<IActionResult> GetSummary(
         [FromQuery] long? flightId,
-        [FromQuery] long? trainId)
+        [FromQuery] long? trainId,
+        [FromQuery] long? busId)
     {
         var query = _db.Reviews.AsNoTracking();
 
@@ -51,6 +55,8 @@ public class ReviewsController : ControllerBase
             query = query.Where(r => r.FlightId == flightId);
         if (trainId.HasValue)
             query = query.Where(r => r.TrainId == trainId);
+        if (busId.HasValue)
+            query = query.Where(r => r.BusId == busId);
 
         var avg = await query.AverageAsync(r => (double?)r.Rating) ?? 0;
         var count = await query.CountAsync();
@@ -83,6 +89,8 @@ public class ReviewsController : ControllerBase
         {
             FlightId = request.FlightId,
             TrainId = request.TrainId,
+            BusId = request.BusId,
+            BookingId = request.BookingId,
             Email = request.Email,
             AuthorName = request.AuthorName,
             Rating = request.Rating,
@@ -110,6 +118,8 @@ public class CreateReviewRequest
 {
     public long? FlightId { get; set; }
     public long? TrainId { get; set; }
+    public long? BusId { get; set; }
+    public long? BookingId { get; set; }
     public string Email { get; set; } = string.Empty;
     public string AuthorName { get; set; } = string.Empty;
     public int Rating { get; set; }

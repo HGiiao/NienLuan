@@ -28,6 +28,7 @@ export const getPriceCalendar = (params) => api.get('/api/prices/calendar', { pa
 export const getOptimalRoute = (data) => api.post('/api/prices/optimal-route', data)
 export const getBookings = (params) => api.get('/api/bookings', { params })
 export const getBooking = (id) => api.get(`/api/bookings/${id}`)
+export const getRefundInfo = (id) => api.get(`/api/bookings/${id}/refund-info`)
 export const createBooking = (data) => api.post('/api/bookings', data)
 export const cancelBooking = (id) => api.patch(`/api/bookings/${id}/cancel`)
 export const processPayment = (id, data) => api.post(`/api/bookings/${id}/pay`, data)
@@ -89,6 +90,11 @@ export const upvoteTip = (id) => api.post(`/api/community-tips/${id}/upvote`)
 // Promo Codes
 export const getPublicPromoCodes = () => api.get('/api/promo-codes/public')
 export const validatePromoCode = (data) => api.post('/api/promo-codes/validate', data)
+
+// Lucky Wheel (Vòng quay may mắn)
+export const getLuckyWheelStatus = (email) => api.get('/api/lucky-wheel/status', { params: { email } })
+export const spinLuckyWheel = (data) => api.post('/api/lucky-wheel/spin', data)
+export const getLuckyWheelHistory = (email) => api.get('/api/lucky-wheel/history', { params: { email } })
 
 // Notifications
 export const getNotifications = (params) => api.get('/api/notifications', { params })

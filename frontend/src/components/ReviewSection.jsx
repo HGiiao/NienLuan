@@ -17,7 +17,7 @@ function StarRating({ value, onChange, size = 'md' }) {
   )
 }
 
-export default function ReviewSection({ flightId, trainId }) {
+export default function ReviewSection({ flightId, trainId, busId, bookingId }) {
   const [reviews, setReviews] = useState([])
   const [summary, setSummary] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -30,7 +30,7 @@ export default function ReviewSection({ flightId, trainId }) {
     const load = async () => {
       setLoading(true)
       try {
-        const params = flightId ? { flightId } : { trainId }
+        const params = flightId ? { flightId } : trainId ? { trainId } : { busId }
         const [revRes, sumRes] = await Promise.all([
           getReviews(params),
           getReviewSummary(params),
@@ -50,6 +50,8 @@ export default function ReviewSection({ flightId, trainId }) {
       const res = await createReview({
         flightId: flightId || null,
         trainId: trainId || null,
+        busId: busId || null,
+        bookingId: bookingId || null,
         email: stored?.email || 'guest@ve247.vn',
         authorName: stored?.fullName || 'Người dùng',
         rating: form.rating,

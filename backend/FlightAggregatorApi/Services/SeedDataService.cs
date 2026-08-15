@@ -670,26 +670,55 @@ public class SeedDataService
                 var to = parts[1];
 
                 var basePrice = min + Random.Shared.NextDouble() * (max - min);
-                var variation = -0.15 + Random.Shared.NextDouble() * 0.30;
-                var price = basePrice * (1 + variation);
-                price = Math.Round(price / 10000) * 10000;
 
                 // Weekend bump for historical realism
-                if (date.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday)
-                    price *= 1.05 + Random.Shared.NextDouble() * 0.15;
+                var weekend = date.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday
+                    ? 1.05 + Random.Shared.NextDouble() * 0.15
+                    : 1.0;
 
-                priceHistory.Add(new PriceHistory
+                // Mỗi ngày ghi nhiều mốc giá cho 3 phương tiện với mức giá hợp lý khác nhau:
+                // máy bay cao nhất, tàu hỏa ~50-65%, xe khách ~30-45%.
+                // Nhiều mốc/ngày = min/avg/max khác nhau, phản ánh nhiều chuyến giá khác nhau trong ngày.
+                var flightBase = basePrice * weekend;
+                var trainBase = basePrice * (0.50 + Random.Shared.NextDouble() * 0.15) * weekend;
+                var busBase = basePrice * (0.30 + Random.Shared.NextDouble() * 0.15) * weekend;
+
+                // 7 mốc/ngày/loại (như số chuyến trong ngày)
+                for (var i = 0; i < 7; i++)
                 {
-                    RouteFrom = from,
-                    RouteTo = to,
-                    Price = (decimal)price,
-                    RecordedDate = date,
-                    CreatedAt = DateTime.UtcNow,
-                });
+                    var dailyVariation = 1 + (-0.20 + Random.Shared.NextDouble() * 0.40);
+                    priceHistory.Add(new PriceHistory
+                    {
+                        Mode = "flight",
+                        RouteFrom = from,
+                        RouteTo = to,
+                        Price = (decimal)Math.Round(flightBase * dailyVariation / 10000) * 10000,
+                        RecordedDate = date,
+                        CreatedAt = DateTime.UtcNow,
+                    });
+                    priceHistory.Add(new PriceHistory
+                    {
+                        Mode = "train",
+                        RouteFrom = from,
+                        RouteTo = to,
+                        Price = (decimal)Math.Round(trainBase * dailyVariation / 10000) * 10000,
+                        RecordedDate = date,
+                        CreatedAt = DateTime.UtcNow,
+                    });
+                    priceHistory.Add(new PriceHistory
+                    {
+                        Mode = "bus",
+                        RouteFrom = from,
+                        RouteTo = to,
+                        Price = (decimal)Math.Round(busBase * dailyVariation / 10000) * 10000,
+                        RecordedDate = date,
+                        CreatedAt = DateTime.UtcNow,
+                    });
+                }
             }
         }
 
-        _logger.LogInformation("Generated {Count} price history records", priceHistory.Count);
+        _logger.LogInformation("Generated {Count} price history records (flight/train/bus)", priceHistory.Count);
         await _db.PriceHistories.AddRangeAsync(priceHistory);
     }
 
