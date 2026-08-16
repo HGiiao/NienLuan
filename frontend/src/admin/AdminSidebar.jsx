@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion'
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
-  TrendingUp, Plane, Train, Ticket, Users, BarChart3,
+  TrendingUp, Plane, Train, Bus, Ticket, Users, BarChart3, Tag, Crown, Megaphone,
   ChevronLeft, Shield,
 } from 'lucide-react'
 
@@ -9,9 +9,13 @@ const navItems = [
   { id: 'overview', label: 'Tổng quan', icon: TrendingUp, shortcut: '⌘1' },
   { id: 'flights', label: 'Chuyến bay', icon: Plane, shortcut: '⌘2' },
   { id: 'trains', label: 'Tàu hỏa', icon: Train, shortcut: '⌘3' },
-  { id: 'bookings', label: 'Đặt chỗ', icon: Ticket, shortcut: '⌘4' },
-  { id: 'users', label: 'Người dùng', icon: Users, shortcut: '⌘5' },
-  { id: 'stats', label: 'Thống kê', icon: BarChart3, shortcut: '⌘6' },
+  { id: 'buses', label: 'Xe khách', icon: Bus, shortcut: '⌘4' },
+  { id: 'bookings', label: 'Đặt chỗ', icon: Ticket, shortcut: '⌘5' },
+  { id: 'users', label: 'Người dùng', icon: Users, shortcut: '⌘6' },
+  { id: 'subscriptions', label: 'Gói VIP', icon: Crown, shortcut: '⌘7' },
+  { id: 'promos', label: 'Mã giảm giá', icon: Tag, shortcut: '⌘8' },
+  { id: 'notifications', label: 'Thông báo', icon: Megaphone, shortcut: '⌘9' },
+  { id: 'stats', label: 'Thống kê', icon: BarChart3, shortcut: '⌘0' },
 ]
 
 export default function AdminSidebar({ activeTab, onTabChange, collapsed, onToggle }) {

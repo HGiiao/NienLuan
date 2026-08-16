@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Gift, Copy, Check, Loader, Ticket, Clock, LogIn, Sparkles, PartyPopper } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
+import { useUser } from '@clerk/clerk-react'
 import { getLuckyWheelStatus, spinLuckyWheel, getLuckyWheelHistory } from '../services/api'
 import { formatCurrencyVnd } from '../utils/formatters'
 
@@ -32,7 +33,12 @@ function formatCountdown(ms) {
 
 export default function LuckyWheel() {
   const navigate = useNavigate()
-  const [email, setEmail] = useState('')
+  const { isSignedIn, user } = useUser()
+  // Đọc trực tiếp mỗi render (giống Navbar) — phản ứng với mọi thay đổi đăng nhập:
+  // đăng nhập backend (sessionStorage), Clerk restore session ở tab mới, hoặc
+  // ClerkSync hoàn tất sau khi component đã mount (vd: trong lúc intro animation)
+  const storedUser = (() => { try { return JSON.parse(sessionStorage.getItem('user')) } catch { return null } })()
+  const email = storedUser?.email || (isSignedIn ? user?.primaryEmailAddress?.emailAddress : '') || ''
   const [spinsLeft, setSpinsLeft] = useState(0)
   const [resetAt, setResetAt] = useState(null)
   const [now, setNow] = useState(Date.now())
@@ -44,13 +50,6 @@ export default function LuckyWheel() {
   const [spinning, setSpinning] = useState(false)
   const [result, setResult] = useState(null)
   const [error, setError] = useState('')
-
-  useEffect(() => {
-    try {
-      const stored = JSON.parse(sessionStorage.getItem('user'))
-      if (stored?.email) setEmail(stored.email)
-    } catch {}
-  }, [])
 
   const loadHistory = async () => {
     if (!email) return

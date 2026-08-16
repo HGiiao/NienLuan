@@ -77,6 +77,21 @@ export const exportAdminFlights = (params) => api.get('/api/admin/flights/export
 export const importAdminTrains = (data) => api.post('/api/admin/trains/import', data, { headers: adminHeaders() })
 export const exportAdminTrains = () => api.get('/api/admin/trains/export', { headers: adminHeaders(), responseType: 'blob' })
 
+export const getAdminBuses = (params) => api.get('/api/admin/buses', { params, headers: adminHeaders() })
+export const createAdminBus = (data) => api.post('/api/admin/buses', data, { headers: adminHeaders() })
+export const updateAdminBus = (id, data) => api.put(`/api/admin/buses/${id}`, data, { headers: adminHeaders() })
+export const deleteAdminBus = (id) => api.delete(`/api/admin/buses/${id}`, { headers: adminHeaders() })
+export const importAdminBuses = (data) => api.post('/api/admin/buses/import', data, { headers: adminHeaders() })
+export const exportAdminBuses = (params) => api.get('/api/admin/buses/export', { params, headers: adminHeaders(), responseType: 'blob' })
+
+export const getAdminSubscriptions = (params) => api.get('/api/admin/subscriptions', { params, headers: adminHeaders() })
+export const getUserOverview = (id) => api.get(`/api/admin/users/${id}/overview`, { headers: adminHeaders() })
+export const broadcastNotification = (data) => api.post('/api/admin/notifications/broadcast', data, { headers: adminHeaders() })
+
+export const getAdminPromoCodes = () => api.get('/api/promo-codes', { headers: adminHeaders() })
+export const createAdminPromoCode = (data) => api.post('/api/promo-codes', data, { headers: adminHeaders() })
+export const deleteAdminPromoCode = (id) => api.delete(`/api/promo-codes/${id}`, { headers: adminHeaders() })
+
 // Reviews
 export const getReviews = (params) => api.get('/api/reviews', { params })
 export const getReviewSummary = (params) => api.get('/api/reviews/summary', { params })

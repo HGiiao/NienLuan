@@ -6,10 +6,43 @@ import { getSubscriptionPlans, getUserSubscription } from '../services/api'
 import { formatCurrencyVnd } from '../utils/formatters'
 import { PageHeader } from '../ui'
 
-const benefits = {
-  Free: { icon: Star, features: ['3 cảnh báo giá/ngày', 'So sánh 1 hãng', 'Hỗ trợ thường', 'Hoàn tiền 7 ngày'] },
-  VIP: { icon: Zap, features: ['20 cảnh báo giá/ngày', 'Cảnh báo sớm 2h', 'So sánh nhiều hãng', 'Hỗ trợ ưu tiên', 'Hoàn tiền 48h', 'Chọn ghế miễn phí'], popular: true },
-  Premium: { icon: Crown, features: ['50 cảnh báo giá/ngày', 'Cảnh báo sớm 4h', 'So sánh tất cả hãng', 'Hỗ trợ VIP 24/7', 'Hoàn tiền 24h', 'Chọn ghế miễn phí', 'Ưu đãi độc quyền'] },
+const planIcons = {
+  Free: Star,
+  VIP: Zap,
+  Premium: Crown,
+}
+
+const POPULAR_PLAN = 'VIP'
+
+// Quyền lợi được sinh từ chính dữ liệu gói trong DB (camelCase từ API) —
+// đảm bảo những gì hiển thị khớp với quyền lợi backend đang thực thi.
+// Không hiển thị SeatSelection vì tính năng chọn ghế đã bị gỡ khỏi app.
+const planBenefits = (plan) => {
+  const list = []
+  if (plan?.maxAlertsPerDay != null) list.push(`${plan.maxAlertsPerDay} cảnh báo giá/ngày`)
+  if (plan?.earlyPriceAlerts) list.push('Cảnh báo giá sớm')
+  if (plan?.multiAirlineCompare) list.push('So sánh nhiều hãng')
+  if (plan?.prioritySupport) list.push('Hỗ trợ ưu tiên')
+  if (plan?.fastRefund) list.push('Hoàn tiền nhanh')
+  if (list.length === 0) list.push('Quyền lợi cơ bản')
+  return list
+}
+
+// Những quyền lợi gói hiện tại KHÔNG có — dùng để nói rõ giới hạn của gói Free
+const missingBenefits = (plan) => {
+  const miss = []
+  if (!plan?.earlyPriceAlerts) miss.push('không cảnh báo sớm')
+  if (!plan?.multiAirlineCompare) miss.push('không so sánh nhiều hãng')
+  if (!plan?.prioritySupport) miss.push('không hỗ trợ ưu tiên')
+  if (!plan?.fastRefund) miss.push('không hoàn tiền nhanh')
+  return miss
+}
+
+const formatDate = (iso) => {
+  if (!iso) return ''
+  const d = new Date(iso)
+  const p = (n) => String(n).padStart(2, '0')
+  return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()}`
 }
 
 export default function VipPlans() {
@@ -44,6 +77,50 @@ export default function VipPlans() {
         <p className="text-[var(--color-text-secondary)] max-w-lg mx-auto">Nhận cảnh báo giá sớm hơn, so sánh nhiều hãng hơn, và ưu đãi độc quyền dành cho hội viên</p>
       </div>
 
+      {user?.id && currentSub && (
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className={`max-w-xl mx-auto mb-8 rounded-2xl border p-4 flex items-center gap-3 ${
+            currentSub.isActive && currentSub.plan?.name !== 'Free'
+              ? 'bg-primary-500/5 border-primary-500/25'
+              : 'bg-[var(--color-bg-card)] border-[var(--color-border)]'
+          }`}
+        >
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+            currentSub.isActive && currentSub.plan?.name !== 'Free' ? 'bg-primary-500' : 'bg-primary-500/10'
+          }`}>
+            {(() => {
+              const Icon = planIcons[currentSub.plan?.name] || Star
+              return <Icon className={`w-5 h-5 ${currentSub.isActive && currentSub.plan?.name !== 'Free' ? 'text-white' : 'text-primary-500'}`} />
+            })()}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold text-[var(--color-text-primary)]">
+              Gói hiện tại:{' '}
+              <span className={currentSub.isActive && currentSub.plan?.name !== 'Free' ? 'text-primary-500' : 'text-[var(--color-text-secondary)]'}>
+                {currentSub.plan?.name || 'Free'}
+              </span>
+            </p>
+            <p className="text-xs text-[var(--color-text-tertiary)] leading-relaxed">
+              {currentSub.isActive && currentSub.endDate && currentSub.plan?.name !== 'Free'
+                ? `Hiệu lực đến ${formatDate(currentSub.endDate)}`
+                : currentSub.plan?.name === 'Free'
+                  ? <>
+                      <span className="text-[var(--color-text-secondary)] font-semibold">
+                        Giới hạn gói Free: chỉ {currentSub.plan?.maxAlertsPerDay ?? 3} cảnh báo giá/ngày
+                      </span>
+                      {missingBenefits(currentSub.plan).length > 0 && (
+                        <span> • {missingBenefits(currentSub.plan).join(' • ')}</span>
+                      )}
+                      <span className="block mt-0.5 text-primary-500 font-semibold">Nâng cấp VIP để mở tất cả quyền lợi</span>
+                    </>
+                  : 'Gói đã hết hạn — gia hạn để tiếp tục dùng quyền lợi'}
+            </p>
+          </div>
+        </motion.div>
+      )}
+
       <div className="flex items-center justify-center gap-2 mb-8">
         <button onClick={() => setBilling('monthly')} className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all ${billing === 'monthly' ? 'bg-primary-500/10 text-primary-500 border border-primary-500/30' : 'bg-[var(--color-border)]/30 text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'}`}>Hàng tháng</button>
         <button onClick={() => setBilling('yearly')} className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all ${billing === 'yearly' ? 'bg-primary-500/10 text-primary-500 border border-primary-500/30' : 'bg-[var(--color-border)]/30 text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'}`}>
@@ -58,9 +135,9 @@ export default function VipPlans() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {plans.filter(p => p.name !== 'Free').map((plan, idx) => {
-            const Icon = benefits[plan.name]?.icon || Star
-            const planBenefits = benefits[plan.name]?.features || []
-            const isPopular = benefits[plan.name]?.popular
+            const Icon = planIcons[plan.name] || Star
+            const benefitsList = planBenefits(plan)
+            const isPopular = plan.name === POPULAR_PLAN
             const current = isCurrentPlan(plan.name)
             const price = billing === 'yearly' ? plan.yearlyPrice : plan.monthlyPrice
 
@@ -87,7 +164,7 @@ export default function VipPlans() {
                 </div>
 
                 <div className="flex-1 space-y-2.5 mb-6">
-                  {planBenefits.map((f, i) => (
+                  {benefitsList.map((f, i) => (
                     <div key={i} className="flex items-start gap-2.5">
                       <Check className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
                       <span className="text-sm text-[var(--color-text-secondary)]">{f}</span>

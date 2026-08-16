@@ -458,8 +458,9 @@ export default function OptimalRoute() {
   const navigate = useNavigate()
   const { isSignedIn } = useUser()
   const [tab, setTab] = useState('route')
+  // Form trống khi mở trang — không pre-fill tuyến mặc định
   const [form, setForm] = useState({
-    originCity: 'HAN', destinationCity: 'SGN', startDate: '', endDate: '', preferences: 'cheapest', tripType: 'one-way',
+    originCity: '', destinationCity: '', startDate: '', endDate: '', preferences: 'cheapest', tripType: 'one-way',
   })
   const [routes, setRoutes] = useState([])
   const [loading, setLoading] = useState(false)

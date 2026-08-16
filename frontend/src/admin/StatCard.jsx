@@ -4,7 +4,9 @@ export default function StatCard({
   icon: Icon, label, value, change, changeLabel,
   sparkline = [], color = 'primary',
 }) {
+  // change: số % so với kỳ trước. null = kỳ trước không có dữ liệu (không tính được %)
   const isPositive = change != null && change >= 0
+  const isNew = change == null && value != null && Number(value) > 0
 
   const colorMap = {
     primary: { icon: 'bg-primary-50 text-primary-500', badge: isPositive ? 'bg-[var(--color-success)]/10 text-[var(--color-success)]' : 'bg-[var(--color-danger)]/10 text-[var(--color-danger)]', line: 'var(--color-chart-2)' },
@@ -32,11 +34,15 @@ export default function StatCard({
       <p className="text-xs font-medium text-[var(--color-text-tertiary)] mb-0.5">{label}</p>
       <div className="flex items-baseline gap-2">
         <span className="text-xl font-bold text-[var(--color-text-primary)]">{value}</span>
-        {change != null && (
-          <span className={`inline-flex items-center gap-0.5 text-[11px] font-semibold px-1.5 py-0.5 rounded-md ${c.badge}`}>
+        {change != null ? (
+          <span className={`inline-flex items-center gap-0.5 text-[11px] font-semibold px-1.5 py-0.5 rounded-md ${c.badge}`} title={`So với kỳ trước: ${isPositive ? '+' : ''}${change}%`}>
             {isPositive ? '+' : ''}{change}%
           </span>
-        )}
+        ) : isNew ? (
+          <span className="inline-flex items-center gap-0.5 text-[11px] font-semibold px-1.5 py-0.5 rounded-md bg-primary-50 text-primary-600">
+            Mới
+          </span>
+        ) : null}
         {changeLabel && (
           <span className="text-[11px] text-[var(--color-text-tertiary)]">{changeLabel}</span>
         )}

@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using FlightAggregatorApi.Data;
+using FlightAggregatorApi.Models;
 using FlightAggregatorApi.Services;
 
 namespace FlightAggregatorApi.Controllers;
@@ -93,7 +94,8 @@ public class PricesController : ControllerBase
         [FromQuery] string to,
         [FromQuery] DateOnly? date,
         [FromQuery] string? tripType,
-        [FromQuery] DateOnly? returnDate)
+        [FromQuery] DateOnly? returnDate,
+        [FromQuery] string? email = null)
     {
         if (string.IsNullOrWhiteSpace(from) || string.IsNullOrWhiteSpace(to))
             return BadRequest(new { message = "Thiếu điểm đi/đến" });
@@ -101,6 +103,10 @@ public class PricesController : ControllerBase
         var f = from.Trim().ToUpperInvariant();
         var t = to.Trim().ToUpperInvariant();
         var dateVal = date ?? DateOnly.FromDateTime(DateTime.UtcNow);
+
+        // Buộc áp dụng quyền lợi gói: Free (hoặc chưa đăng nhập) chỉ so sánh 1 hãng bay rẻ nhất
+        var plan = await PlanResolver.GetPlanForEmailAsync(_db, email ?? "");
+        bool limitAirline = !plan.MultiAirlineCompare;
 
         bool isRoundTrip = string.Equals(tripType, "round-trip", StringComparison.OrdinalIgnoreCase) && returnDate.HasValue;
         if (isRoundTrip && returnDate.Value < dateVal)
@@ -146,6 +152,12 @@ public class PricesController : ControllerBase
                 .OrderBy(bx => bx.Price)
                 .ToListAsync();
 
+            if (limitAirline)
+            {
+                outboundFlights = KeepCheapestAirlineOnly(outboundFlights);
+                returnFlights = KeepCheapestAirlineOnly(returnFlights);
+            }
+
             _logger.LogInformation("Compare round-trip {F}->{T} {Date} & {RDate}: {OutCount} đi / {RetCount} về",
                 f, t, dateVal, returnDate!.Value, outboundFlights.Count + outboundTrains.Count + outboundBuses.Count, returnFlights.Count + returnTrains.Count + returnBuses.Count);
 
@@ -174,9 +186,25 @@ public class PricesController : ControllerBase
             .OrderBy(bx => bx.Price)
             .ToListAsync();
 
+        if (limitAirline)
+        {
+            flights = KeepCheapestAirlineOnly(flights);
+        }
+
         _logger.LogInformation("Compare one-way {F}->{T} {Date}: {Count} results", f, t, dateVal, flights.Count + trains.Count + buses.Count);
 
         return Ok(new { flights, trains, buses });
+    }
+
+    /// <summary>
+    /// Gói không có MultiAirlineCompare (Free): chỉ giữ chuyến bay của hãng rẻ nhất
+    /// (danh sách đã sort theo giá tăng dần nên phần tử đầu là hãng rẻ nhất).
+    /// </summary>
+    private static List<Flight> KeepCheapestAirlineOnly(List<Flight> flights)
+    {
+        if (flights.Count <= 1) return flights;
+        var cheapestAirline = flights[0].AirlineCode;
+        return flights.Where(f => f.AirlineCode == cheapestAirline).ToList();
     }
 
     [HttpGet("predict")]

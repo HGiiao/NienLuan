@@ -27,11 +27,23 @@ public class PriceAlertService
         _logger = logger;
     }
 
-    public async Task<PriceAlertCheckResult> CheckAlertsAsync(ApplicationDbContext db, string? email = null)
+    public async Task<PriceAlertCheckResult> CheckAlertsAsync(ApplicationDbContext db, string? email = null, bool earlyOnly = false)
     {
         var query = db.PriceAlerts.Where(a => a.IsActive && a.NotifiedAt == null);
         if (!string.IsNullOrWhiteSpace(email))
             query = query.Where(a => a.Email == email);
+
+        // "Cảnh báo sớm" (EarlyPriceAlerts): chỉ gói VIP/Premium được kiểm tra TỰ ĐỘNG
+        // (mỗi chu kỳ giá biến động) mà không cần user thao tác. User Free phải bấm
+        // "Kiểm tra giá" thủ công (PriceAlertController) thì cảnh báo mới được xử lý.
+        if (earlyOnly)
+        {
+            var earlyEmails = await db.Users
+                .Where(u => db.UserSubscriptions.Any(s => s.UserId == u.Id && s.Status == "active" && s.EndDate > DateTime.UtcNow && s.Plan!.EarlyPriceAlerts))
+                .Select(u => u.Email)
+                .ToListAsync();
+            query = query.Where(a => earlyEmails.Contains(a.Email));
+        }
 
         var alerts = await query.ToListAsync();
         var triggered = new List<object>();

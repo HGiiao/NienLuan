@@ -428,6 +428,14 @@ export default function IntroAnimation({ onComplete }) {
   const [idle, setIdle] = useState(false)
   const containerRef = useRef(null)
 
+  /* Lock body scroll while intro is visible (the app behind is still mounted,
+     so without this the body scrollbar + the intro's own scrollbar = 2 bars) */
+  useEffect(() => {
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = prev }
+  }, [])
+
   /* Mouse parallax/tilt + idle auto-tilt */
   useEffect(() => {
     const handle = (e) => {

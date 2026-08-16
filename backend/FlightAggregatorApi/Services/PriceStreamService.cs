@@ -141,8 +141,10 @@ public class PriceStreamService : BackgroundService
         }
 
         // Tự động kiểm tra cảnh báo giá mỗi chu kỳ: khi giá đạt/thấp hơn mục tiêu
-        // của user → gửi email + thông báo ngay, không cần user bấm "Kiểm tra giá".
+        // → gửi email + thông báo ngay, không cần user bấm "Kiểm tra giá".
+        // Quyền này chỉ dành cho gói có EarlyPriceAlerts (VIP/Premium) — user Free
+        // phải bấm "Kiểm tra giá" thủ công.
         var alertService = scope.ServiceProvider.GetRequiredService<PriceAlertService>();
-        await alertService.CheckAlertsAsync(db);
+        await alertService.CheckAlertsAsync(db, earlyOnly: true);
     }
 }

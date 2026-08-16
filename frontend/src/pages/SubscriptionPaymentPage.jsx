@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { CreditCard, Wallet, Building2, CheckCircle, XCircle, Crown, ArrowRight, Home, RefreshCw, Shield, Ban, Loader } from 'lucide-react'
+import { CreditCard, Wallet, Building2, CheckCircle, XCircle, Crown, ArrowRight, Home, RefreshCw, Shield, Ban, Loader, Check } from 'lucide-react'
 import { subscribeToPlan } from '../services/api'
 import { formatCurrencyVnd } from '../utils/formatters'
 import BankTransferPanel from '../components/BankTransferPanel'
@@ -12,9 +12,26 @@ function getStoredUser() {
 }
 
 const paymentMethods = [
-  { id: 'credit_card', label: 'Thẻ tín dụng', icon: CreditCard },
-  { id: 'e_wallet', label: 'Ví điện tử', icon: Wallet },
-  { id: 'bank_transfer', label: 'Chuyển khoản', icon: Building2 },
+  { id: 'credit_card', label: 'Thẻ tín dụng', icon: CreditCard, desc: 'Visa, MasterCard, JCB' },
+  { id: 'e_wallet', label: 'Ví điện tử', icon: Wallet, desc: 'VNPay, PayOS' },
+  { id: 'bank_transfer', label: 'Chuyển khoản', icon: Building2, desc: 'Quét mã VietQR' },
+]
+
+const walletProviders = [
+  {
+    id: 'vnpay',
+    label: 'VNPay',
+    desc: 'VNPay QR, ngân hàng nội địa',
+    colors: 'from-orange-500 to-amber-600',
+    short: 'VN',
+  },
+  {
+    id: 'payos',
+    label: 'PayOS',
+    desc: 'VietQR qua ngân hàng',
+    colors: 'from-emerald-500 to-teal-600',
+    short: 'P',
+  },
 ]
 
 export default function SubscriptionPaymentPage() {
@@ -31,11 +48,13 @@ export default function SubscriptionPaymentPage() {
   const [error, setError] = useState('')
   const [transactionId, setTransactionId] = useState('')
   const [selectedMethod, setSelectedMethod] = useState('credit_card')
+  const [walletProvider, setWalletProvider] = useState('')
   const [transferRef, setTransferRef] = useState('')
   const [cardInfo, setCardInfo] = useState(null)
 
   const selectMethod = (id) => {
     setSelectedMethod(id)
+    if (id !== 'e_wallet') setWalletProvider('')
     if (id === 'bank_transfer' && !transferRef) {
       const d = new Date()
       const p = (n) => String(n).padStart(2, '0')
@@ -67,10 +86,20 @@ export default function SubscriptionPaymentPage() {
   }
 
   const doPayment = async () => {
+    if (selectedMethod === 'e_wallet' && !walletProvider) {
+      setError('Vui lòng chọn ví thanh toán (VNPay hoặc PayOS)')
+      return
+    }
     setStatus('processing')
     setError('')
     try {
-      await subscribeToPlan({ userId: localUser.id, planId: Number(planId), billingCycle: billing })
+      await subscribeToPlan({
+        userId: localUser.id,
+        planId: Number(planId),
+        billingCycle: billing,
+        paymentMethod: selectedMethod,
+        paymentProvider: selectedMethod === 'e_wallet' ? walletProvider : null,
+      })
       setTransactionId(`SUB_${Date.now()}_${Math.random().toString(36).slice(2, 6).toUpperCase()}`)
       setStatus('success')
     } catch (err) {
@@ -85,7 +114,7 @@ export default function SubscriptionPaymentPage() {
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className="max-w-lg mx-auto px-4 py-6 md:py-10"
+      className="max-w-3xl mx-auto px-4 py-6 md:py-10"
     >
       <div className="flex items-center justify-center gap-1.5 mb-4 text-xs font-semibold text-primary-400 bg-primary-500/10 px-3 py-1.5 rounded-full border border-primary-500/20 w-fit mx-auto">
         <Ban className="w-3.5 h-3.5" />
@@ -149,6 +178,55 @@ export default function SubscriptionPaymentPage() {
             {selectedMethod === 'bank_transfer' && (
               <div className="mt-2">
                 <BankTransferPanel amount={price} content={transferRef} />
+              </div>
+            )}
+
+            {selectedMethod === 'e_wallet' && (
+              <div className="mt-2">
+                <div className="rounded-2xl border border-primary-500/20 bg-primary-500/5 p-4 md:p-5">
+                  <div className="flex items-center gap-2.5 mb-4">
+                    <div className="w-9 h-9 rounded-xl bg-primary-500/10 flex items-center justify-center text-primary-500 shrink-0">
+                      <Wallet className="w-4.5 h-4.5" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold text-[var(--color-text-primary)]">Chọn ví thanh toán</h4>
+                      <p className="text-[11px] text-[var(--color-text-tertiary)]">Bạn sẽ được chuyển sang cổng thanh toán của ví để hoàn tất</p>
+                    </div>
+                  </div>
+
+                  <div className="grid sm:grid-cols-2 md:grid-cols-2 gap-3">
+                    {walletProviders.map(w => {
+                      const selected = walletProvider === w.id
+                      return (
+                        <button
+                          key={w.id}
+                          type="button"
+                          onClick={() => setWalletProvider(w.id)}
+                          className={`relative flex flex-col items-center gap-2.5 p-4 rounded-xl border-2 transition-all text-center ${
+                            selected
+                              ? 'border-primary-500 bg-white dark:bg-[var(--color-bg-card)] shadow-sm'
+                              : 'border-[var(--color-border)] bg-white dark:bg-[var(--color-bg-card)] hover:border-primary-500/40'
+                          }`}
+                        >
+                          <div className={`w-11 h-11 rounded-full bg-gradient-to-br ${w.colors} text-white flex items-center justify-center font-black text-sm shadow-md`}>
+                            {w.short}
+                          </div>
+                          <div>
+                            <div className={`text-sm font-bold ${selected ? 'text-primary-500' : 'text-[var(--color-text-primary)]'}`}>
+                              {w.label}
+                            </div>
+                            <div className="text-[10px] text-[var(--color-text-tertiary)] mt-0.5">{w.desc}</div>
+                          </div>
+                          {selected && (
+                            <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-primary-500 text-white flex items-center justify-center shadow-sm">
+                              <Check className="w-3 h-3" />
+                            </div>
+                          )}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
               </div>
             )}
 

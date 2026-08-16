@@ -32,6 +32,19 @@ public class PriceAlertController : ControllerBase
         if (request.TargetPrice <= 0)
             return BadRequest(new { message = "Giá mục tiêu phải lớn hơn 0" });
 
+        // Buộc áp dụng đúng quyền lợi gói đã đăng ký: giới hạn số cảnh báo giá/ngày theo plan
+        var plan = await PlanResolver.GetPlanForEmailAsync(_db, request.Email);
+        var createdToday = await _db.PriceAlerts.CountAsync(a => a.Email == request.Email && a.CreatedAt >= DateTime.UtcNow.Date);
+        if (createdToday >= plan.MaxAlertsPerDay)
+        {
+            return BadRequest(new
+            {
+                message = $"Gói {plan.Name} được tạo tối đa {plan.MaxAlertsPerDay} cảnh báo giá/ngày — bạn đã dùng hết hôm nay. Nâng cấp VIP để tăng giới hạn.",
+                maxAlertsPerDay = plan.MaxAlertsPerDay,
+                plan = plan.Name,
+            });
+        }
+
         var lowest = await PriceAlertService.GetLowestPriceAsync(_db, request.RouteFrom, request.RouteTo);
 
         // Theo dõi một chuyến cụ thể từ card → lấy giá của chính chuyến đó làm giá hiện tại
@@ -74,6 +87,8 @@ public class PriceAlertController : ControllerBase
             createdAt = alert.CreatedAt,
         });
     }
+
+
 
     [HttpGet]
     public async Task<IActionResult> GetAll([FromQuery] string email)

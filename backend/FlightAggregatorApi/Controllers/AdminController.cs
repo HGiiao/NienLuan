@@ -311,14 +311,17 @@ public class AdminController : ControllerBase
         var periodStart = now.AddDays(-period);
         var prevPeriodStart = periodStart.AddDays(-period);
 
-        // Revenue over time (daily)
-        var revenueOverTime = await _db.Bookings
+        // Revenue over time (daily) — EF không dịch được ToString trong query → lấy ngày thô, format ở client
+        var revenueOverTimeRaw = await _db.Bookings
             .AsNoTracking()
             .Where(b => b.Status == "Confirmed" && b.BookingDate >= periodStart)
             .GroupBy(b => b.BookingDate.Date)
-            .Select(g => new { date = g.Key.ToString("yyyy-MM-dd"), revenue = g.Sum(b => b.TotalPrice) })
+            .Select(g => new { date = g.Key, revenue = g.Sum(b => b.TotalPrice) })
             .OrderBy(x => x.date)
             .ToListAsync();
+        var revenueOverTime = revenueOverTimeRaw
+            .Select(x => new { date = x.date.ToString("yyyy-MM-dd"), revenue = x.revenue })
+            .ToList();
 
         // Revenue comparison
         var currentRevenue = await _db.Bookings
@@ -340,24 +343,44 @@ public class AdminController : ControllerBase
 
         // Monthly revenue (past 12 months)
         var twelveMoAgo = now.AddMonths(-12);
-        var monthlyRevenue = await _db.Bookings
+        var monthlyRevenueRaw = await _db.Bookings
             .AsNoTracking()
             .Where(b => b.Status == "Confirmed" && b.BookingDate >= twelveMoAgo)
             .GroupBy(b => new { b.BookingDate.Year, b.BookingDate.Month })
-            .Select(g => new { month = g.Key.Year + "-" + g.Key.Month.ToString("00"), revenue = g.Sum(b => b.TotalPrice) })
-            .OrderBy(x => x.month)
+            .Select(g => new { year = g.Key.Year, month = g.Key.Month, revenue = g.Sum(b => b.TotalPrice) })
+            .OrderBy(x => x.year).ThenBy(x => x.month)
             .ToListAsync();
+        var monthlyRevenue = monthlyRevenueRaw
+            .Select(x => new { month = x.year + "-" + x.month.ToString("00"), revenue = x.revenue })
+            .ToList();
 
         // Top train routes (via bookings)
-        var topTrainRoutes = await _db.Bookings
+        var topTrainRoutesRaw = await _db.Bookings
             .AsNoTracking()
             .Where(b => b.TrainId != null)
             .Include(b => b.Train)
             .GroupBy(b => new { b.Train!.DepartureLocation, b.Train.ArrivalLocation })
-            .Select(g => new { route = g.Key.DepartureLocation + " → " + g.Key.ArrivalLocation, count = g.Count() })
+            .Select(g => new { dep = g.Key.DepartureLocation, arr = g.Key.ArrivalLocation, count = g.Count() })
             .OrderByDescending(x => x.count)
             .Take(5)
             .ToListAsync();
+        var topTrainRoutes = topTrainRoutesRaw
+            .Select(x => new { route = x.dep + " → " + x.arr, count = x.count })
+            .ToList();
+
+        // Top flight routes (via bookings)
+        var topFlightRoutesRaw = await _db.Bookings
+            .AsNoTracking()
+            .Where(b => b.FlightId != null)
+            .Include(b => b.Flight)
+            .GroupBy(b => new { b.Flight!.DepartureLocation, b.Flight.ArrivalLocation })
+            .Select(g => new { dep = g.Key.DepartureLocation, arr = g.Key.ArrivalLocation, count = g.Count() })
+            .OrderByDescending(x => x.count)
+            .Take(5)
+            .ToListAsync();
+        var topFlightRoutes = topFlightRoutesRaw
+            .Select(x => new { route = x.dep + " → " + x.arr, count = x.count })
+            .ToList();
 
         // Airline market share (via flight bookings)
         var airlineMarketShare = await _db.Bookings
@@ -368,6 +391,19 @@ public class AdminController : ControllerBase
             .Select(g => new { airline = g.Key, count = g.Count() })
             .OrderByDescending(x => x.count)
             .ToListAsync();
+
+        // Bookings per day (7 ngày qua) — cho biểu đồ đặt chỗ ở Tổng quan
+        var weekStart = now.AddDays(-6).Date;
+        var bookingsOverTimeRaw = await _db.Bookings
+            .AsNoTracking()
+            .Where(b => b.BookingDate >= weekStart)
+            .GroupBy(b => b.BookingDate.Date)
+            .Select(g => new { date = g.Key, count = g.Count() })
+            .OrderBy(x => x.date)
+            .ToListAsync();
+        var bookingsOverTime = bookingsOverTimeRaw
+            .Select(x => new { date = x.date.ToString("yyyy-MM-dd"), count = x.count })
+            .ToList();
 
         // Growth metrics (WoW)
         var weekAgo = now.AddDays(-7);
@@ -383,11 +419,13 @@ public class AdminController : ControllerBase
             .Where(b => b.Status == "Confirmed" && b.BookingDate >= twoWeeksAgo && b.BookingDate < weekAgo)
             .SumAsync(b => (decimal?)b.TotalPrice) ?? 0;
 
-        int Pct(int now, int prev) => prev > 0 ? (int)Math.Round((double)(now - prev) / prev * 100) : now > 0 ? 100 : 0;
-        int PctD(decimal now, decimal prev) => prev > 0 ? (int)Math.Round((now - prev) / prev * 100) : now > 0 ? 100 : 0;
+        // Chỉ tính % khi kỳ trước có dữ liệu (>0). Nếu kỳ trước = 0 mà kỳ này có dữ liệu,
+        // trả null để frontend hiển thị "Mới" thay vì +100% gây hiểu nhầm.
+        int? Pct(int now, int prev) => prev > 0 ? (int)Math.Round((double)(now - prev) / prev * 100) : (int?)null;
+        int? PctD(decimal now, decimal prev) => prev > 0 ? (int)Math.Round((now - prev) / prev * 100) : (int?)null;
 
         // Recent transactions
-        var recentTransactions = await _db.Bookings
+        var recentTransactionsRaw = await _db.Bookings
             .AsNoTracking()
             .Include(b => b.User)
             .OrderByDescending(b => b.BookingDate)
@@ -399,10 +437,13 @@ public class AdminController : ControllerBase
                 email = b.User.Email,
                 amount = b.TotalPrice,
                 status = b.Status,
-                date = b.BookingDate.ToString("yyyy-MM-dd HH:mm"),
-                type = b.FlightId != null ? "Chuyến bay" : b.TrainId != null ? "Tàu hỏa" : "—"
+                date = b.BookingDate,
+                type = b.FlightId != null ? "Chuyến bay" : b.TrainId != null ? "Tàu hỏa" : b.BusId != null ? "Xe khách" : "—"
             })
             .ToListAsync();
+        var recentTransactions = recentTransactionsRaw
+            .Select(t => new { t.id, t.userName, t.email, t.amount, t.status, date = t.date.ToString("yyyy-MM-dd HH:mm"), t.type })
+            .ToList();
 
         return Ok(new
         {
@@ -411,6 +452,8 @@ public class AdminController : ControllerBase
             bookingStatusDistribution,
             monthlyRevenue,
             topTrainRoutes,
+            topFlightRoutes,
+            bookingsOverTime,
             airlineMarketShare,
             growthMetrics = new
             {
@@ -510,7 +553,306 @@ public class AdminController : ControllerBase
         return File(System.Text.Encoding.UTF8.GetBytes(csv.ToString()), "text/csv", $"trains_{DateTime.UtcNow:yyyyMMdd}.csv");
     }
 
+    // ─────────────────────────────── Xe khách (Bus) ───────────────────────────────
+
+    [HttpGet("buses")]
+    public async Task<IActionResult> GetBuses([FromQuery] string? search, [FromQuery] string? company, [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+    {
+        IQueryable<Bus> query = _db.Buses.AsNoTracking();
+
+        if (!string.IsNullOrEmpty(company))
+            query = query.Where(b => b.BusCompany == company);
+
+        if (!string.IsNullOrWhiteSpace(search))
+            query = query.Where(b =>
+                b.BusCode.Contains(search) ||
+                b.BusCompany.Contains(search) ||
+                b.DepartureLocation.Contains(search) ||
+                b.ArrivalLocation.Contains(search) ||
+                b.CoachClass.Contains(search));
+
+        var total = await query.CountAsync();
+        var items = await query.OrderByDescending(b => b.CreatedAt)
+            .Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
+
+        return Ok(new { items, total, page, pageSize });
+    }
+
+    [HttpPost("buses")]
+    public async Task<IActionResult> CreateBus([FromBody] CreateBusRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.BusCode) || string.IsNullOrWhiteSpace(request.DepartureLocation))
+            return BadRequest(new { message = "Thông tin xe khách không hợp lệ" });
+
+        var bus = new Bus
+        {
+            BusCode = request.BusCode,
+            BusCompany = request.BusCompany ?? "",
+            DepartureLocation = request.DepartureLocation,
+            ArrivalLocation = request.ArrivalLocation,
+            DepartureTime = request.DepartureTime,
+            ArrivalTime = request.ArrivalTime,
+            Price = request.Price,
+            Seats = request.Seats,
+            CoachClass = request.CoachClass ?? "",
+            PickupPoint = request.PickupPoint ?? "",
+            DropoffPoint = request.DropoffPoint ?? "",
+            BusDate = DateOnly.FromDateTime(request.DepartureTime),
+        };
+
+        _db.Buses.Add(bus);
+        await _db.SaveChangesAsync();
+
+        return CreatedAtAction(nameof(GetBuses), new { id = bus.Id }, bus);
+    }
+
+    [HttpPut("buses/{id:long}")]
+    public async Task<IActionResult> UpdateBus(long id, [FromBody] CreateBusRequest request)
+    {
+        var bus = await _db.Buses.FindAsync(id);
+        if (bus == null) return NotFound(new { message = "Chuyến xe không tồn tại" });
+
+        bus.BusCode = request.BusCode;
+        bus.BusCompany = request.BusCompany ?? "";
+        bus.DepartureLocation = request.DepartureLocation;
+        bus.ArrivalLocation = request.ArrivalLocation;
+        bus.DepartureTime = request.DepartureTime;
+        bus.ArrivalTime = request.ArrivalTime;
+        bus.Price = request.Price;
+        bus.Seats = request.Seats;
+        bus.CoachClass = request.CoachClass ?? "";
+        bus.PickupPoint = request.PickupPoint ?? "";
+        bus.DropoffPoint = request.DropoffPoint ?? "";
+        bus.BusDate = DateOnly.FromDateTime(request.DepartureTime);
+
+        await _db.SaveChangesAsync();
+        _logger.LogInformation("Admin updated bus #{BusId}", id);
+
+        return Ok(bus);
+    }
+
+    [HttpDelete("buses/{id:long}")]
+    public async Task<IActionResult> DeleteBus(long id)
+    {
+        var bus = await _db.Buses.FindAsync(id);
+        if (bus == null) return NotFound(new { message = "Chuyến xe không tồn tại" });
+
+        _db.Buses.Remove(bus);
+        await _db.SaveChangesAsync();
+        _logger.LogInformation("Admin deleted bus #{BusId}", id);
+
+        return Ok(new { message = "Đã xoá chuyến xe" });
+    }
+
+    [HttpPost("buses/import")]
+    public async Task<IActionResult> ImportBuses([FromBody] List<CreateBusRequest> requests)
+    {
+        if (requests == null || requests.Count == 0)
+            return BadRequest(new { message = "Danh sách chuyến xe rỗng" });
+
+        var buses = requests.Select(r => new Bus
+        {
+            BusCode = r.BusCode,
+            BusCompany = r.BusCompany ?? "",
+            DepartureLocation = r.DepartureLocation,
+            ArrivalLocation = r.ArrivalLocation,
+            DepartureTime = r.DepartureTime,
+            ArrivalTime = r.ArrivalTime,
+            Price = r.Price,
+            Seats = r.Seats,
+            CoachClass = r.CoachClass ?? "",
+            PickupPoint = r.PickupPoint ?? "",
+            DropoffPoint = r.DropoffPoint ?? "",
+            BusDate = DateOnly.FromDateTime(r.DepartureTime),
+        }).ToList();
+
+        _db.Buses.AddRange(buses);
+        await _db.SaveChangesAsync();
+        _logger.LogInformation("Admin imported {Count} buses", buses.Count);
+
+        return Ok(new { message = $"Đã nhập {buses.Count} chuyến xe", count = buses.Count });
+    }
+
+    [HttpGet("buses/export")]
+    public async Task<IActionResult> ExportBuses([FromQuery] string? company)
+    {
+        IQueryable<Bus> query = _db.Buses.AsNoTracking();
+        if (!string.IsNullOrEmpty(company))
+            query = query.Where(b => b.BusCompany == company);
+
+        var buses = await query.OrderBy(b => b.DepartureTime).ToListAsync();
+        var csv = new System.Text.StringBuilder();
+        csv.AppendLine("BusCode,BusCompany,DepartureLocation,ArrivalLocation,DepartureTime,ArrivalTime,Price,Seats,CoachClass,PickupPoint,DropoffPoint,BusDate");
+        foreach (var b in buses)
+            csv.AppendLine($"{b.BusCode},{EscapeCsv(b.BusCompany)},{b.DepartureLocation},{b.ArrivalLocation},{b.DepartureTime:O},{b.ArrivalTime:O},{b.Price},{b.Seats},{EscapeCsv(b.CoachClass)},{EscapeCsv(b.PickupPoint)},{EscapeCsv(b.DropoffPoint)},{b.BusDate:O}");
+
+        return File(System.Text.Encoding.UTF8.GetBytes(csv.ToString()), "text/csv", $"buses_{DateTime.UtcNow:yyyyMMdd}.csv");
+    }
+
+    // ─────────────────────────────── Gói VIP (Subscriptions) ───────────────────────────────
+
+    [HttpGet("subscriptions")]
+    public async Task<IActionResult> GetSubscriptions([FromQuery] string? search, [FromQuery] string? plan, [FromQuery] string? status, [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+    {
+        IQueryable<UserSubscription> query = _db.UserSubscriptions.AsNoTracking();
+
+        if (!string.IsNullOrWhiteSpace(search))
+            query = query.Where(s => s.User!.Email.Contains(search) || s.User.FullName.Contains(search));
+        if (!string.IsNullOrEmpty(plan))
+            query = query.Where(s => s.Plan!.Name == plan);
+        if (!string.IsNullOrEmpty(status))
+            query = query.Where(s => s.Status == status);
+
+        var total = await query.CountAsync();
+        var items = await query
+            .Select(s => new
+            {
+                s.Id,
+                s.UserId,
+                s.PlanId,
+                s.BillingCycle,
+                s.StartDate,
+                s.EndDate,
+                s.Status,
+                user = new { s.User!.Id, s.User.FullName, s.User.Email, s.User.Phone },
+                plan = new { s.Plan!.Id, s.Plan.Name, s.Plan.MonthlyPrice, s.Plan.YearlyPrice },
+            })
+            .OrderByDescending(x => x.StartDate)
+            .Skip((page - 1) * pageSize).Take(pageSize)
+            .ToListAsync();
+
+        return Ok(new { items, total, page, pageSize });
+    }
+
+    // ─────────────────────────────── Chi tiết người dùng ───────────────────────────────
+
+    [HttpGet("users/{id:long}/overview")]
+    public async Task<IActionResult> GetUserOverview(long id)
+    {
+        var user = await _db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == id);
+        if (user == null) return NotFound(new { message = "Người dùng không tồn tại" });
+
+        var bookings = await _db.Bookings.AsNoTracking()
+            .Where(b => b.UserId == id)
+            .OrderByDescending(b => b.BookingDate)
+            .Take(20)
+            .Select(b => new
+            {
+                b.Id,
+                b.Status,
+                b.TotalPrice,
+                b.PaymentMethod,
+                b.BookingDate,
+                type = b.FlightId != null ? "Chuyến bay" : b.TrainId != null ? "Tàu hỏa" : b.BusId != null ? "Xe khách" : "—",
+            })
+            .ToListAsync();
+
+        var subscription = await _db.UserSubscriptions.AsNoTracking()
+            .Include(s => s.Plan)
+            .Where(s => s.UserId == id && s.Status == "active" && s.EndDate > DateTime.UtcNow)
+            .OrderByDescending(s => s.StartDate)
+            .FirstOrDefaultAsync();
+
+        var alerts = await _db.PriceAlerts.AsNoTracking()
+            .Where(a => a.Email == user.Email)
+            .OrderByDescending(a => a.CreatedAt)
+            .Take(20)
+            .ToListAsync();
+
+        var spins = await _db.LuckyWheelSpins.AsNoTracking()
+            .Where(s => s.Email == user.Email)
+            .OrderByDescending(s => s.CreatedAt)
+            .Take(20)
+            .ToListAsync();
+
+        var notifications = await _db.Notifications.AsNoTracking()
+            .Where(n => n.Email == user.Email)
+            .OrderByDescending(n => n.CreatedAt)
+            .Take(10)
+            .ToListAsync();
+
+        return Ok(new
+        {
+            user = new
+            {
+                user.Id,
+                user.Email,
+                user.FullName,
+                user.Phone,
+                user.Role,
+                user.IsEmailVerified,
+                user.Address,
+                user.PaymentMethod,
+                user.CreatedAt,
+            },
+            bookings,
+            subscription = subscription == null ? null : new
+            {
+                plan = subscription.Plan?.Name,
+                subscription.BillingCycle,
+                subscription.StartDate,
+                subscription.EndDate,
+                subscription.Status,
+            },
+            alerts,
+            spins,
+            notifications,
+        });
+    }
+
+    // ─────────────────────────────── Gửi thông báo cho toàn bộ người dùng ───────────────────────────────
+
+    [HttpPost("notifications/broadcast")]
+    public async Task<IActionResult> BroadcastNotification([FromBody] BroadcastNotificationRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Title))
+            return BadRequest(new { message = "Tiêu đề thông báo không được để trống" });
+
+        var emails = await _db.Users.AsNoTracking().Select(u => u.Email).ToListAsync();
+        if (emails.Count == 0)
+            return Ok(new { message = "Chưa có người dùng nào để gửi", count = 0 });
+
+        var notifications = emails.Select(e => new Notification
+        {
+            Email = e,
+            Type = string.IsNullOrWhiteSpace(request.Type) ? "announcement" : request.Type,
+            Title = request.Title,
+            Message = request.Message ?? "",
+            Link = string.IsNullOrWhiteSpace(request.Link) ? null : request.Link,
+            CreatedAt = DateTime.UtcNow,
+        }).ToList();
+
+        _db.Notifications.AddRange(notifications);
+        await _db.SaveChangesAsync();
+        _logger.LogInformation("Admin broadcast notification to {Count} users", emails.Count);
+
+        return Ok(new { message = $"Đã gửi thông báo tới {emails.Count} người dùng", count = emails.Count });
+    }
+
     private static string EscapeCsv(string value) => value.Contains(',') || value.Contains('"') || value.Contains('\n') ? $"\"{value.Replace("\"", "\"\"")}\"" : value;
+}
+
+public class CreateBusRequest
+{
+    public string BusCode { get; set; } = string.Empty;
+    public string? BusCompany { get; set; }
+    public string DepartureLocation { get; set; } = string.Empty;
+    public string ArrivalLocation { get; set; } = string.Empty;
+    public DateTime DepartureTime { get; set; }
+    public DateTime ArrivalTime { get; set; }
+    public decimal Price { get; set; }
+    public int Seats { get; set; }
+    public string? CoachClass { get; set; }
+    public string? PickupPoint { get; set; }
+    public string? DropoffPoint { get; set; }
+}
+
+public class BroadcastNotificationRequest
+{
+    public string Title { get; set; } = string.Empty;
+    public string Message { get; set; } = string.Empty;
+    public string? Link { get; set; }
+    public string? Type { get; set; }
 }
 
 public class CreateFlightRequest

@@ -51,6 +51,7 @@ export default function SearchBuses() {
   const [outboundPage, setOutboundPage] = useState(1)
   const [returnPage, setReturnPage] = useState(1)
   const initialLoad = useRef(true)
+  const filterDebounceRef = useRef(null)
 
   const [bookingItem, setBookingItem] = useState(null)
   const [detailItem, setDetailItem] = useState(null)
@@ -104,7 +105,12 @@ export default function SearchBuses() {
   useEffect(() => {
     if (initialLoad.current) return
     setPage(1); setOutboundPage(1); setReturnPage(1)
-    fetchBuses(searchParamsObj, 1, filters)
+    // Debounce 300ms: tránh gọi API liên tục khi gõ min/max giá hoặc đổi filter nhanh
+    clearTimeout(filterDebounceRef.current)
+    filterDebounceRef.current = setTimeout(() => {
+      fetchBuses(searchParamsObj, 1, filters)
+    }, 300)
+    return () => clearTimeout(filterDebounceRef.current)
   }, [filters])
 
   // Reload dữ liệu khi tab được mở/chuyển tới — fetch silent (không flash skeleton)

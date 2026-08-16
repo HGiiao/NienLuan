@@ -430,10 +430,8 @@ const TABS = [
 ]
 
 export default function PriceComparison() {
-  const [query, setQuery] = useState(() => {
-    const saved = localStorage.getItem('compareQuery')
-    return saved ? JSON.parse(saved) : { from: 'HAN', to: 'SGN', date: '', tripType: 'one-way', returnDate: '', days: 7 }
-  })
+  // Không đọc/persist localStorage — tab mới luôn bắt đầu với form trống
+  const [query, setQuery] = useState({ from: '', to: '', date: '', tripType: 'one-way', returnDate: '', days: 7 })
   const [activeTab, setActiveTab] = useState('results')
   const [compareData, setCompareData] = useState(null)
   const [trendData, setTrendData] = useState([])
@@ -455,6 +453,9 @@ export default function PriceComparison() {
     setCompareLoading(true)
     try {
       const params = { from: q.from, to: q.to, date: q.date || undefined }
+      // Truyền email để backend áp dụng đúng quyền lợi gói (Free chỉ so sánh 1 hãng)
+      const stored = (() => { try { return JSON.parse(sessionStorage.getItem('user')) } catch { return null } })()
+      if (stored?.email) params.email = stored.email
       if (q.tripType === 'round-trip' && q.returnDate) {
         params.tripType = 'round-trip'
         params.returnDate = q.returnDate
@@ -502,7 +503,6 @@ export default function PriceComparison() {
     const next = { ...query, [key]: value }
     if (key === 'tripType' && value === 'one-way') next.returnDate = ''
     setQuery(next)
-    localStorage.setItem('compareQuery', JSON.stringify(next))
     clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => fetchAll(next), 400)
   }

@@ -34,7 +34,7 @@ public class SubscriptionController : ControllerBase
     {
         var sub = await _db.UserSubscriptions.AsNoTracking()
             .Include(s => s.Plan)
-            .FirstOrDefaultAsync(s => s.UserId == userId && s.Status == "active");
+            .FirstOrDefaultAsync(s => s.UserId == userId && s.Status == "active" && s.EndDate > DateTime.UtcNow);
         if (sub == null)
         {
             var freePlan = await _db.SubscriptionPlans.AsNoTracking().FirstOrDefaultAsync(p => p.Name == "Free");

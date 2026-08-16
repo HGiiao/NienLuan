@@ -3,16 +3,21 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
 import {
   LogOut, CalendarDays, Clock, AlertCircle,
-  Search, Bell, Plus, Plane, Train, Ticket, UserPlus,
+  Plus, Plane, Train, Ticket, UserPlus,
   ChevronRight, Home,
 } from 'lucide-react'
 import { AdminProvider, AdminSidebar, ToastContainer, ConfirmDialog } from '../admin'
+import GlobalSearch from '../admin/GlobalSearch'
+import NotificationBell from '../components/NotificationBell'
 import Overview from '../admin/pages/Overview'
 import FlightsPage from '../admin/pages/FlightsPage'
 import TrainsPage from '../admin/pages/TrainsPage'
+import BusesPage from '../admin/pages/BusesPage'
 import BookingsPage from '../admin/pages/BookingsPage'
 import UsersPage from '../admin/pages/UsersPage'
-import AdminThemeToggle from '../admin/ThemeToggle'
+import SubscriptionsPage from '../admin/pages/SubscriptionsPage'
+import PromoCodesPage from '../admin/pages/PromoCodesPage'
+import NotificationsPage from '../admin/pages/NotificationsPage'
 import StatsPage from '../admin/pages/StatsPage'
 import { getAdminDashboard } from '../services/api'
 
@@ -33,8 +38,12 @@ const tabBreadcrumb = {
   overview: { label: 'Tổng quan', parent: '' },
   flights: { label: 'Chuyến bay', parent: 'Quản lý' },
   trains: { label: 'Tàu hỏa', parent: 'Quản lý' },
+  buses: { label: 'Xe khách', parent: 'Quản lý' },
   bookings: { label: 'Đặt chỗ', parent: 'Quản lý' },
   users: { label: 'Người dùng', parent: 'Quản lý' },
+  subscriptions: { label: 'Gói VIP', parent: 'Quản lý' },
+  promos: { label: 'Mã giảm giá', parent: 'Khuyến mãi' },
+  notifications: { label: 'Thông báo', parent: 'Truyền thông' },
   stats: { label: 'Thống kê', parent: 'Báo cáo' },
 }
 
@@ -45,7 +54,6 @@ function AdminShell() {
   const [dashboard, setDashboard] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [searchOpen, setSearchOpen] = useState(false)
   const [time, setTime] = useState(new Date())
 
   useEffect(() => {
@@ -137,24 +145,13 @@ function AdminShell() {
           </div>
 
           <div className="flex items-center gap-2.5">
-            {/* Global Search */}
-            <button
-              onClick={() => setSearchOpen(!searchOpen)}
-              className="hidden sm:flex items-center gap-2 px-3 h-9 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] hover:bg-[var(--color-sidebar-hover)] transition-colors text-xs text-[var(--color-text-tertiary)]"
-            >
-              <Search className="w-4 h-4" />
-              <span>Tìm kiếm...</span>
-              <kbd className="hidden md:inline-flex px-1.5 py-0.5 rounded bg-[var(--color-border)] text-[10px] font-mono text-[var(--color-text-tertiary)]">⌘K</kbd>
-            </button>
+            {/* Global Search — ⌘K */}
+            <GlobalSearch onNavigate={setActiveTab} />
 
-            {/* Notification */}
-            <button className="relative w-9 h-9 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] flex items-center justify-center hover:bg-[var(--color-border)] transition-colors">
-              <Bell className="w-4 h-4 text-[var(--color-text-secondary)]" />
-              <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full bg-red-500 text-white text-[8px] font-bold flex items-center justify-center">3</span>
-            </button>
-
-            {/* Theme Toggle */}
-            <AdminThemeToggle />
+            {/* Notification — chuông thật từ backend */}
+            <div className="w-9 h-9 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] flex items-center justify-center">
+              <NotificationBell />
+            </div>
 
             {/* Clock */}
             <div className="hidden md:flex items-center gap-1.5 px-3 h-9 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)]">
@@ -223,8 +220,12 @@ function AdminShell() {
               {activeTab === 'overview' && <Overview onNavigate={setActiveTab} />}
               {activeTab === 'flights' && <FlightsPage />}
               {activeTab === 'trains' && <TrainsPage />}
+              {activeTab === 'buses' && <BusesPage />}
               {activeTab === 'bookings' && <BookingsPage />}
               {activeTab === 'users' && <UsersPage />}
+              {activeTab === 'subscriptions' && <SubscriptionsPage />}
+              {activeTab === 'promos' && <PromoCodesPage />}
+              {activeTab === 'notifications' && <NotificationsPage />}
               {activeTab === 'stats' && <StatsPage />}
             </motion.div>
           </AnimatePresence>
