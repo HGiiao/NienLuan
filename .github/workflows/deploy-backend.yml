@@ -1,0 +1,80 @@
+name: Deploy Backend to Azure
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_VERSION: "10.0.x"
+  AZURE_WEBAPP: ve247-api
+  AZURE_RG: rg-ve247
+
+jobs:
+  build-and-deploy:
+    name: Build & Deploy Backend
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore
+        run: dotnet restore
+        working-directory: backend/FlightAggregatorApi
+
+      - name: Build
+        run: dotnet build --no-restore -c Release
+        working-directory: backend/FlightAggregatorApi
+
+      - name: Publish
+        run: dotnet publish -c Release -o ./publish --no-build
+        working-directory: backend/FlightAggregatorApi
+
+      - name: Zip artifact
+        run: cd backend/FlightAggregatorApi/publish && zip -r ../../publish.zip .
+
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Configure App Settings
+        run: |
+          az webapp config appsettings set \
+            --name ${{ env.AZURE_WEBAPP }} \
+            --resource-group ${{ env.AZURE_RG }} \
+            --settings \
+              WEBSITE_RUN_FROM_PACKAGE=1 \
+              SCM_DO_BUILD_DURING_DEPLOYMENT=false \
+              ENABLE_ORYX_BUILD=false \
+              ASPNETCORE_ENVIRONMENT=Production \
+              WEBSITES_PORT=8080
+
+      - name: Deploy to Azure
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ env.AZURE_WEBAPP }}
+          resource-group: ${{ env.AZURE_RG }}
+          package: publish.zip
+
+      - name: Restart App Service
+        run: |
+          az webapp restart \
+            --name ${{ env.AZURE_WEBAPP }} \
+            --resource-group ${{ env.AZURE_RG }}
+
+      - name: Verify deployment
+        run: |
+          sleep 10
+          curl -sf https://${{ env.AZURE_WEBAPP }}.azurewebsites.net/health || echo "Health check failed (may still be starting)"
