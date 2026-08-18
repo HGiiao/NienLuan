@@ -106,4 +106,10 @@ public class Booking
 
     /// <summary>Các chặng của booking gộp (lộ trình kết hợp). Rỗng với booking 1 chuyến thông thường.</summary>
     public List<BookingSegment> Segments { get; set; } = new();
+
+    /// <summary>Danh sách hành khách của booking (mỗi hành khách = 1 vé). Rỗng với booking cũ trước khi có tính năng đặt nhiều vé.</summary>
+    public List<BookingPassenger> PassengerDetails { get; set; } = new();
+
+    /// <summary>Gói bảo hiểm chuyến đi của booking (tối đa 1 gói, giá đã nhân theo số hành khách).</summary>
+    public List<BookingInsurance> Insurances { get; set; } = new();
 }

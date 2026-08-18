@@ -307,6 +307,12 @@ export default function PaymentPage() {
                       {method?.label || booking?.paymentMethod}
                     </span>
                   </div>
+                  {booking.insurances?.length > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-[var(--color-text-secondary)]">Bảo hiểm chuyến đi</span>
+                      <span className="font-semibold text-[var(--color-text-primary)]">{formatCurrencyVnd(booking.insurances[0].price)}</span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="h-px bg-[var(--color-border)]" />

@@ -43,7 +43,9 @@ public class BookingsController : ControllerBase
             .Include(b => b.Flight)
             .Include(b => b.Train)
             .Include(b => b.Bus)
-            .Include(b => b.Segments);
+            .Include(b => b.Segments)
+            .Include(b => b.PassengerDetails)
+            .Include(b => b.Insurances);
 
         if (userId.HasValue)
             query = query.Where(b => b.UserId == userId.Value);
@@ -71,6 +73,8 @@ public class BookingsController : ControllerBase
             .Include(b => b.Train)
             .Include(b => b.Bus)
             .Include(b => b.Segments)
+            .Include(b => b.PassengerDetails)
+            .Include(b => b.Insurances)
             .FirstOrDefaultAsync(b => b.Id == id);
 
         if (booking == null) return NotFound();
@@ -177,10 +181,18 @@ public class BookingsController : ControllerBase
     public async Task<IActionResult> CreateBooking([FromBody] CreateBookingRequest request)
     {
         var isMultiLeg = request.Segments != null && request.Segments.Count > 0;
+
         if (request.FlightId == null && request.TrainId == null && request.BusId == null && !isMultiLeg)
             return BadRequest(new { message = "Phải chọn chuyến bay, tàu hỏa hoặc xe khách" });
-        if (request.Passengers <= 0)
+
+        // Số vé = số hành khách khai chi tiết (nếu có), ngược lại dùng field Passengers
+        var passengerCount = request.PassengerDetails is { Count: > 0 } ? request.PassengerDetails.Count : request.Passengers;
+        if (passengerCount <= 0)
             return BadRequest(new { message = "Số khách phải lớn hơn 0" });
+        if (passengerCount > 9)
+            return BadRequest(new { message = "Mỗi lần đặt tối đa 9 hành khách" });
+        if (request.PassengerDetails is { Count: > 0 } && request.PassengerDetails.Any(p => string.IsNullOrWhiteSpace(p.FullName)))
+            return BadRequest(new { message = "Vui lòng nhập họ tên cho tất cả hành khách" });
 
         decimal totalPrice = 0;
         Flight? flight = null;
@@ -199,8 +211,8 @@ public class BookingsController : ControllerBase
                     {
                         var f = await _db.Flights.FindAsync(seg.ItemId);
                         if (f == null) return BadRequest(new { message = $"Chuyến bay {seg.ItemId} không tồn tại" });
-                        if (f.Seats < request.Passengers) return BadRequest(new { message = $"Chuyến bay {f.AirlineCode}: chỉ còn {f.Seats} ghế trống" });
-                        f.Seats -= request.Passengers;
+                        if (f.Seats < passengerCount) return BadRequest(new { message = $"Chuyến bay {f.AirlineCode}: chỉ còn {f.Seats} ghế trống" });
+                        f.Seats -= passengerCount;
                         segments.Add(new Models.BookingSegment
                         {
                             Mode = "flight", ItemId = f.Id, Code = f.AirlineCode, Name = f.AirlineName,
@@ -208,15 +220,15 @@ public class BookingsController : ControllerBase
                             DepartureTime = f.DepartureTime, ArrivalTime = f.ArrivalTime,
                             Price = f.Price, SeatClass = f.SeatClass,
                         });
-                        totalPrice += f.Price * request.Passengers;
+                        totalPrice += f.Price * passengerCount;
                         break;
                     }
                     case "train":
                     {
                         var t = await _db.Trains.FindAsync(seg.ItemId);
                         if (t == null) return BadRequest(new { message = $"Tàu {seg.ItemId} không tồn tại" });
-                        if (t.Seats < request.Passengers) return BadRequest(new { message = $"Tàu {t.TrainCode}: chỉ còn {t.Seats} ghế trống" });
-                        t.Seats -= request.Passengers;
+                        if (t.Seats < passengerCount) return BadRequest(new { message = $"Tàu {t.TrainCode}: chỉ còn {t.Seats} ghế trống" });
+                        t.Seats -= passengerCount;
                         segments.Add(new Models.BookingSegment
                         {
                             Mode = "train", ItemId = t.Id, Code = t.TrainCode, Name = t.TrainName,
@@ -224,15 +236,15 @@ public class BookingsController : ControllerBase
                             DepartureTime = t.DepartureTime, ArrivalTime = t.ArrivalTime,
                             Price = t.Price, SeatClass = t.CoachClass,
                         });
-                        totalPrice += t.Price * request.Passengers;
+                        totalPrice += t.Price * passengerCount;
                         break;
                     }
                     case "bus":
                     {
                         var b = await _db.Buses.FindAsync(seg.ItemId);
                         if (b == null) return BadRequest(new { message = $"Xe khách {seg.ItemId} không tồn tại" });
-                        if (b.Seats < request.Passengers) return BadRequest(new { message = $"Xe {b.BusCode}: chỉ còn {b.Seats} chỗ trống" });
-                        b.Seats -= request.Passengers;
+                        if (b.Seats < passengerCount) return BadRequest(new { message = $"Xe {b.BusCode}: chỉ còn {b.Seats} chỗ trống" });
+                        b.Seats -= passengerCount;
                         segments.Add(new Models.BookingSegment
                         {
                             Mode = "bus", ItemId = b.Id, Code = b.BusCode, Name = b.BusCompany,
@@ -240,7 +252,7 @@ public class BookingsController : ControllerBase
                             DepartureTime = b.DepartureTime, ArrivalTime = b.ArrivalTime,
                             Price = b.Price, SeatClass = b.CoachClass,
                         });
-                        totalPrice += b.Price * request.Passengers;
+                        totalPrice += b.Price * passengerCount;
                         break;
                     }
                     default:
@@ -254,11 +266,11 @@ public class BookingsController : ControllerBase
             if (flight == null)
                 return BadRequest(new { message = "Chuyến bay không tồn tại" });
 
-            if (flight.Seats < request.Passengers)
+            if (flight.Seats < passengerCount)
                 return BadRequest(new { message = $"Chỉ còn {flight.Seats} ghế trống" });
 
-            flight.Seats -= request.Passengers;
-            totalPrice = flight.Price * request.Passengers;
+            flight.Seats -= passengerCount;
+            totalPrice = flight.Price * passengerCount;
         }
         else if (request.TrainId.HasValue)
         {
@@ -266,11 +278,11 @@ public class BookingsController : ControllerBase
             if (train == null)
                 return BadRequest(new { message = "Tàu không tồn tại" });
 
-            if (train.Seats < request.Passengers)
+            if (train.Seats < passengerCount)
                 return BadRequest(new { message = $"Chỉ còn {train.Seats} ghế trống" });
 
-            train.Seats -= request.Passengers;
-            totalPrice = train.Price * request.Passengers;
+            train.Seats -= passengerCount;
+            totalPrice = train.Price * passengerCount;
         }
         else if (request.BusId.HasValue)
         {
@@ -278,11 +290,24 @@ public class BookingsController : ControllerBase
             if (bus == null)
                 return BadRequest(new { message = "Xe khách không tồn tại" });
 
-            if (bus.Seats < request.Passengers)
+            if (bus.Seats < passengerCount)
                 return BadRequest(new { message = $"Chỉ còn {bus.Seats} chỗ trống" });
 
-            bus.Seats -= request.Passengers;
-            totalPrice = bus.Price * request.Passengers;
+            bus.Seats -= passengerCount;
+            totalPrice = bus.Price * passengerCount;
+        }
+
+        // Bảo hiểm chuyến đi: giá gói × số hành khách, cộng vào tổng tiền
+        decimal insuranceTotal = 0;
+        long? insurancePackageId = null;
+        if (request.InsurancePackageId.HasValue)
+        {
+            var insurancePkg = await _db.InsurancePackages.FindAsync(request.InsurancePackageId.Value);
+            if (insurancePkg == null || !insurancePkg.IsActive)
+                return BadRequest(new { message = "Gói bảo hiểm không tồn tại hoặc đã ngừng hoạt động" });
+            insurancePackageId = insurancePkg.Id;
+            insuranceTotal = insurancePkg.Price * passengerCount;
+            totalPrice += insuranceTotal;
         }
 
         var user = await _db.Users.FirstOrDefaultAsync(u => u.Email == request.Email);
@@ -307,7 +332,7 @@ public class BookingsController : ControllerBase
             TrainId = request.TrainId,
             BusId = request.BusId,
             TotalPrice = totalPrice,
-            Passengers = request.Passengers,
+            Passengers = passengerCount,
             Address = request.Address,
             PaymentMethod = request.PaymentMethod,
             PromoCode = request.PromoCode,
@@ -326,6 +351,18 @@ public class BookingsController : ControllerBase
             DepartureTime = flight?.DepartureTime ?? train?.DepartureTime ?? bus?.DepartureTime ?? segments.FirstOrDefault()?.DepartureTime,
         };
 
+        if (request.PassengerDetails is { Count: > 0 })
+        {
+            booking.PassengerDetails = request.PassengerDetails.Select(p => new BookingPassenger
+            {
+                FullName = p.FullName.Trim(),
+                DateOfBirth = p.DateOfBirth,
+                Gender = p.Gender,
+                Nationality = p.Nationality,
+                IdNumber = p.IdNumber,
+            }).ToList();
+        }
+
         if (isMultiLeg)
         {
             // Booking gộp: gắn các chặng (cascade lưu cùng booking)
@@ -336,6 +373,20 @@ public class BookingsController : ControllerBase
 
         _db.Bookings.Add(booking);
         await _db.SaveChangesAsync();
+
+        // Tạo bản ghi bảo hiểm sau khi có BookingId
+        if (insurancePackageId.HasValue)
+        {
+            var insurance = new BookingInsurance
+            {
+                BookingId = booking.Id,
+                PackageId = insurancePackageId.Value,
+                Price = insuranceTotal,
+                Status = "active",
+            };
+            _db.BookingInsurances.Add(insurance);
+            await _db.SaveChangesAsync();
+        }
 
         return CreatedAtAction(nameof(GetBooking), new { id = booking.Id }, booking);
     }
@@ -380,6 +431,8 @@ public class BookingsController : ControllerBase
                 {
                     case "momo":
                     {
+                        if (!_moMo.IsConfigured)
+                            return BadRequest(new { message = "MoMo chưa được cấu hình. Phương thức này chưa được hỗ trợ." });
                         var result = await _moMo.CreatePaymentAsync(booking.Id, amount, $"Ve247-Booking-{booking.Id}");
                         if (result.ResultCode != 0 && result.ResultCode != 9000)
                             return BadRequest(new { message = $"MoMo: {result.Message}" });
@@ -389,6 +442,8 @@ public class BookingsController : ControllerBase
                     }
                     case "zalopay":
                     {
+                        if (!_zaloPay.IsConfigured)
+                            return BadRequest(new { message = "ZaloPay chưa được cấu hình. Phương thức này chưa được hỗ trợ." });
                         var result = await _zaloPay.CreatePaymentAsync(booking.Id, amount, $"Booking #{booking.Id}");
                         if (result.ReturnCode != 1)
                             return BadRequest(new { message = $"ZaloPay: {result.ReturnMessage}" });
@@ -696,6 +751,12 @@ public class CreateBookingRequest
     /// <summary>Lộ trình kết hợp: danh sách chặng (mode + itemId). Khi có field này thì bỏ qua FlightId/TrainId/BusId.</summary>
     public List<CreateSegmentRequest>? Segments { get; set; }
     public int Passengers { get; set; } = 1;
+
+    /// <summary>Danh sách hành khách (mỗi phần tử = 1 vé). Khi có dữ liệu thì Passengers được lấy theo số phần tử này.</summary>
+    public List<CreatePassengerRequest>? PassengerDetails { get; set; }
+
+    /// <summary>Gói bảo hiểm chuyến đi (áp cho tất cả hành khách, giá × số hành khách).</summary>
+    public long? InsurancePackageId { get; set; }
     public string? PromoCode { get; set; }
     public decimal? DiscountAmount { get; set; }
     public DateTime? DateOfBirth { get; set; }
@@ -711,6 +772,15 @@ public class CreateSegmentRequest
 {
     public string Mode { get; set; } = "flight";
     public long ItemId { get; set; }
+}
+
+public class CreatePassengerRequest
+{
+    public string FullName { get; set; } = string.Empty;
+    public DateTime? DateOfBirth { get; set; }
+    public string? Gender { get; set; }
+    public string? Nationality { get; set; }
+    public string? IdNumber { get; set; }
 }
 
 public class PayRequest

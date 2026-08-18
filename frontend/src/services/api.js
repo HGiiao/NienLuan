@@ -4,8 +4,6 @@ const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || '',
 })
 
-export const getApiBase = () => api.defaults.baseURL
-
 api.interceptors.response.use(
   response => response,
   error => {
@@ -24,7 +22,6 @@ export const getPriceTrends = (params) => api.get('/api/prices/trends', { params
 export const getCurrentPrices = (params) => api.get('/api/prices/current', { params })
 export const compareRoutes = (params) => api.get('/api/prices/compare', { params })
 export const predictPrice = (params) => api.get('/api/prices/predict', { params })
-export const getPriceCalendar = (params) => api.get('/api/prices/calendar', { params })
 export const getOptimalRoute = (data) => api.post('/api/prices/optimal-route', data)
 export const getBookings = (params) => api.get('/api/bookings', { params })
 export const getBooking = (id) => api.get(`/api/bookings/${id}`)
@@ -32,10 +29,6 @@ export const getRefundInfo = (id) => api.get(`/api/bookings/${id}/refund-info`)
 export const createBooking = (data) => api.post('/api/bookings', data)
 export const cancelBooking = (id) => api.patch(`/api/bookings/${id}/cancel`)
 export const processPayment = (id, data) => api.post(`/api/bookings/${id}/pay`, data)
-export const verifyVnPayReturn = (params) => api.post('/api/payments/vnpay-return', params)
-export const verifyMoMoReturn = (params) => api.post('/api/payments/momo-return', params)
-export const verifyZaloPayReturn = (params) => api.post('/api/payments/zalopay-return', params)
-export const verifyPayOSReturn = (params) => api.post('/api/payments/payos-return', params)
 
 export const register = (data) => api.post('/api/auth/register', data)
 export const login = (data) => api.post('/api/auth/login', data)
@@ -103,7 +96,6 @@ export const createCommunityTip = (data) => api.post('/api/community-tips', data
 export const upvoteTip = (id) => api.post(`/api/community-tips/${id}/upvote`)
 
 // Promo Codes
-export const getPublicPromoCodes = () => api.get('/api/promo-codes/public')
 export const validatePromoCode = (data) => api.post('/api/promo-codes/validate', data)
 
 // Lucky Wheel (Vòng quay may mắn)
@@ -121,34 +113,15 @@ export const deleteNotification = (id) => api.delete(`/api/notifications/${id}`)
 // Carbon Footprint
 export const getCarbonFootprint = (params) => api.get('/api/prices/carbon', { params })
 
-// Calendar Export
-export const getCalendarExport = (bookingId) => api.get(`/api/bookings/${bookingId}/calendar`, { responseType: 'blob' })
-
 // Insurance
 export const getInsurancePackages = () => api.get('/api/insurance/packages')
 export const addBookingInsurance = (bookingId, data) => api.post(`/api/insurance/booking/${bookingId}`, data)
 export const removeBookingInsurance = (bookingId) => api.delete(`/api/insurance/booking/${bookingId}`)
-
-// Corporate
-export const registerCorporate = (data) => api.post('/api/corporate/register', data)
-export const getCorporateAccount = (id) => api.get(`/api/corporate/${id}`)
-export const getCorporateEmployees = (id) => api.get(`/api/corporate/${id}/employees`)
-export const addCorporateEmployee = (id, data) => api.post(`/api/corporate/${id}/employees`, data)
-export const removeCorporateEmployee = (employeeId) => api.delete(`/api/corporate/employees/${employeeId}`)
-export const approveCorporateBooking = (bookingId) => api.post(`/api/corporate/bookings/${bookingId}/approve`)
-export const rejectCorporateBooking = (bookingId) => api.post(`/api/corporate/bookings/${bookingId}/reject`)
-export const createInvoice = (corpId, data) => api.post(`/api/corporate/${corpId}/invoice`, data)
-export const getCorporateInvoices = (corpId) => api.get(`/api/corporate/${corpId}/invoices`)
 
 // Subscriptions
 export const getSubscriptionPlans = () => api.get('/api/subscriptions/plans')
 export const getUserSubscription = (userId) => api.get(`/api/subscriptions/user/${userId}`)
 export const subscribeToPlan = (data) => api.post('/api/subscriptions/subscribe', data)
 export const cancelSubscription = (userId) => api.post(`/api/subscriptions/cancel/${userId}`)
-
-// Hotels
-export const getHotels = (params) => api.get('/api/hotels/search', { params })
-export const getHotel = (id) => api.get(`/api/hotels/${id}`)
-export const bookHotel = (data) => api.post('/api/hotels/book', data)
 
 export default api

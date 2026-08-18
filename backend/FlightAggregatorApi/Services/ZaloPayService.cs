@@ -21,6 +21,8 @@ public class ZaloPayService
     private string AppId => _config["ZaloPay:AppId"] ?? "";
     private string Key1 => _config["ZaloPay:Key1"] ?? "";
     private string Key2 => _config["ZaloPay:Key2"] ?? "";
+
+    public bool IsConfigured => !string.IsNullOrWhiteSpace(AppId) && !string.IsNullOrWhiteSpace(Key1) && !string.IsNullOrWhiteSpace(Key2);
     private string CreateUrl => _config["ZaloPay:CreateUrl"] ?? "https://sb-openapi.zalopay.vn/v2/create";
     private string CallbackUrl => _config["ZaloPay:CallbackUrl"] ?? "http://localhost:5000/api/payments/zalopay-ipn";
     private string RedirectUrl => _config["ZaloPay:RedirectUrl"] ?? "http://localhost:5173/payment/zalopay-return";

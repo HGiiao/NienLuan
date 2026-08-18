@@ -14,19 +14,15 @@ public class ApplicationDbContext : DbContext
     public DbSet<User> Users => Set<User>();
     public DbSet<Booking> Bookings => Set<Booking>();
     public DbSet<BookingSegment> BookingSegments => Set<BookingSegment>();
+    public DbSet<BookingPassenger> BookingPassengers => Set<BookingPassenger>();
     public DbSet<PriceAlert> PriceAlerts => Set<PriceAlert>();
     public DbSet<Review> Reviews => Set<Review>();
     public DbSet<CommunityTip> CommunityTips => Set<CommunityTip>();
     public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<InsurancePackage> InsurancePackages => Set<InsurancePackage>();
     public DbSet<BookingInsurance> BookingInsurances => Set<BookingInsurance>();
-    public DbSet<CorporateAccount> CorporateAccounts => Set<CorporateAccount>();
-    public DbSet<CorporateEmployee> CorporateEmployees => Set<CorporateEmployee>();
-    public DbSet<Invoice> Invoices => Set<Invoice>();
     public DbSet<SubscriptionPlan> SubscriptionPlans => Set<SubscriptionPlan>();
     public DbSet<UserSubscription> UserSubscriptions => Set<UserSubscription>();
-    public DbSet<Hotel> Hotels => Set<Hotel>();
-    public DbSet<HotelBooking> HotelBookings => Set<HotelBooking>();
     public DbSet<PriceConfig> PriceConfigs => Set<PriceConfig>();
     public DbSet<PromoCode> PromoCodes => Set<PromoCode>();
     public DbSet<LuckyWheelSpin> LuckyWheelSpins => Set<LuckyWheelSpin>();
@@ -71,6 +67,19 @@ public class ApplicationDbContext : DbContext
             entity.HasOne(e => e.Booking).WithMany(b => b.Segments).HasForeignKey(e => e.BookingId).OnDelete(DeleteBehavior.Cascade);
         });
 
+        modelBuilder.Entity<BookingPassenger>(entity =>
+        {
+            entity.HasIndex(e => e.BookingId);
+            entity.HasOne(e => e.Booking).WithMany(b => b.PassengerDetails).HasForeignKey(e => e.BookingId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<BookingInsurance>(entity =>
+        {
+            entity.HasIndex(e => e.BookingId);
+            entity.HasOne(e => e.Booking).WithMany(b => b.Insurances).HasForeignKey(e => e.BookingId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(e => e.Package).WithMany().HasForeignKey(e => e.PackageId).OnDelete(DeleteBehavior.Cascade);
+        });
+
         modelBuilder.Entity<Booking>(entity =>
         {
             entity.HasIndex(e => e.UserId);
@@ -106,46 +115,11 @@ public class ApplicationDbContext : DbContext
             entity.HasIndex(e => new { e.Email, e.CreatedAt });
         });
 
-        modelBuilder.Entity<BookingInsurance>(entity =>
-        {
-            entity.HasIndex(e => e.BookingId);
-            entity.HasOne(e => e.Booking).WithMany().HasForeignKey(e => e.BookingId).OnDelete(DeleteBehavior.Cascade);
-            entity.HasOne(e => e.Package).WithMany().HasForeignKey(e => e.PackageId).OnDelete(DeleteBehavior.Cascade);
-        });
-
-        modelBuilder.Entity<CorporateAccount>(entity =>
-        {
-            entity.HasIndex(e => e.TaxCode).IsUnique();
-        });
-
-        modelBuilder.Entity<CorporateEmployee>(entity =>
-        {
-            entity.HasIndex(e => e.CorporateAccountId);
-            entity.HasOne(e => e.CorporateAccount).WithMany().HasForeignKey(e => e.CorporateAccountId).OnDelete(DeleteBehavior.Cascade);
-        });
-
-        modelBuilder.Entity<Invoice>(entity =>
-        {
-            entity.HasIndex(e => e.CorporateAccountId);
-            entity.HasOne(e => e.CorporateAccount).WithMany().HasForeignKey(e => e.CorporateAccountId).OnDelete(DeleteBehavior.Cascade);
-        });
-
         modelBuilder.Entity<UserSubscription>(entity =>
         {
             entity.HasIndex(e => e.UserId);
             entity.HasOne(e => e.Plan).WithMany().HasForeignKey(e => e.PlanId).OnDelete(DeleteBehavior.Cascade);
         });
 
-        modelBuilder.Entity<Hotel>(entity =>
-        {
-            entity.HasIndex(e => e.Location);
-        });
-
-        modelBuilder.Entity<HotelBooking>(entity =>
-        {
-            entity.HasIndex(e => e.BookingId);
-            entity.HasOne(e => e.Hotel).WithMany().HasForeignKey(e => e.HotelId).OnDelete(DeleteBehavior.Cascade);
-            entity.HasOne(e => e.Booking).WithMany().HasForeignKey(e => e.BookingId).OnDelete(DeleteBehavior.SetNull);
-        });
     }
 }

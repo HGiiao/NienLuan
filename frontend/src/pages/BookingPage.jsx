@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate, useLocation, Link } from 'react-router-dom'
 import { useUser } from '@clerk/clerk-react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Plane, Train, Bus, Ticket, ArrowRight, User, Mail, Phone, MapPin, CreditCard, Wallet, Building2, Clock, Shield, LogIn, Loader, Check, Tag, Percent, CalendarDays, VenetianMask, Globe, FileText, Heart, AlertCircle, Receipt, X, Smartphone, Gift } from 'lucide-react'
+import { Plane, Train, Bus, Ticket, ArrowRight, User, Mail, Phone, MapPin, CreditCard, Wallet, Building2, Clock, Shield, LogIn, Loader, Check, Tag, Percent, CalendarDays, VenetianMask, Globe, FileText, Heart, AlertCircle, Receipt, X, Smartphone, Gift, Minus, Plus } from 'lucide-react'
 import { createBooking, getFlight, getTrain, getBus, validatePromoCode, getLuckyWheelHistory } from '../services/api'
 import { formatCurrencyVnd, formatDurationMs } from '../utils/formatters'
 import InsuranceCard from '../components/InsuranceCard'
@@ -70,6 +70,8 @@ export default function BookingPage() {
   const [cardInfo, setCardInfo] = useState(null)
   const [walletProvider, setWalletProvider] = useState('')
   const [walletModal, setWalletModal] = useState(false)
+  const [passengerCount, setPassengerCount] = useState(1)
+  const [extraPassengers, setExtraPassengers] = useState([])
 
   useEffect(() => {
     if (authReady && !isAuth) {
@@ -179,9 +181,11 @@ export default function BookingPage() {
           ? (item.busCompany || item.name)
           : (item.coachClass ? `Hạng ${item.coachClass}` : item.name))
     : ''
-  const totalPrice = isMultiLeg
-    ? segments.reduce((s, seg) => s + Number(seg.price || 0), 0) + (form?.insurance || 0)
-    : item.price + (form?.insurance || 0)
+  const baseTicketPrice = isMultiLeg
+    ? segments.reduce((s, seg) => s + Number(seg.price || 0), 0)
+    : item.price
+  // Bảo hiểm tính theo từng hành khách (mỗi vé 1 gói bảo hiểm)
+  const totalPrice = (baseTicketPrice + (form?.insurance || 0)) * passengerCount
   const promoDiscount = promoApplied
     ? Math.min(totalPrice * (Number(promoApplied.discountPercent) || 0) / 100, Number(promoApplied.maxDiscount) || 0)
     : 0
@@ -267,6 +271,10 @@ export default function BookingPage() {
       }
     }
 
+    if (extraPassengers.some(p => !p.fullName || !nameRegex.test(p.fullName.trim()))) {
+      errors.extraPassengers = 'Vui lòng nhập họ tên hợp lệ cho tất cả hành khách'
+    }
+
     if (form.emergencyContactName && !form.emergencyContactPhone) {
       errors.emergencyContactPhone = 'Nhập SĐT liên hệ khẩn cấp'
     }
@@ -308,7 +316,24 @@ export default function BookingPage() {
         trainId: isMultiLeg ? null : (!isFlight && !isBus ? item.id : null),
         busId: isMultiLeg ? null : (isBus ? item.id : null),
         segments: isMultiLeg ? segments.map(s => ({ mode: s.type, itemId: s.id })) : null,
-        passengers: 1,
+        passengers: passengerCount,
+        insurancePackageId: form.insurancePackageId || null,
+        passengerDetails: [
+          {
+            fullName: form.fullName,
+            dateOfBirth: form.dateOfBirth ? new Date(form.dateOfBirth).toISOString() : null,
+            gender: form.gender || null,
+            nationality: form.nationality || null,
+            idNumber: form.idNumber || null,
+          },
+          ...extraPassengers.map(p => ({
+            fullName: p.fullName,
+            dateOfBirth: p.dateOfBirth ? new Date(p.dateOfBirth).toISOString() : null,
+            gender: p.gender || null,
+            nationality: p.nationality || null,
+            idNumber: p.idNumber || null,
+          })),
+        ],
         promoCode: promoApplied?.code || null,
         discountAmount: discountAmount || null,
         dateOfBirth: form.dateOfBirth ? new Date(form.dateOfBirth).toISOString() : null,
@@ -331,6 +356,20 @@ export default function BookingPage() {
     setWalletProvider(pid)
     setWalletModal(false)
     createBookingAndGo()
+  }
+
+  const changePassengerCount = (n) => {
+    const count = Math.min(9, Math.max(1, n))
+    setPassengerCount(count)
+    setExtraPassengers(prev => {
+      const next = [...prev]
+      while (next.length < count - 1) next.push({ fullName: '', dateOfBirth: '', gender: '', nationality: '', idNumber: '' })
+      return next.slice(0, count - 1)
+    })
+  }
+
+  const updateExtraPassenger = (idx, field, value) => {
+    setExtraPassengers(prev => prev.map((p, i) => (i === idx ? { ...p, [field]: value } : p)))
   }
 
   return (
@@ -392,15 +431,40 @@ export default function BookingPage() {
           className="md:col-span-3 bg-[var(--color-bg-card)] rounded-2xl border border-[var(--color-border)] p-5 md:p-6 space-y-5 shadow-sm"
         >
           {/* Passenger Info Section */}
-          <div className="flex items-center gap-3 border-l-4 border-primary-500 pl-3">
-            <div className="w-10 h-10 rounded-xl bg-primary-500/10 flex items-center justify-center text-primary-500">
-              <User className="w-5 h-5" />
+          <div className="flex items-center justify-between gap-3 border-l-4 border-primary-500 pl-3">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-primary-500/10 flex items-center justify-center text-primary-500">
+                <User className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-[var(--color-text-primary)] leading-tight">Thông tin hành khách</h2>
+                <p className="text-[11px] text-[var(--color-text-tertiary)]">Người đặt vé là hành khách số 1</p>
+              </div>
             </div>
-            <div>
-              <h2 className="text-lg font-bold text-[var(--color-text-primary)] leading-tight">Thông tin hành khách</h2>
-              <p className="text-[11px] text-[var(--color-text-tertiary)]">Điền thông tin người đặt vé</p>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => changePassengerCount(passengerCount - 1)}
+                disabled={passengerCount <= 1}
+                className="w-8 h-8 rounded-lg border border-[var(--color-border)] flex items-center justify-center text-[var(--color-text-secondary)] hover:border-primary-500/50 hover:text-primary-500 disabled:opacity-40 disabled:pointer-events-none transition-all"
+              >
+                <Minus className="w-4 h-4" />
+              </button>
+              <div className="text-center min-w-[44px]">
+                <div className="text-sm font-black text-[var(--color-text-primary)] leading-none">{passengerCount}</div>
+                <div className="text-[9px] text-[var(--color-text-tertiary)] mt-0.5">hành khách</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => changePassengerCount(passengerCount + 1)}
+                disabled={passengerCount >= 9}
+                className="w-8 h-8 rounded-lg border border-[var(--color-border)] flex items-center justify-center text-[var(--color-text-secondary)] hover:border-primary-500/50 hover:text-primary-500 disabled:opacity-40 disabled:pointer-events-none transition-all"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
             </div>
           </div>
+          {fieldErrors.extraPassengers && <p className="text-xs text-[var(--color-danger)] mt-2">{fieldErrors.extraPassengers}</p>}
 
           <div className="grid sm:grid-cols-2 gap-4">
             <div id="field-fullName">
@@ -507,6 +571,72 @@ export default function BookingPage() {
             {fieldErrors.idNumber && <p className="text-xs text-[var(--color-danger)] mt-1">{fieldErrors.idNumber}</p>}
           </div>
 
+          {extraPassengers.length > 0 && (
+            <div className="space-y-4">
+              <div className="h-px bg-[var(--color-border)]" />
+              {extraPassengers.map((p, idx) => (
+                <div key={idx} className="rounded-xl border border-[var(--color-border)] p-4 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <User className="w-4 h-4 text-primary-500" />
+                    <span className="text-sm font-bold text-[var(--color-text-primary)]">Hành khách {idx + 2}</span>
+                  </div>
+                  <div className="grid sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-[var(--color-text-primary)] mb-1.5">Họ và tên</label>
+                      <input
+                        className="w-full border border-[var(--color-border)] rounded-xl px-3.5 py-3 text-sm focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none bg-[var(--color-bg)] text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] transition-all"
+                        placeholder="Nguyễn Văn B"
+                        value={p.fullName}
+                        onChange={e => updateExtraPassenger(idx, 'fullName', e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-[var(--color-text-primary)] mb-1.5">Ngày sinh</label>
+                      <input
+                        type="date"
+                        className="w-full border border-[var(--color-border)] rounded-xl px-3.5 py-3 text-sm focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none bg-[var(--color-bg)] text-[var(--color-text-primary)] transition-all"
+                        value={p.dateOfBirth}
+                        onChange={e => updateExtraPassenger(idx, 'dateOfBirth', e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-[var(--color-text-primary)] mb-1.5">Giới tính</label>
+                      <select
+                        className="w-full border border-[var(--color-border)] rounded-xl px-3.5 py-3 text-sm focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none bg-[var(--color-bg)] text-[var(--color-text-primary)] transition-all appearance-none"
+                        value={p.gender}
+                        onChange={e => updateExtraPassenger(idx, 'gender', e.target.value)}
+                      >
+                        <option value="">Chọn giới tính</option>
+                        <option value="Nam">Nam</option>
+                        <option value="Nữ">Nữ</option>
+                        <option value="Khác">Khác</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-[var(--color-text-primary)] mb-1.5">Quốc tịch</label>
+                      <input
+                        className="w-full border border-[var(--color-border)] rounded-xl px-3.5 py-3 text-sm focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none bg-[var(--color-bg)] text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] transition-all"
+                        placeholder="Việt Nam"
+                        value={p.nationality}
+                        onChange={e => updateExtraPassenger(idx, 'nationality', e.target.value)}
+                      />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="block text-xs font-semibold text-[var(--color-text-primary)] mb-1.5">Số CMND / CCCD / Hộ chiếu</label>
+                      <input
+                        className="w-full border border-[var(--color-border)] rounded-xl px-3.5 py-3 text-sm focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none bg-[var(--color-bg)] text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] transition-all"
+                        placeholder="0123456789 hoặc AB1234567"
+                        value={p.idNumber}
+                        onChange={e => updateExtraPassenger(idx, 'idNumber', e.target.value)}
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
           <div>
             <label className="block text-xs font-semibold text-[var(--color-text-primary)] mb-1.5">Địa chỉ</label>
             <div className="relative group">
@@ -599,7 +729,7 @@ export default function BookingPage() {
               <span className="text-sm font-bold text-[var(--color-text-primary)]">Bảo hiểm chuyến đi</span>
               <span className="text-[10px] bg-accent-500/10 text-accent-500 px-2 py-0.5 rounded-full font-semibold">Đề xuất</span>
             </div>
-            <InsuranceCard bookingId={null} onInsuranceChange={(pkg) => setForm(prev => ({ ...prev, insurance: pkg?.price || 0 }))} />
+            <InsuranceCard bookingId={null} onInsuranceChange={(pkg) => setForm(prev => ({ ...prev, insurance: pkg?.price || 0, insurancePackageId: pkg?.id || null }))} />
           </div>
 
           <div className="h-px bg-[var(--color-border)]" />
@@ -912,7 +1042,7 @@ export default function BookingPage() {
 
           <div className="space-y-3 text-sm">
             <div className="flex justify-between">
-              <span className="text-[var(--color-text-secondary)]">{isMultiLeg ? 'Tổng giá vé' : 'Đơn giá'}</span>
+              <span className="text-[var(--color-text-secondary)]">{isMultiLeg ? 'Tổng giá vé' : passengerCount > 1 ? `Đơn giá × ${passengerCount}` : 'Đơn giá'}</span>
               <span className="font-semibold text-[var(--color-text-primary)]">
                 {isMultiLeg ? formatCurrencyVnd(segments.reduce((s, seg) => s + Number(seg.price || 0), 0)) : formatCurrencyVnd(item.price)}
               </span>

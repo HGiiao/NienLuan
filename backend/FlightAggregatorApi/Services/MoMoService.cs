@@ -23,6 +23,8 @@ public class MoMoService
     private string PartnerCode => _config["MoMo:PartnerCode"] ?? "";
     private string AccessKey => _config["MoMo:AccessKey"] ?? "";
     private string SecretKey => _config["MoMo:SecretKey"] ?? "";
+
+    public bool IsConfigured => !string.IsNullOrWhiteSpace(PartnerCode) && !string.IsNullOrWhiteSpace(AccessKey) && !string.IsNullOrWhiteSpace(SecretKey);
     private string SandboxUrl => _config["MoMo:SandboxUrl"] ?? "https://test-payment.momo.vn/v2/gateway/api/create";
     private string RedirectUrl => _config["MoMo:RedirectUrl"] ?? "http://localhost:5173/payment/momo-return";
     private string IpnUrl => _config["MoMo:IpnUrl"] ?? "http://localhost:5000/api/payments/momo-ipn";

@@ -289,7 +289,9 @@ public class SeedDataService
         _logger.LogInformation("Starting seed data generation...");
 
         var today = DateOnly.FromDateTime(DateTime.Today);
-        var endDate = new DateOnly(2026, 8, 30);
+        // Seed dữ liệu 30 ngày tới tính từ hôm nay (trước đây hardcode 2026-08-30,
+        // sau ngày đó app sẽ seed ra 0 chuyến và DB trống)
+        var endDate = today.AddDays(30);
         var totalDays = endDate.DayNumber - today.DayNumber + 1;
 
         _logger.LogInformation("Seeding {Days} days from {From} to {To}", totalDays, today, endDate);
@@ -641,7 +643,7 @@ public class SeedDataService
         }
 
         var today = DateOnly.FromDateTime(DateTime.Today);
-        var endDate = new DateOnly(2026, 8, 30);
+        var endDate = today.AddDays(30);
         var buses = new List<Bus>();
         var usedBusCodes = new HashSet<string>();
 
