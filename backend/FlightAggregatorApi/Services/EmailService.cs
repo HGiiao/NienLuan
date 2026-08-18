@@ -108,6 +108,88 @@ public class EmailService
         }
     }
 
+    public async Task SendPasswordResetAsync(string toEmail, string otp)
+    {
+        var smtpHost = _config["Email:SmtpHost"]!;
+        var smtpPort = int.Parse(_config["Email:SmtpPort"]!);
+        var username = _config["Email:Username"]!;
+        var password = _config["Email:Password"]!;
+        var fromName = _config["Email:FromName"]!;
+
+        using (var client = new SmtpClient(smtpHost, smtpPort))
+        {
+            client.EnableSsl = true;
+            client.UseDefaultCredentials = false;
+            client.Credentials = new NetworkCredential(username, password);
+            client.Timeout = 30000;
+
+            using (var mail = new MailMessage())
+            {
+                mail.From = new MailAddress(username, fromName);
+                mail.Subject = "Đặt lại mật khẩu Vé247";
+                mail.IsBodyHtml = true;
+                mail.BodyEncoding = System.Text.Encoding.UTF8;
+                mail.Body = $@"
+<!DOCTYPE html>
+<html lang=""vi"">
+<head><meta charset=""UTF-8"">
+<meta name=""viewport"" content=""width=device-width, initial-scale=1.0"">
+</head>
+<body style=""margin:0;padding:0;background:#f0f2f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif"">
+  <table width=""100%"" cellpadding=""0"" cellspacing=""0"">
+    <tr><td style=""padding:40px 16px;text-align:center"">
+      <table style=""max-width:480px;margin:auto;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,0.08)"" cellpadding=""0"" cellspacing=""0"">
+
+        <tr><td style=""background:linear-gradient(135deg,#DC2626,#EF4444);padding:36px 32px;text-align:center"">
+          <span style=""font-size:28px;font-weight:800;color:#ffffff;letter-spacing:2px;text-shadow:0 2px 4px rgba(0,0,0,0.15)"">VÉ247</span>
+          <p style=""margin:8px 0 0;font-size:13px;color:rgba(255,255,255,0.7);letter-spacing:0.3px"">ĐẶT LẠI MẬT KHẨU</p>
+        </td></tr>
+
+        <tr><td style=""padding:40px 32px 32px;text-align:center"">
+          <div style=""width:56px;height:56px;background:#FEF2F2;border-radius:16px;display:flex;align-items:center;justify-content:center;margin:0 auto 24px"">
+            <svg width=""28"" height=""28"" viewBox=""0 0 24 24"" fill=""none"" stroke=""#DC2626"" stroke-width=""2"" stroke-linecap=""round"" stroke-linejoin=""round"">
+              <rect x=""3"" y=""11"" width=""18"" height=""11"" rx=""2"" ry=""2""/>
+              <path d=""M7 11V7a5 5 0 0 1 10 0v4""/>
+            </svg>
+          </div>
+          <h2 style=""margin:0 0 6px;font-size:22px;font-weight:700;color:#1a1a2e"">Yêu cầu đặt lại mật khẩu</h2>
+          <p style=""margin:0 0 28px;font-size:14px;color:#64748b;line-height:1.6"">
+            Bạn đã yêu cầu đặt lại mật khẩu cho tài khoản Vé247.<br>
+            Vui lòng nhập mã bên dưới để tạo mật khẩu mới.
+          </p>
+
+          <div style=""background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:20px 24px;margin:0 0 24px;display:inline-block"">
+            <p style=""margin:0 0 6px;font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:1.5px;font-weight:600"">Mã xác thực của bạn</p>
+            <div style=""letter-spacing:12px;font-size:40px;font-weight:800;color:#DC2626;font-family:monospace"">{otp}</div>
+          </div>
+
+          <p style=""margin:0 0 32px;font-size:12px;color:#94a3b8"">
+            Mã có hiệu lực trong <strong style=""color:#64748b"">10 phút</strong>.
+            Nếu bạn không yêu cầu đặt lại mật khẩu, vui lòng bỏ qua email này — tài khoản của bạn vẫn an toàn.
+          </p>
+        </td></tr>
+
+        <tr><td style=""background:#f8fafc;padding:24px 32px;text-align:center;border-top:1px solid #e2e8f0"">
+          <p style=""margin:0 0 4px;font-size:12px;color:#94a3b8"">
+            <strong style=""color:#64748b"">Vé247</strong> &mdash; So sánh giá vé máy bay &amp; tàu hỏa
+          </p>
+          <p style=""margin:0;font-size:11px;color:#b0b8c4"">
+            Hotline: <span style=""color:#DC2626;font-weight:600"">1900 6468</span>
+          </p>
+        </td></tr>
+
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>";
+
+                mail.To.Add(toEmail);
+                await client.SendMailAsync(mail);
+            }
+        }
+    }
+
     public async Task SendBookingConfirmationAsync(
         string toEmail, string customerName, string customerPhone, string customerAddress,
         string type, string? code, string? airlineName, string? trainName, string? busCompany,

@@ -43,13 +43,33 @@ builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
     {
-        policy.WithOrigins(
-            builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? ["http://localhost:5173"])
+        policy.WithOrigins(GetCorsOrigins(builder.Configuration))
             .AllowAnyHeader()
             .AllowAnyMethod()
             .AllowCredentials();
     });
 });
+
+// CORS origins đọc từ config, hỗ trợ cả 2 định dạng:
+//   - JSON array string: ["http://localhost:5173","https://ve247-booking.vercel.app"]
+//   - Comma-separated:   http://localhost:5173,https://ve247-booking.vercel.app
+// (Get<string[]>() trả null với JSON string → phải tự parse)
+static string[] GetCorsOrigins(IConfiguration config)
+{
+    var raw = config.GetSection("Cors:AllowedOrigins").Value;
+    if (string.IsNullOrWhiteSpace(raw))
+        return ["http://localhost:5173"];
+
+    try
+    {
+        var parsed = System.Text.Json.JsonSerializer.Deserialize<string[]>(raw);
+        if (parsed is { Length: > 0 })
+            return parsed;
+    }
+    catch (System.Text.Json.JsonException) { /* fallthrough */ }
+
+    return raw.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+}
 
 builder.Services.AddResponseCompression(options =>
 {

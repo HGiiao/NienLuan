@@ -33,6 +33,8 @@ export const processPayment = (id, data) => api.post(`/api/bookings/${id}/pay`, 
 export const register = (data) => api.post('/api/auth/register', data)
 export const login = (data) => api.post('/api/auth/login', data)
 export const verifyEmail = (data) => api.post('/api/auth/verify-email', data)
+export const forgotPassword = (data) => api.post('/api/auth/forgot-password', data)
+export const resetPassword = (data) => api.post('/api/auth/reset-password', data)
 export const getProfile = (email) => api.get('/api/auth/profile', { params: { email } })
 export const updateProfile = (data) => api.put('/api/auth/profile', data)
 export const createPriceAlert = (data) => api.post('/api/price-alerts', data)

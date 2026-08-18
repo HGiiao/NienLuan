@@ -161,6 +161,65 @@ public class AuthController : ControllerBase
         });
     }
 
+    [HttpPost("forgot-password")]
+    public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Email))
+            return BadRequest(new { message = "Email không được để trống" });
+
+        var user = await _db.Users.FirstOrDefaultAsync(u => u.Email == request.Email);
+        if (user == null)
+            // Trả thành công để tránh lộ thông tin email nào tồn tại
+            return Ok(new { message = "Nếu email tồn tại, mã xác thực đã được gửi. Vui lòng kiểm tra hộp thư." });
+
+        if (user.PasswordHash == "__clerk_managed__")
+            return BadRequest(new { message = "Tài khoản này dùng đăng nhập qua Google/Facebook. Vui lòng dùng SSO." });
+
+        var otp = new Random().Next(100000, 999999).ToString();
+
+        try
+        {
+            await _email.SendPasswordResetAsync(request.Email, otp);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Gửi OTP reset mật khẩu thất bại đến {Email}", request.Email);
+            return StatusCode(500, new { message = "Không thể gửi mã xác thực. Vui lòng thử lại sau." });
+        }
+
+        _cache.Set("pwd_reset:" + request.Email, otp, TimeSpan.FromMinutes(10));
+
+        return Ok(new { message = "Nếu email tồn tại, mã xác thực đã được gửi. Vui lòng kiểm tra hộp thư." });
+    }
+
+    [HttpPost("reset-password")]
+    public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Code) || string.IsNullOrWhiteSpace(request.NewPassword))
+            return BadRequest(new { message = "Email, mã xác thực và mật khẩu mới không được để trống" });
+
+        if (request.NewPassword.Length < 6)
+            return BadRequest(new { message = "Mật khẩu mới phải có ít nhất 6 ký tự" });
+
+        var cachedOtp = _cache.Get<string>("pwd_reset:" + request.Email);
+        if (cachedOtp == null)
+            return BadRequest(new { message = "Yêu cầu đặt lại mật khẩu đã hết hạn hoặc không tồn tại. Vui lòng thử lại." });
+
+        if (cachedOtp != request.Code)
+            return BadRequest(new { message = "Mã xác thực không đúng" });
+
+        var user = await _db.Users.FirstOrDefaultAsync(u => u.Email == request.Email);
+        if (user == null)
+            return NotFound(new { message = "Người dùng không tồn tại" });
+
+        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
+        await _db.SaveChangesAsync();
+
+        _cache.Remove("pwd_reset:" + request.Email);
+
+        return Ok(new { message = "Đặt lại mật khẩu thành công. Vui lòng đăng nhập lại." });
+    }
+
     [HttpPut("profile")]
     public async Task<IActionResult> UpdateProfile([FromBody] UpdateProfileRequest request)
     {
@@ -261,4 +320,16 @@ public class UpdateProfileRequest
     public string Email { get; set; } = string.Empty;
     public string? FullName { get; set; }
     public string? Phone { get; set; }
+}
+
+public class ForgotPasswordRequest
+{
+    public string Email { get; set; } = string.Empty;
+}
+
+public class ResetPasswordRequest
+{
+    public string Email { get; set; } = string.Empty;
+    public string Code { get; set; } = string.Empty;
+    public string NewPassword { get; set; } = string.Empty;
 }

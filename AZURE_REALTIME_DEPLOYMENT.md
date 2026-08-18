@@ -17,7 +17,7 @@ dotnet publish -c Release -o ./publish
 ```bash
 az group create --name rg-ve247 --location southeastasia
 az appservice plan create --name plan-ve247 --resource-group rg-ve247 --sku B1
-az webapp create --name ve247-api --resource-group rg-ve247 --plan plan-ve247 --runtime "DOTNETCORE|10.0"
+az webapp create --name ve247-api --resource-group rg-ve247 --plan plan-ve247 --runtime "dotnet:10"
 ```
 
 ### Cấu hình Application Settings

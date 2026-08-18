@@ -6,7 +6,7 @@ import {
   Plane, Train, Globe, Briefcase, Mail, Lock, Eye, EyeOff,
   Phone, Check, AlertCircle, Loader, MailCheck, User,
 } from 'lucide-react'
-import { login, register, verifyEmail } from '../services/api'
+import { login, register, verifyEmail, forgotPassword, resetPassword } from '../services/api'
 
 const features = [
   'So sánh giá vé máy bay & tàu hỏa',
@@ -65,6 +65,18 @@ export default function LoginRegister() {
   const [otpCode, setOtpCode] = useState('')
   const [registeredEmail, setRegisteredEmail] = useState('')
   const [resendCooldown, setResendCooldown] = useState(0)
+  // Forgot password flow: 'email' | 'otp' | 'done'
+  const [forgotStep, setForgotStep] = useState(null)
+  const [forgotEmail, setForgotEmail] = useState('')
+  const [forgotOtp, setForgotOtp] = useState('')
+  const [forgotNewPassword, setForgotNewPassword] = useState('')
+  const [forgotConfirmPassword, setForgotConfirmPassword] = useState('')
+  const [showForgotPassword, setShowForgotPassword] = useState(false)
+  const [showForgotConfirm, setShowForgotConfirm] = useState(false)
+  const [forgotLoading, setForgotLoading] = useState(false)
+  const [forgotError, setForgotError] = useState('')
+  const [forgotSuccess, setForgotSuccess] = useState('')
+  const [forgotResendCooldown, setForgotResendCooldown] = useState(0)
   const navigate = useNavigate()
   const location = useLocation()
   const params = new URLSearchParams(location.search)
@@ -265,6 +277,84 @@ export default function LoginRegister() {
     } finally {
       setLoading(false)
     }
+  }
+
+  // --- Forgot password handlers ---
+  const handleForgotSubmitEmail = async (e) => {
+    e.preventDefault()
+    setForgotError('')
+    setForgotSuccess('')
+    if (!forgotEmail.trim()) { setForgotError('Vui lòng nhập email'); return }
+    setForgotLoading(true)
+    try {
+      await forgotPassword({ email: forgotEmail })
+      setForgotStep('otp')
+      setForgotSuccess('Mã xác thực đã được gửi đến ' + forgotEmail)
+      setForgotResendCooldown(60)
+      const timer = setInterval(() => {
+        setForgotResendCooldown(prev => {
+          if (prev <= 1) { clearInterval(timer); return 0 }
+          return prev - 1
+        })
+      }, 1000)
+    } catch (err) {
+      setForgotError(err.response?.data?.message || 'Không thể gửi mã xác thực. Vui lòng thử lại.')
+    } finally {
+      setForgotLoading(false)
+    }
+  }
+
+  const handleForgotResetPassword = async (e) => {
+    e.preventDefault()
+    setForgotError('')
+    if (!forgotOtp) { setForgotError('Vui lòng nhập mã xác thực'); return }
+    if (!forgotNewPassword) { setForgotError('Vui lòng nhập mật khẩu mới'); return }
+    if (forgotNewPassword.length < 6) { setForgotError('Mật khẩu mới phải có ít nhất 6 ký tự'); return }
+    if (forgotNewPassword !== forgotConfirmPassword) { setForgotError('Mật khẩu xác nhận không khớp'); return }
+    setForgotLoading(true)
+    try {
+      await resetPassword({ email: forgotEmail, code: forgotOtp, newPassword: forgotNewPassword })
+      setForgotStep('done')
+      setForgotSuccess('Đặt lại mật khẩu thành công! Vui lòng đăng nhập lại.')
+    } catch (err) {
+      setForgotError(err.response?.data?.message || 'Đặt lại mật khẩu thất bại. Vui lòng thử lại.')
+    } finally {
+      setForgotLoading(false)
+    }
+  }
+
+  const handleForgotResendOtp = async () => {
+    if (forgotResendCooldown > 0) return
+    setForgotError('')
+    setForgotLoading(true)
+    try {
+      await forgotPassword({ email: forgotEmail })
+      setForgotSuccess('Mã xác thực mới đã được gửi đến ' + forgotEmail)
+      setForgotResendCooldown(60)
+      const timer = setInterval(() => {
+        setForgotResendCooldown(prev => {
+          if (prev <= 1) { clearInterval(timer); return 0 }
+          return prev - 1
+        })
+      }, 1000)
+    } catch (err) {
+      setForgotError(err.response?.data?.message || 'Không thể gửi lại mã')
+    } finally {
+      setForgotLoading(false)
+    }
+  }
+
+  const resetForgotState = () => {
+    setForgotStep(null)
+    setForgotEmail('')
+    setForgotOtp('')
+    setForgotNewPassword('')
+    setForgotConfirmPassword('')
+    setShowForgotPassword(false)
+    setShowForgotConfirm(false)
+    setForgotError('')
+    setForgotSuccess('')
+    setForgotResendCooldown(0)
   }
 
   const fields = tab === 'login'
@@ -492,7 +582,181 @@ export default function LoginRegister() {
             </div>
 
             <AnimatePresence mode="wait">
-              {otpStep ? (
+              {forgotStep ? (
+                <motion.div
+                  key="forgot"
+                  variants={formVariants}
+                  initial="enter"
+                  animate="center"
+                  exit="exit"
+                  transition={{ duration: 0.25 }}
+                  className="p-6 space-y-4"
+                >
+                  <div className="text-center mb-4">
+                    <div className="w-14 h-14 rounded-2xl bg-red-500/10 flex items-center justify-center mx-auto mb-3">
+                      <Lock className="w-7 h-7 text-red-500" />
+                    </div>
+                    <h3 className="text-lg font-bold text-[var(--color-text-primary)]">{forgotStep === 'done' ? 'Hoàn tất!' : forgotStep === 'otp' ? 'Đặt lại mật khẩu' : 'Quên mật khẩu?'}</h3>
+                    <p className="text-sm text-[var(--color-text-secondary)] mt-1">
+                      {forgotStep === 'done'
+                        ? 'Mật khẩu của bạn đã được đặt lại thành công'
+                        : forgotStep === 'otp'
+                          ? 'Nhập mã xác thực và mật khẩu mới'
+                          : 'Nhập email để nhận mã xác thực đặt lại mật khẩu'}
+                    </p>
+                  </div>
+
+                  {forgotStep === 'email' && (
+                    <form onSubmit={handleForgotSubmitEmail} className="space-y-4">
+                      <div>
+                        <label className="block text-xs font-semibold text-[var(--color-text-tertiary)] mb-1.5 uppercase tracking-wider">Email</label>
+                        <div className="relative">
+                          <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-text-tertiary)]" />
+                          <input
+                            className="w-full border border-[var(--color-border)] rounded-xl pl-10 pr-3.5 py-3 text-sm text-[var(--color-text-primary)] focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none bg-[var(--color-bg)] placeholder:text-[var(--color-text-tertiary)]"
+                            type="email"
+                            placeholder="user@example.com"
+                            value={forgotEmail}
+                            onChange={e => setForgotEmail(e.target.value)}
+                            autoFocus
+                          />
+                        </div>
+                      </div>
+
+                      {forgotError && (
+                        <motion.p initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} className="text-sm text-[var(--color-danger)] bg-[var(--color-danger)]/10 px-3.5 py-2.5 rounded-xl flex items-center gap-2">
+                          <AlertCircle className="w-4 h-4" /><span>{forgotError}</span>
+                        </motion.p>
+                      )}
+
+                      <motion.button
+                        type="submit"
+                        disabled={forgotLoading}
+                        whileHover={{ scale: 1.01 }}
+                        whileTap={{ scale: 0.98 }}
+                        className="w-full bg-gradient-to-r from-primary-500 to-primary-600 text-white py-3.5 rounded-xl font-semibold shadow-lg shadow-primary-500/20 disabled:opacity-60"
+                      >
+                        {forgotLoading ? <span className="flex items-center justify-center gap-2"><Loader className="w-4 h-4 animate-spin" />Đang gửi mã...</span> : 'Gửi mã xác thực'}
+                      </motion.button>
+                    </form>
+                  )}
+
+                  {forgotStep === 'otp' && (
+                    <form onSubmit={handleForgotResetPassword} className="space-y-4">
+                      {forgotSuccess && (
+                        <motion.p initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} className="text-sm text-[var(--color-success)] bg-[var(--color-success)]/10 px-3.5 py-2.5 rounded-xl flex items-center gap-2">
+                          <Check className="w-4 h-4" /><span>{forgotSuccess}</span>
+                        </motion.p>
+                      )}
+
+                      <div>
+                        <label className="block text-xs font-semibold text-[var(--color-text-tertiary)] mb-1.5 uppercase tracking-wider">Mã xác thực</label>
+                        <input
+                          className="w-full border border-[var(--color-border)] rounded-xl px-4 py-3.5 text-center text-2xl tracking-[0.5em] font-bold text-[var(--color-text-primary)] focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none bg-[var(--color-bg)]"
+                          placeholder="000000"
+                          maxLength={6}
+                          value={forgotOtp}
+                          onChange={e => setForgotOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                          autoFocus
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-[var(--color-text-tertiary)] mb-1.5 uppercase tracking-wider">Mật khẩu mới</label>
+                        <div className="relative">
+                          <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-text-tertiary)]" />
+                          <input
+                            className="w-full border border-[var(--color-border)] rounded-xl pl-10 pr-10 py-3 text-sm text-[var(--color-text-primary)] focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none bg-[var(--color-bg)] placeholder:text-[var(--color-text-tertiary)]"
+                            type={showForgotPassword ? 'text' : 'password'}
+                            placeholder="Ít nhất 6 ký tự"
+                            value={forgotNewPassword}
+                            onChange={e => setForgotNewPassword(e.target.value)}
+                          />
+                          <button type="button" onClick={() => setShowForgotPassword(!showForgotPassword)} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] p-0.5">
+                            {showForgotPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-[var(--color-text-tertiary)] mb-1.5 uppercase tracking-wider">Xác nhận mật khẩu mới</label>
+                        <div className="relative">
+                          <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-text-tertiary)]" />
+                          <input
+                            className="w-full border border-[var(--color-border)] rounded-xl pl-10 pr-10 py-3 text-sm text-[var(--color-text-primary)] focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none bg-[var(--color-bg)] placeholder:text-[var(--color-text-tertiary)]"
+                            type={showForgotConfirm ? 'text' : 'password'}
+                            placeholder="Nhập lại mật khẩu mới"
+                            value={forgotConfirmPassword}
+                            onChange={e => setForgotConfirmPassword(e.target.value)}
+                          />
+                          <button type="button" onClick={() => setShowForgotConfirm(!showForgotConfirm)} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] p-0.5">
+                            {showForgotConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="text-center">
+                        {forgotResendCooldown > 0 ? (
+                          <p className="text-xs text-[var(--color-text-tertiary)]">
+                            Gửi lại sau {forgotResendCooldown}s
+                          </p>
+                        ) : (
+                          <button type="button" onClick={handleForgotResendOtp} disabled={forgotLoading}
+                            className="text-xs text-primary-500 font-semibold hover:underline disabled:opacity-50">
+                            Gửi lại mã xác thực
+                          </button>
+                        )}
+                      </div>
+
+                      {forgotError && (
+                        <motion.p initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} className="text-sm text-[var(--color-danger)] bg-[var(--color-danger)]/10 px-3.5 py-2.5 rounded-xl flex items-center gap-2">
+                          <AlertCircle className="w-4 h-4" /><span>{forgotError}</span>
+                        </motion.p>
+                      )}
+
+                      <motion.button
+                        type="submit"
+                        disabled={forgotLoading || forgotOtp.length < 6 || !forgotNewPassword || !forgotConfirmPassword}
+                        whileHover={{ scale: 1.01 }}
+                        whileTap={{ scale: 0.98 }}
+                        className="w-full bg-gradient-to-r from-primary-500 to-primary-600 text-white py-3.5 rounded-xl font-semibold shadow-lg shadow-primary-500/20 disabled:opacity-60"
+                      >
+                        {forgotLoading ? (
+                          <span className="flex items-center justify-center gap-2">
+                            <Loader className="w-4 h-4 animate-spin" />
+                            Đang xử lý...
+                          </span>
+                        ) : 'Đặt lại mật khẩu'}
+                      </motion.button>
+                    </form>
+                  )}
+
+                  {forgotStep === 'done' && (
+                    <div className="space-y-4">
+                      {forgotSuccess && (
+                        <motion.p initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} className="text-sm text-[var(--color-success)] bg-[var(--color-success)]/10 px-3.5 py-2.5 rounded-xl flex items-center gap-2">
+                          <Check className="w-4 h-4" /><span>{forgotSuccess}</span>
+                        </motion.p>
+                      )}
+                      <motion.button
+                        type="button"
+                        onClick={() => { resetForgotState(); setTab('login') }}
+                        whileHover={{ scale: 1.01 }}
+                        whileTap={{ scale: 0.98 }}
+                        className="w-full bg-gradient-to-r from-primary-500 to-primary-600 text-white py-3.5 rounded-xl font-semibold shadow-lg shadow-primary-500/20"
+                      >
+                        Đăng nhập ngay
+                      </motion.button>
+                    </div>
+                  )}
+
+                  <p className="text-xs text-[var(--color-text-tertiary)] text-center">
+                    <button type="button" onClick={() => { resetForgotState(); setTab('login') }} className="text-primary-500 font-semibold hover:underline">
+                      Quay lại đăng nhập
+                    </button>
+                  </p>
+                </motion.div>
+              ) : otpStep ? (
                 <motion.form
                   key="otp"
                   variants={formVariants}
@@ -614,6 +878,14 @@ export default function LoginRegister() {
                       </button>
                     </div>
                   </motion.div>
+
+                  {tab === 'login' && (
+                    <motion.div custom={2} initial="hidden" animate="visible" variants={fieldVariants} className="flex justify-end">
+                      <button type="button" onClick={() => { resetForgotState(); setForgotStep('email'); setForgotEmail(form.email) }} className="text-xs text-primary-500 font-semibold hover:underline">
+                        Quên mật khẩu?
+                      </button>
+                    </motion.div>
+                  )}
 
                   {tab === 'register' && (
                     <>
