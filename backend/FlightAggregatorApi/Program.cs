@@ -80,11 +80,21 @@ builder.Services.AddMemoryCache();
 
 var app = builder.Build();
 
-// Create tables (if not exist) and seed database — logic nằm trong DatabaseInitializerService
+// Create tables (if not exist) and seed database — logic nằm trong DatabaseInitializerService.
+// Không crash app nếu DB tạm gián đoạn (vd serverless DB đang paused do hết free allowance):
+// nếu fail, app vẫn start, trả CORS + JSON lỗi rõ ràng thay vì HTTP 500.30.
 using (var scope = app.Services.CreateScope())
 {
     var initializer = scope.ServiceProvider.GetRequiredService<DatabaseInitializerService>();
-    await initializer.InitializeAsync();
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+    try
+    {
+        await initializer.InitializeAsync();
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "Database initialization failed at startup. Continuing without DB init.");
+    }
 }
 
 app.UseCors();
