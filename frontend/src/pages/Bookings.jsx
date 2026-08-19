@@ -37,6 +37,7 @@ function TypeIcon({ b, className }) {
 export default function Bookings() {
   const [bookings, setBookings] = useState([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
   const [email, setEmail] = useState('')
   const [page, setPage] = useState(1)
   const [total, setTotal] = useState(0)
@@ -49,6 +50,7 @@ export default function Bookings() {
 
   const fetchBookings = useCallback(async () => {
     setLoading(true)
+    setLoadError('')
     try {
       const stored = JSON.parse(sessionStorage.getItem('user') || '{}')
       const searchEmail = email || stored.email || ''
@@ -57,7 +59,10 @@ export default function Bookings() {
       const res = await getBookings({ email: searchEmail, page, pageSize: 10 })
       setBookings(res.data.items || res.data)
       setTotal(res.data.total || 0)
-    } catch { setBookings([]) } finally { setLoading(false) }
+    } catch {
+      setBookings([])
+      setLoadError('Không thể tải danh sách đặt chỗ. Vui lòng thử lại.')
+    } finally { setLoading(false) }
   }, [email, page])
 
   useEffect(() => { fetchBookings() }, [fetchBookings])
@@ -227,7 +232,14 @@ export default function Bookings() {
 
       {loading && <SkeletonList count={3} height="h-28" />}
 
-      {!loading && bookings.length === 0 && (
+      {!loading && loadError && (
+        <div className="flex flex-col items-center gap-2 py-10 text-center">
+          <p className="text-sm font-semibold text-[var(--color-danger)]">{loadError}</p>
+          <button onClick={fetchBookings} className="text-sm text-primary-500 font-semibold hover:underline">Thử lại</button>
+        </div>
+      )}
+
+      {!loading && !loadError && bookings.length === 0 && (
         <EmptyState icon={Ticket} title="Chưa có đặt chỗ nào" desc="Sau khi đặt vé, thông tin sẽ hiển thị tại đây" />
       )}
 

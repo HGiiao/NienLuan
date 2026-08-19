@@ -25,28 +25,6 @@ const formVariants = {
     shake: { x: [0, -8, 8, -8, 8, 0], transition: { duration: 0.35 } },
   }
 
-  const handleResendOtp = async () => {
-    if (resendCooldown > 0) return
-    try {
-      await register({
-        email: registeredEmail,
-        password: form.password,
-        fullName: form.fullName,
-        phone: form.phone || undefined,
-      })
-      setSuccess('Mã xác thực mới đã được gửi đến ' + registeredEmail)
-      setResendCooldown(60)
-      const timer = setInterval(() => {
-        setResendCooldown(prev => {
-          if (prev <= 1) { clearInterval(timer); return 0 }
-          return prev - 1
-        })
-      }, 1000)
-    } catch (err) {
-      setError(err.response?.data?.message || 'Không thể gửi lại mã')
-    }
-  }
-
 const fieldVariants = {
   hidden: { opacity: 0, y: 12 },
   visible: (i) => ({ opacity: 1, y: 0, transition: { delay: i * 0.05, duration: 0.3 } }),
@@ -110,6 +88,28 @@ export default function LoginRegister() {
       return 'Clerk chưa cho phép gửi SMS tới số Việt Nam (+84). Vào Clerk Dashboard → SMS → Settings → bật quốc gia "Việt Nam (+84)" trong danh sách cho phép (hoặc cấu hình Twilio riêng). Có thể test nhanh bằng số Mỹ +1 555-01xx với mã 424242.'
     }
     return raw || fallback
+  }
+
+  const handleResendOtp = async () => {
+    if (resendCooldown > 0) return
+    try {
+      await register({
+        email: registeredEmail,
+        password: form.password,
+        fullName: form.fullName,
+        phone: form.phone || undefined,
+      })
+      setSuccess('Mã xác thực mới đã được gửi đến ' + registeredEmail)
+      setResendCooldown(60)
+      const timer = setInterval(() => {
+        setResendCooldown(prev => {
+          if (prev <= 1) { clearInterval(timer); return 0 }
+          return prev - 1
+        })
+      }, 1000)
+    } catch (err) {
+      setError(err.response?.data?.message || 'Không thể gửi lại mã')
+    }
   }
 
   const handleContinuePhone = async (e) => {

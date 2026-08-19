@@ -3,8 +3,18 @@ import { motion } from 'framer-motion'
 import { Train, Plus, Edit3, Trash2, Upload, Download } from 'lucide-react'
 import DataTable from '../DataTable'
 import ModalForm from '../ModalForm'
+import LocationSelect from '../LocationSelect'
 import { useAdmin } from '../AdminContext'
 import { getAdminTrains, createAdminTrain, updateAdminTrain, deleteAdminTrain, importAdminTrains, exportAdminTrains } from '../../services/api'
+
+const trainCodeOptions = ['SE1', 'SE2', 'SE3', 'SE4', 'SE5', 'SE7', 'SE9', 'SE11', 'SE13', 'SE15', 'SE17', 'SE19', 'SE21', 'SE23', 'SE25', 'SE27', 'SE29', 'SE31', 'SN1', 'SN3']
+
+const coachClassOptions = [
+  { value: 'Soft Sleeper', label: 'Giường mềm (Soft Sleeper)' },
+  { value: 'Hard Sleeper', label: 'Giường cứng (Hard Sleeper)' },
+  { value: 'Soft Seat', label: 'Ghế mềm (Soft Seat)' },
+  { value: 'Seat', label: 'Ghế cứng (Seat)' },
+]
 
 const columns = [
   { key: 'id', label: 'ID', render: v => <span className="text-xs font-mono text-[var(--color-text-tertiary)]">#{v.id}</span> },
@@ -15,6 +25,7 @@ const columns = [
     </div>
   )},
   { key: 'trainName', label: 'Tên tàu' },
+  { key: 'coachClass', label: 'Hạng', render: v => <span className="text-xs px-2 py-0.5 rounded-md bg-primary-50 text-primary-600">{v.coachClass || '—'}</span> },
   { key: 'departureLocation', label: 'Ga đi', render: v => <span className="text-sm text-[var(--color-text-secondary)]">{v.departureLocation}</span> },
   { key: 'arrivalLocation', label: 'Ga đến', render: v => <span className="text-sm text-[var(--color-text-secondary)]">{v.arrivalLocation}</span> },
   { key: 'departureTime', label: 'Giờ đi', render: v => <span className="text-sm text-[var(--color-text-tertiary)] font-mono">{v.departureTime?.split('T')[0]}</span> },
@@ -36,7 +47,7 @@ export default function TrainsPage() {
 
   const [form, setForm] = useState({
     trainCode: '', trainName: '', departureLocation: '', arrivalLocation: '',
-    departureTime: '', arrivalTime: '', price: '', seats: '',
+    departureTime: '', arrivalTime: '', price: '', seats: '', coachClass: 'Soft Seat',
   })
 
   const [dateFrom, setDateFrom] = useState('')
@@ -62,7 +73,7 @@ export default function TrainsPage() {
 
   const openCreate = () => {
     setEditing(null)
-    setForm({ trainCode: '', trainName: '', departureLocation: '', arrivalLocation: '', departureTime: '', arrivalTime: '', price: '', seats: '' })
+    setForm({ trainCode: '', trainName: '', departureLocation: '', arrivalLocation: '', departureTime: '', arrivalTime: '', price: '', seats: '', coachClass: 'Soft Seat' })
     setModalOpen(true)
   }
 
@@ -77,9 +88,22 @@ export default function TrainsPage() {
       arrivalTime: row.arrivalTime ? row.arrivalTime.slice(0, 16) : '',
       price: row.price?.toString() || '',
       seats: row.seats?.toString() || '',
+      coachClass: row.coachClass || 'Soft Seat',
     })
     setModalOpen(true)
   }
+
+  const handleTrainCodeChange = (code) => {
+    const isSE = code.startsWith('SE')
+    const isSN = code.startsWith('SN')
+    setForm(p => ({
+      ...p,
+      trainCode: code,
+      trainName: isSE ? `Tàu Thống Nhất ${code}` : isSN ? `Tàu tốc hành ${code}` : p.trainName,
+    }))
+  }
+
+  const codeDuplicate = !!form.trainCode && data.some(r => r.id !== editing?.id && r.trainCode === form.trainCode.trim())
 
   const handleDelete = (row) => {
     confirmAction('Xoá tàu hỏa', `Bạn có chắc muốn xoá tàu ${row.trainCode}?`, async () => {
@@ -93,6 +117,8 @@ export default function TrainsPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    const codeDuplicate = data.some(r => r.id !== editing?.id && r.trainCode === form.trainCode.trim())
+    if (codeDuplicate) { toast(`Mã tàu "${form.trainCode}" đã tồn tại`, 'error'); return }
     setSaving(true)
     try {
       const payload = { ...form, price: parseFloat(form.price), seats: parseInt(form.seats) }
@@ -187,23 +213,20 @@ export default function TrainsPage() {
         submitLabel={editing ? 'Cập nhật' : 'Tạo tàu hỏa'}
       >
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {[
-            { label: 'Mã tàu', key: 'trainCode', placeholder: 'SE1' },
-            { label: 'Tên tàu', key: 'trainName', placeholder: 'Tàu Thống Nhất' },
-          ].map(f => (
-            <div key={f.key}>
-              <label className="block text-[11px] font-semibold text-[var(--color-text-tertiary)] uppercase mb-1.5">{f.label}</label>
-              <input required value={form[f.key]} onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))} placeholder={f.placeholder} className="w-full px-3.5 py-2.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100 transition-all" />
-            </div>
-          ))}
           <div>
-            <label className="block text-[11px] font-semibold text-[var(--color-text-tertiary)] uppercase mb-1.5">Ga đi</label>
-            <input required value={form.departureLocation} onChange={e => setForm(p => ({ ...p, departureLocation: e.target.value }))} placeholder="Hà Nội" className="w-full px-3.5 py-2.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100 transition-all" />
+            <label className="block text-[11px] font-semibold text-[var(--color-text-tertiary)] uppercase mb-1.5">Mã tàu</label>
+            <select required value={form.trainCode} onChange={e => handleTrainCodeChange(e.target.value)} className="w-full px-3.5 py-2.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] text-sm text-[var(--color-text-primary)] outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100 transition-all">
+              <option value="">Chọn mã tàu</option>
+              {trainCodeOptions.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+            {codeDuplicate && <p className="mt-1.5 text-[11px] font-medium text-[var(--color-danger)]">Mã này đã tồn tại, vui lòng đổi mã.</p>}
           </div>
           <div>
-            <label className="block text-[11px] font-semibold text-[var(--color-text-tertiary)] uppercase mb-1.5">Ga đến</label>
-            <input required value={form.arrivalLocation} onChange={e => setForm(p => ({ ...p, arrivalLocation: e.target.value }))} placeholder="Sài Gòn" className="w-full px-3.5 py-2.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100 transition-all" />
+            <label className="block text-[11px] font-semibold text-[var(--color-text-tertiary)] uppercase mb-1.5">Tên tàu</label>
+            <input required value={form.trainName} onChange={e => setForm(p => ({ ...p, trainName: e.target.value }))} placeholder="Tàu Thống Nhất" className="w-full px-3.5 py-2.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100 transition-all" />
           </div>
+          <LocationSelect label="Ga đi" value={form.departureLocation} onChange={v => setForm(p => ({ ...p, departureLocation: v }))} placeholder="Chọn ga đi" />
+          <LocationSelect label="Ga đến" value={form.arrivalLocation} onChange={v => setForm(p => ({ ...p, arrivalLocation: v }))} placeholder="Chọn ga đến" />
           <div>
             <label className="block text-[11px] font-semibold text-[var(--color-text-tertiary)] uppercase mb-1.5">Giờ đi</label>
             <input type="datetime-local" required value={form.departureTime} onChange={e => setForm(p => ({ ...p, departureTime: e.target.value }))} className="w-full px-3.5 py-2.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] text-sm text-[var(--color-text-primary)] outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100 transition-all" />
@@ -215,6 +238,12 @@ export default function TrainsPage() {
           <div>
             <label className="block text-[11px] font-semibold text-[var(--color-text-tertiary)] uppercase mb-1.5">Giá (VND)</label>
             <input type="number" required value={form.price} onChange={e => setForm(p => ({ ...p, price: e.target.value }))} placeholder="500000" className="w-full px-3.5 py-2.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100 transition-all" />
+          </div>
+          <div>
+            <label className="block text-[11px] font-semibold text-[var(--color-text-tertiary)] uppercase mb-1.5">Hạng ghế</label>
+            <select required value={form.coachClass} onChange={e => setForm(p => ({ ...p, coachClass: e.target.value }))} className="w-full px-3.5 py-2.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] text-sm text-[var(--color-text-primary)] outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100 transition-all">
+              {coachClassOptions.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+            </select>
           </div>
           <div>
             <label className="block text-[11px] font-semibold text-[var(--color-text-tertiary)] uppercase mb-1.5">Số ghế</label>

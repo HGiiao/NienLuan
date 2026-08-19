@@ -57,6 +57,7 @@ export const getAdminDashboard = () => api.get('/api/admin/dashboard', { headers
 export const getAdminUsers = (params) => api.get('/api/admin/users', { params, headers: adminHeaders() })
 export const deleteAdminUser = (id) => api.delete(`/api/admin/users/${id}`, { headers: adminHeaders() })
 export const getAdminBookings = (params) => api.get('/api/admin/bookings', { params, headers: adminHeaders() })
+export const confirmAdminBooking = (id) => api.post(`/api/admin/bookings/${id}/confirm`, null, { headers: adminHeaders() })
 export const getAdminFlights = (params) => api.get('/api/admin/flights', { params, headers: adminHeaders() })
 export const createAdminFlight = (data) => api.post('/api/admin/flights', data, { headers: adminHeaders() })
 export const updateAdminFlight = (id, data) => api.put(`/api/admin/flights/${id}`, data, { headers: adminHeaders() })

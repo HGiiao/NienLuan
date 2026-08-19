@@ -71,7 +71,7 @@ function LiveIndicator({ connected = true }) {
   )
 }
 
-function RouteTab({ form, setForm, handleSearch, routes, loading, directCheapest, onBook, onBookRoute }) {
+function RouteTab({ form, setForm, handleSearch, routes, loading, routeError, directCheapest, onBook, onBookRoute }) {
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}>
       {loading && (
@@ -94,11 +94,14 @@ function RouteTab({ form, setForm, handleSearch, routes, loading, directCheapest
                 {directCheapest && <span className="ml-2">| Trực tiếp rẻ nhất: <strong className="text-[var(--color-success)]">{formatCurrencyVnd(directCheapest.totalPrice)}</strong></span>}
               </span>
             </div>
-            {routes[0]?.label !== 'direct' && directCheapest && (
-              <span className="text-sm font-semibold text-[var(--color-success)]">
-                Tiết kiệm {formatCurrencyVnd(directCheapest.totalPrice - routes[0].totalPrice)} so với vé trực tiếp
-              </span>
-            )}
+            {routes[0]?.label !== 'direct' && directCheapest && (() => {
+              const saving = directCheapest.totalPrice - routes[0].totalPrice
+              return saving > 0 ? (
+                <span className="text-sm font-semibold text-[var(--color-success)]">
+                  Tiết kiệm {formatCurrencyVnd(saving)} so với vé trực tiếp
+                </span>
+              ) : null
+            })()}
           </motion.div>
 
           <div className="space-y-5">
@@ -199,7 +202,14 @@ function RouteTab({ form, setForm, handleSearch, routes, loading, directCheapest
         </>
       )}
 
-      {!loading && routes.length === 0 && (
+      {routeError && (
+        <div className="flex flex-col items-center gap-2 py-8 text-center">
+          <p className="text-sm font-semibold text-[var(--color-danger)]">{routeError}</p>
+          <button onClick={handleSearch} className="text-sm text-primary-500 font-semibold hover:underline">Thử lại</button>
+        </div>
+      )}
+
+      {!loading && routes.length === 0 && !routeError && (
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col items-center py-16">
           <div className="w-16 h-16 rounded-2xl bg-[var(--color-bg)] border border-[var(--color-border)] flex items-center justify-center mb-4">
             <MapPin className="w-7 h-7 text-[var(--color-text-tertiary)]" />
@@ -464,6 +474,7 @@ export default function OptimalRoute() {
   })
   const [routes, setRoutes] = useState([])
   const [loading, setLoading] = useState(false)
+  const [routeError, setRouteError] = useState('')
   const [directCheapest, setDirectCheapest] = useState(null)
   const searchedRef = useRef(false)
 
@@ -471,6 +482,7 @@ export default function OptimalRoute() {
     if (!form.originCity || !form.destinationCity || !form.startDate) return
     searchedRef.current = true
     setLoading(true)
+    setRouteError('')
     try {
       const res = await getOptimalRoute({
         originCity: form.originCity,
@@ -484,7 +496,10 @@ export default function OptimalRoute() {
       const data = res.data || []
       setRoutes(data)
       setDirectCheapest(data.find(r => r.label === 'direct') || null)
-    } catch { setRoutes([]) } finally { setLoading(false) }
+    } catch {
+      setRoutes([])
+      setRouteError('Không thể tìm lộ trình. Vui lòng thử lại sau.')
+    } finally { setLoading(false) }
   }, [form])
 
   // Reload lộ trình đã tìm khi tab được mở/chuyển tới (chỉ khi đã từng tìm kiếm)
@@ -620,7 +635,7 @@ export default function OptimalRoute() {
 
         <div className="p-4 md:p-5">
           <AnimatePresence mode="wait">
-            {tab === 'route' && <RouteTab key="route" form={form} setForm={setForm} handleSearch={handleSearch} routes={routes} loading={loading} directCheapest={directCheapest} onBook={(item) => navigate(`/booking/${item.type}/${item.id}`, { state: { item } })} onBookRoute={(route) => navigate(`/booking/multi/route`, { state: { route } })} />}
+            {tab === 'route' && <RouteTab key="route" form={form} setForm={setForm} handleSearch={handleSearch} routes={routes} loading={loading} routeError={routeError} directCheapest={directCheapest} onBook={(item) => navigate(`/booking/${item.type}/${item.id}`, { state: { item } })} onBookRoute={(route) => navigate(`/booking/multi/route`, { state: { route } })} />}
             {tab === 'alerts' && <AlertsTab key="alerts" />}
           </AnimatePresence>
         </div>

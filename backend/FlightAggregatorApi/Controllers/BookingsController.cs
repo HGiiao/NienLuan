@@ -194,6 +194,34 @@ public class BookingsController : ControllerBase
         if (request.PassengerDetails is { Count: > 0 } && request.PassengerDetails.Any(p => string.IsNullOrWhiteSpace(p.FullName)))
             return BadRequest(new { message = "Vui lòng nhập họ tên cho tất cả hành khách" });
 
+        // Chặn đặt trùng: cùng email + cùng chuyến bay/tàu/xe (không tính vé đã hủy)
+        var bookingEmailKey = request.Email?.Trim().ToUpperInvariant() ?? "";
+        if (bookingEmailKey.Length > 0)
+        {
+            var existingBookings = await _db.Bookings
+                .Include(b => b.Segments)
+                .Where(b => b.User.Email.ToUpper() == bookingEmailKey && b.Status != "Cancelled")
+                .ToListAsync();
+
+            if (existingBookings.Count > 0)
+            {
+                var duplicateItemIds = new List<long>();
+                if (request.FlightId.HasValue) duplicateItemIds.Add(request.FlightId.Value);
+                if (request.TrainId.HasValue) duplicateItemIds.Add(request.TrainId.Value);
+                if (request.BusId.HasValue) duplicateItemIds.Add(request.BusId.Value);
+                if (isMultiLeg) duplicateItemIds.AddRange(request.Segments!.Select(s => s.ItemId));
+
+                var dup = existingBookings.Any(b =>
+                    (request.FlightId.HasValue && b.FlightId == request.FlightId) ||
+                    (request.TrainId.HasValue && b.TrainId == request.TrainId) ||
+                    (request.BusId.HasValue && b.BusId == request.BusId) ||
+                    (b.Segments.Any(s => duplicateItemIds.Contains(s.ItemId))));
+
+                if (dup)
+                    return Conflict(new { message = "Bạn đã đặt vé cho chuyến này rồi. Vui lòng kiểm tra lại danh sách vé." });
+            }
+        }
+
         decimal totalPrice = 0;
         Flight? flight = null;
         Train? train = null;
@@ -493,93 +521,22 @@ public class BookingsController : ControllerBase
             }
         }
 
-        // Sandbox/test mode — always succeeds (kể cả e_wallet, credit_card, bank_transfer)
-        booking.Status = "Confirmed";
-
-        var transactionId = booking.TransactionId ?? $"TXN_{DateTime.UtcNow:yyyyMMddHHmmss}_{_rng.Next(1000, 9999)}";
-        booking.PaymentMethod = booking.PaymentMethod ?? "test_mode";
-        booking.TransactionId ??= transactionId;
-
-        _db.Notifications.Add(new Notification
-        {
-            Email = booking.User?.Email ?? "",
-            Type = "booking",
-            Title = "Đặt chỗ thành công!",
-            Message = $"Đơn hàng #{booking.Id} đã xác nhận. Tổng: {booking.TotalPrice:N0}đ",
-            Link = "/bookings",
-            CreatedAt = DateTime.UtcNow,
-        });
-
+        // Phương thức này không có cổng thanh toán tự động (Thẻ tín dụng / Chuyển khoản / test):
+        // KHÔNG tự xác nhận. Giữ trạng thái chờ, admin xác nhận sau khi nhận được tiền.
+        booking.PaymentMethod = booking.PaymentMethod ?? provider;
+        booking.PaymentProvider = booking.PaymentProvider ?? provider;
         await _db.SaveChangesAsync();
 
-        // Send email confirmation
-        try
-        {
-            if (booking.Segments.Count > 0)
-            {
-                // Lộ trình kết hợp: email tổng hợp các chặng
-                var first = booking.Segments.First();
-                var last = booking.Segments.Last();
-                var summary = string.Join(" → ", booking.Segments.Select(s => $"{s.Mode.ToUpper()} {s.Code} ({s.DepartureLocation}-{s.ArrivalLocation})"));
-                await _email.SendBookingConfirmationAsync(
-                    toEmail: booking.User?.Email ?? "",
-                    customerName: booking.User?.FullName ?? "Khách hàng",
-                    customerPhone: booking.User?.Phone ?? "",
-                    customerAddress: booking.Address ?? "",
-                    type: "multi",
-                    code: summary,
-                    airlineName: "Lộ trình kết hợp",
-                    trainName: null,
-                    busCompany: null,
-                    fromCode: first.DepartureLocation,
-                    toCode: last.ArrivalLocation,
-                    departureTime: first.DepartureTime,
-                    arrivalTime: last.ArrivalTime,
-                    itemPrice: booking.Segments.Sum(s => s.Price),
-                    passengers: booking.Passengers,
-                    totalPrice: booking.TotalPrice,
-                    paymentMethod: booking.PaymentMethod,
-                    transactionId: transactionId,
-                    bookingId: booking.Id
-                );
-            }
-            else
-            {
-                await _email.SendBookingConfirmationAsync(
-                    toEmail: booking.User?.Email ?? "",
-                    customerName: booking.User?.FullName ?? "Khách hàng",
-                    customerPhone: booking.User?.Phone ?? "",
-                    customerAddress: booking.Address ?? "",
-                    type: booking.FlightId != null ? "flight" : booking.TrainId != null ? "train" : "bus",
-                    code: booking.Flight != null ? $"{booking.Flight.AirlineCode}{(booking.Flight.Id % 900) + 100}" : booking.Train?.TrainCode ?? booking.Bus?.BusCode,
-                    airlineName: booking.Flight?.AirlineName,
-                    trainName: booking.Train?.TrainName,
-                    busCompany: booking.Bus?.BusCompany,
-                    fromCode: booking.Flight?.DepartureLocation ?? booking.Train?.DepartureLocation ?? booking.Bus?.DepartureLocation ?? "",
-                    toCode: booking.Flight?.ArrivalLocation ?? booking.Train?.ArrivalLocation ?? booking.Bus?.ArrivalLocation ?? "",
-                    departureTime: booking.Flight?.DepartureTime ?? booking.Train?.DepartureTime ?? booking.Bus?.DepartureTime ?? default,
-                    arrivalTime: booking.Flight?.ArrivalTime ?? booking.Train?.ArrivalTime ?? booking.Bus?.ArrivalTime ?? default,
-                    itemPrice: booking.Flight?.Price ?? booking.Train?.Price ?? booking.Bus?.Price ?? 0,
-                    passengers: booking.Passengers,
-                    totalPrice: booking.TotalPrice,
-                    paymentMethod: booking.PaymentMethod,
-                    transactionId: transactionId,
-                    bookingId: booking.Id
-                );
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to send booking confirmation email for #{Id}", booking.Id);
-        }
-
-        _logger.LogInformation("Payment processed: Booking #{Id}, Transaction {TxnId}", booking.Id, transactionId);
+        _logger.LogInformation("Booking #{Id} created — awaiting manual confirmation ({Provider})", booking.Id, provider);
 
         return Ok(new
         {
             success = true,
-            transactionId,
-            booking
+            redirect = false,
+            pending = true,
+            transactionId = booking.TransactionId ?? booking.Id.ToString(),
+            booking,
+            message = "Đặt chỗ đã tạo. Vui lòng hoàn tất thanh toán — chúng tôi sẽ xác nhận sau khi nhận được tiền.",
         });
     }
 
@@ -677,6 +634,26 @@ public class BookingsController : ControllerBase
                 if (b != null) b.Seats += passengers;
                 break;
         }
+    }
+
+    // Thanh toán thất bại/hủy: hoàn ghế và đánh dấu đặt chỗ bị hủy (chưa trả tiền nên không hoàn tiền)
+    private async Task CancelUnpaidBookingAsync(Booking booking)
+    {
+        if (booking.Segments.Count > 0)
+        {
+            foreach (var seg in booking.Segments)
+                await RestoreSeatAsync(seg.Mode, seg.ItemId, booking.Passengers);
+        }
+        else
+        {
+            if (booking.FlightId != null) await RestoreSeatAsync("flight", booking.FlightId.Value, booking.Passengers);
+            if (booking.TrainId != null) await RestoreSeatAsync("train", booking.TrainId.Value, booking.Passengers);
+            if (booking.BusId != null) await RestoreSeatAsync("bus", booking.BusId.Value, booking.Passengers);
+        }
+        booking.Status = "Cancelled";
+        booking.RefundAmount = 0;
+        await _db.SaveChangesAsync();
+        _logger.LogInformation("Booking #{Id} auto-cancelled — payment failed/abandoned", booking.Id);
     }
 
     [HttpGet("{id:long}/calendar")]

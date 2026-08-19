@@ -190,8 +190,9 @@ export default function SearchFlights() {
   }, [returnItems])
 
   const filteredItems = useMemo(() => {
-    if (!buyNowFilter || !prediction || prediction.recommendation !== 'buy_now') return items
-    return items
+    if (!buyNowFilter) return items
+    // Bật "Chỉ vé nên mua": chỉ giữ vé khi dự đoán giá khuyến nghị "nên mua ngay"
+    return prediction?.recommendation === 'buy_now' ? items : []
   }, [items, buyNowFilter, prediction])
 
   const handleWatch = (flight) => {
@@ -392,7 +393,7 @@ export default function SearchFlights() {
 
       {!loading && !isRoundTrip && (
         <>
-          {renderFlightList(filteredItems, badges, 'Không tìm thấy chuyến bay nào', prediction)}
+          {renderFlightList(filteredItems, badges, buyNowFilter ? 'Không có vé nào nên mua ngay theo dự đoán giá' : 'Không tìm thấy chuyến bay nào', prediction)}
           {!loading && items.length === 0 && !hasSearched && (
             <EmptyState icon={Plane} title="Nhập điểm đi và điểm đến để tìm chuyến bay" />
           )}

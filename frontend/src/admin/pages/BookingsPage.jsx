@@ -3,7 +3,7 @@ import { motion } from 'framer-motion'
 import { Ticket, Eye, XCircle, CheckCircle, DollarSign, ExternalLink } from 'lucide-react'
 import DataTable from '../DataTable'
 import { useAdmin } from '../AdminContext'
-import { getAdminBookings, cancelBooking, processPayment } from '../../services/api'
+import { getAdminBookings, cancelBooking, confirmAdminBooking } from '../../services/api'
 
 const statusPills = {
   Confirmed: 'bg-[var(--color-success)]/10 text-[var(--color-success)] border-[var(--color-success)]/20',
@@ -77,9 +77,9 @@ export default function BookingsPage() {
   }
 
   const handleConfirm = (row) => {
-    confirmAction('Xác nhận thanh toán', `Xác nhận thanh toán cho đặt chỗ #${row.id}? (Sandbox)`, async () => {
+    confirmAction('Xác nhận thanh toán', `Xác nhận thanh toán cho đặt chỗ #${row.id}?`, async () => {
       try {
-        await processPayment(row.id)
+        await confirmAdminBooking(row.id)
         toast('Xác nhận thanh toán thành công', 'success')
         fetchData()
       } catch (err) { console.error('[BookingsPage] Error:', err.response?.data || err.message); toast(err.response?.data?.message || 'Xác nhận thanh toán thất bại', 'error') }

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { useUser } from '@clerk/clerk-react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { CreditCard, Wallet, Building2, CheckCircle, XCircle, Plane, Train, Bus, ArrowRight, Ticket, Home, RefreshCw, Shield, Ban, Loader } from 'lucide-react'
+import { CreditCard, Wallet, Building2, CheckCircle, XCircle, Plane, Train, Bus, ArrowRight, Ticket, Home, RefreshCw, Shield, Loader, Clock } from 'lucide-react'
 import { getBooking, processPayment } from '../services/api'
 import { formatCurrencyVnd } from '../utils/formatters'
 
@@ -41,6 +41,7 @@ export default function PaymentPage() {
   const [status, setStatus] = useState('processing')
   const [error, setError] = useState('')
   const [transactionId, setTransactionId] = useState('')
+  const [awaitingConfirmation, setAwaitingConfirmation] = useState(false)
   const [selectedMethod, setSelectedMethod] = useState(location.state?.booking?.paymentMethod || 'credit_card')
 
   useEffect(() => {
@@ -98,6 +99,7 @@ export default function PaymentPage() {
 
       setTransactionId(data.transactionId || '')
       setBooking(data.booking)
+      setAwaitingConfirmation(!!data.pending)
       setStatus('success')
     } catch (err) {
       const msg = err.response?.data?.message || 'Giao dịch không thể hoàn tất. Vui lòng thử lại.'
@@ -116,7 +118,6 @@ export default function PaymentPage() {
   const isBus = type === 'bus'
   const method = paymentMethods.find(m => m.id === (booking?.paymentMethod || selectedMethod))
   const provider = booking?.paymentProvider || location.state?.walletProvider || null
-  const isSandbox = !['momo', 'zalopay', 'vnpay', 'payos'].includes(provider)
 
   if (error && !booking) {
     return (
@@ -139,14 +140,6 @@ export default function PaymentPage() {
       animate={{ opacity: 1 }}
       className="max-w-lg mx-auto px-4 py-6 md:py-10"
     >
-      {/* badge test mode */}
-      {isSandbox && (
-        <div className="flex items-center justify-center gap-1.5 mb-4 text-xs font-semibold text-primary-400 bg-primary-500/10 px-3 py-1.5 rounded-full border border-primary-500/20 w-fit mx-auto">
-          <Ban className="w-3.5 h-3.5" />
-          Cổng thanh toán Sandbox — giao dịch luôn thành công
-        </div>
-      )}
-
       <AnimatePresence mode="wait">
         {status === 'processing' && (
           <motion.div
@@ -215,13 +208,21 @@ export default function PaymentPage() {
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
               transition={{ type: 'spring', stiffness: 300, damping: 15 }}
-              className="w-20 h-20 rounded-full bg-[var(--color-success)]/10 flex items-center justify-center mx-auto mb-5"
+              className={`w-20 h-20 rounded-full ${awaitingConfirmation ? 'bg-yellow-500/10' : 'bg-[var(--color-success)]/10'} flex items-center justify-center mx-auto mb-5`}
             >
-              <CheckCircle className="w-10 h-10 text-[var(--color-success)]" />
+              {awaitingConfirmation
+                ? <Clock className="w-10 h-10 text-yellow-500" />
+                : <CheckCircle className="w-10 h-10 text-[var(--color-success)]" />}
             </motion.div>
 
-            <h1 className="text-2xl font-bold text-center text-[var(--color-text-primary)] mb-1">Thanh toán thành công!</h1>
-            <p className="text-center text-[var(--color-text-secondary)] mb-6">Vé đã được xác nhận và gửi đến email của bạn</p>
+            <h1 className="text-2xl font-bold text-center text-[var(--color-text-primary)] mb-1">
+              {awaitingConfirmation ? 'Đặt chỗ đang chờ xác nhận thanh toán' : 'Thanh toán thành công!'}
+            </h1>
+            <p className="text-center text-[var(--color-text-secondary)] mb-6">
+              {awaitingConfirmation
+                ? 'Vé đã được giữ. Chúng tôi sẽ xác nhận sau khi nhận được tiền (chuyển khoản/thẻ) — theo dõi trong "Vé của tôi".'
+                : 'Vé đã được xác nhận và gửi đến email của bạn'}
+            </p>
 
             {transactionId && (
               <div className="flex items-center justify-center gap-1.5 text-xs text-[var(--color-text-tertiary)] mb-4">
@@ -280,8 +281,8 @@ export default function PaymentPage() {
                       </>
                     )}
                   </div>
-                  <div className={`ml-auto px-3 py-1 rounded-lg border text-xs font-semibold ${statusConfig.Confirmed.class}`}>
-                    {statusConfig.Confirmed.label}
+                  <div className={`ml-auto px-3 py-1 rounded-lg border text-xs font-semibold ${awaitingConfirmation ? statusConfig.Pending.class : statusConfig.Confirmed.class}`}>
+                    {awaitingConfirmation ? statusConfig.Pending.label : statusConfig.Confirmed.label}
                   </div>
                 </div>
 

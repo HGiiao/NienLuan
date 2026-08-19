@@ -33,9 +33,18 @@ public class AuthController : ControllerBase
         if (request.Password.Length < 6)
             return BadRequest(new { message = "Mật khẩu phải có ít nhất 6 ký tự" });
 
-        var exists = await _db.Users.AnyAsync(u => u.Email == request.Email);
+        var emailKey = request.Email.Trim().ToUpperInvariant();
+        var exists = await _db.Users.AnyAsync(u => u.Email.ToUpper() == emailKey);
         if (exists)
             return Conflict(new { message = "Email đã được đăng ký" });
+
+        var phone = request.Phone?.Trim() ?? "";
+        if (phone.Length > 0)
+        {
+            var phoneExists = await _db.Users.AnyAsync(u => u.Phone.Length > 0 && u.Phone.ToUpper() == phone.ToUpper());
+            if (phoneExists)
+                return Conflict(new { message = "Số điện thoại đã được sử dụng cho tài khoản khác" });
+        }
 
         var otp = new Random().Next(100000, 999999).ToString();
 
@@ -233,7 +242,13 @@ public class AuthController : ControllerBase
         if (!string.IsNullOrWhiteSpace(request.FullName))
             user.FullName = request.FullName;
         if (!string.IsNullOrWhiteSpace(request.Phone))
-            user.Phone = request.Phone;
+        {
+            var newPhone = request.Phone.Trim();
+            var phoneTaken = await _db.Users.AnyAsync(u => u.Id != user.Id && u.Phone.Length > 0 && u.Phone.ToUpper() == newPhone.ToUpper());
+            if (phoneTaken)
+                return Conflict(new { message = "Số điện thoại đã được sử dụng cho tài khoản khác" });
+            user.Phone = newPhone;
+        }
 
         await _db.SaveChangesAsync();
 

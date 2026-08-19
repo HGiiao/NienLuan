@@ -3,8 +3,23 @@ import { motion } from 'framer-motion'
 import { Plane, Plus, Edit3, Trash2, Upload, Download } from 'lucide-react'
 import DataTable from '../DataTable'
 import ModalForm from '../ModalForm'
+import LocationSelect from '../LocationSelect'
 import { useAdmin } from '../AdminContext'
 import { getAdminFlights, createAdminFlight, updateAdminFlight, deleteAdminFlight, importAdminFlights, exportAdminFlights } from '../../services/api'
+
+const airlineOptions = [
+  { code: 'VN', name: 'Vietnam Airlines' },
+  { code: 'VJ', name: 'VietJet Air' },
+  { code: 'QH', name: 'Bamboo Airways' },
+  { code: 'BL', name: 'Pacific Airlines' },
+  { code: 'VU', name: 'Vietravel Airlines' },
+]
+
+const seatClassOptions = [
+  { value: 'Economy', label: 'Phổ thông (Economy)' },
+  { value: 'Premium Economy', label: 'Phổ thông đặc biệt (Premium Economy)' },
+  { value: 'Business', label: 'Thương gia (Business)' },
+]
 
 const columns = [
   { key: 'id', label: 'ID', render: v => <span className="text-xs font-mono text-[var(--color-text-tertiary)]">#{v.id}</span> },
@@ -17,6 +32,7 @@ const columns = [
   { key: 'airlineName', label: 'Hãng' },
   { key: 'departure', label: 'Đi', render: v => <span className="text-sm text-[var(--color-text-secondary)]">{v.departureLocation}</span> },
   { key: 'arrival', label: 'Đến', render: v => <span className="text-sm text-[var(--color-text-secondary)]">{v.arrivalLocation}</span> },
+  { key: 'seatClass', label: 'Hạng', render: v => <span className="text-xs px-2 py-0.5 rounded-md bg-primary-50 text-primary-600">{v.seatClass || '—'}</span> },
   { key: 'departureTime', label: 'Giờ đi', render: v => <span className="text-sm text-[var(--color-text-tertiary)] font-mono">{v.departureTime?.split('T')[0]}</span> },
   { key: 'price', label: 'Giá', align: 'right', render: v => (
     <span className="text-sm font-semibold text-primary-600">{Number(v.price).toLocaleString('vi-VN')} ₫</span>
@@ -36,7 +52,7 @@ export default function FlightsPage() {
 
   const [form, setForm] = useState({
     airlineCode: '', airlineName: '', departureLocation: '', arrivalLocation: '',
-    departureTime: '', arrivalTime: '', price: '', seats: '',
+    departureTime: '', arrivalTime: '', price: '', seats: '', seatClass: 'Economy',
   })
 
   const [airlineFilter, setAirlineFilter] = useState('')
@@ -64,7 +80,7 @@ export default function FlightsPage() {
 
   const openCreate = () => {
     setEditing(null)
-    setForm({ airlineCode: '', airlineName: '', departureLocation: '', arrivalLocation: '', departureTime: '', arrivalTime: '', price: '', seats: '' })
+    setForm({ airlineCode: '', airlineName: '', departureLocation: '', arrivalLocation: '', departureTime: '', arrivalTime: '', price: '', seats: '', seatClass: 'Economy' })
     setModalOpen(true)
   }
 
@@ -79,9 +95,31 @@ export default function FlightsPage() {
       arrivalTime: row.arrivalTime ? row.arrivalTime.slice(0, 16) : '',
       price: row.price?.toString() || '',
       seats: row.seats?.toString() || '',
+      seatClass: row.seatClass || 'Economy',
     })
     setModalOpen(true)
   }
+
+  const handleAirlineChange = (name) => {
+    const airline = airlineOptions.find(a => a.name === name)
+    setForm(p => ({
+      ...p,
+      airlineCode: airline ? airline.code : p.airlineCode,
+      airlineName: name,
+    }))
+  }
+
+  const generateFlightCode = () => {
+    const prefix = form.airlineCode && !/\d/.test(form.airlineCode) ? form.airlineCode : (airlineOptions[0]?.code || '')
+    let code = ''
+    for (let i = 0; i < 20; i++) {
+      code = `${prefix}${Math.floor(100 + Math.random() * 900)}`
+      if (!data.some(r => r.id !== editing?.id && r.airlineCode === code)) break
+    }
+    setForm(p => ({ ...p, airlineCode: code }))
+  }
+
+  const codeDuplicate = !!form.airlineCode && data.some(r => r.id !== editing?.id && r.airlineCode === form.airlineCode.trim())
 
   const handleDelete = (row) => {
     confirmAction('Xoá chuyến bay', `Bạn có chắc muốn xoá chuyến ${row.airlineCode}?`, async () => {
@@ -95,6 +133,8 @@ export default function FlightsPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    const codeDuplicate = data.some(r => r.id !== editing?.id && r.airlineCode === form.airlineCode.trim())
+    if (codeDuplicate) { toast(`Mã chuyến bay "${form.airlineCode}" đã tồn tại`, 'error'); return }
     setSaving(true)
     try {
       const payload = { ...form, price: parseFloat(form.price), seats: parseInt(form.seats) }
@@ -196,23 +236,23 @@ export default function FlightsPage() {
         submitLabel={editing ? 'Cập nhật' : 'Tạo chuyến bay'}
       >
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {[
-            { label: 'Mã chuyến bay', key: 'airlineCode', placeholder: 'VN123' },
-            { label: 'Hãng bay', key: 'airlineName', placeholder: 'Vietnam Airlines' },
-          ].map(f => (
-            <div key={f.key}>
-              <label className="block text-[11px] font-semibold text-[var(--color-text-tertiary)] uppercase mb-1.5">{f.label}</label>
-              <input required value={form[f.key]} onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))} placeholder={f.placeholder} className="w-full px-3.5 py-2.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100 transition-all" />
+          <div>
+            <label className="block text-[11px] font-semibold text-[var(--color-text-tertiary)] uppercase mb-1.5">Hãng bay</label>
+            <select required value={form.airlineName} onChange={e => handleAirlineChange(e.target.value)} className="w-full px-3.5 py-2.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] text-sm text-[var(--color-text-primary)] outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100 transition-all">
+              <option value="">Chọn hãng bay</option>
+              {airlineOptions.map(a => <option key={a.code} value={a.name}>{a.name} ({a.code})</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-[11px] font-semibold text-[var(--color-text-tertiary)] uppercase mb-1.5">Mã chuyến bay</label>
+            <div className="flex gap-2">
+              <input required value={form.airlineCode} onChange={e => setForm(p => ({ ...p, airlineCode: e.target.value }))} placeholder="VN123" className="flex-1 w-full px-3.5 py-2.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100 transition-all" />
+              <button type="button" onClick={generateFlightCode} className="px-3 py-2.5 rounded-xl text-xs font-semibold text-primary-600 bg-primary-50 hover:bg-primary-100 transition-all whitespace-nowrap">Tự sinh</button>
             </div>
-          ))}
-          <div>
-            <label className="block text-[11px] font-semibold text-[var(--color-text-tertiary)] uppercase mb-1.5">Đi</label>
-            <input required value={form.departureLocation} onChange={e => setForm(p => ({ ...p, departureLocation: e.target.value }))} placeholder="SGN" className="w-full px-3.5 py-2.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100 transition-all" />
+            {codeDuplicate && <p className="mt-1.5 text-[11px] font-medium text-[var(--color-danger)]">Mã này đã tồn tại, vui lòng đổi mã.</p>}
           </div>
-          <div>
-            <label className="block text-[11px] font-semibold text-[var(--color-text-tertiary)] uppercase mb-1.5">Đến</label>
-            <input required value={form.arrivalLocation} onChange={e => setForm(p => ({ ...p, arrivalLocation: e.target.value }))} placeholder="HAN" className="w-full px-3.5 py-2.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100 transition-all" />
-          </div>
+          <LocationSelect label="Đi" value={form.departureLocation} onChange={v => setForm(p => ({ ...p, departureLocation: v }))} placeholder="Chọn điểm đi" />
+          <LocationSelect label="Đến" value={form.arrivalLocation} onChange={v => setForm(p => ({ ...p, arrivalLocation: v }))} placeholder="Chọn điểm đến" />
           <div>
             <label className="block text-[11px] font-semibold text-[var(--color-text-tertiary)] uppercase mb-1.5">Giờ đi</label>
             <input type="datetime-local" required value={form.departureTime} onChange={e => setForm(p => ({ ...p, departureTime: e.target.value }))} className="w-full px-3.5 py-2.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] text-sm text-[var(--color-text-primary)] outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100 transition-all" />
@@ -224,6 +264,12 @@ export default function FlightsPage() {
           <div>
             <label className="block text-[11px] font-semibold text-[var(--color-text-tertiary)] uppercase mb-1.5">Giá (VND)</label>
             <input type="number" required value={form.price} onChange={e => setForm(p => ({ ...p, price: e.target.value }))} placeholder="1500000" className="w-full px-3.5 py-2.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100 transition-all" />
+          </div>
+          <div>
+            <label className="block text-[11px] font-semibold text-[var(--color-text-tertiary)] uppercase mb-1.5">Hạng ghế</label>
+            <select required value={form.seatClass} onChange={e => setForm(p => ({ ...p, seatClass: e.target.value }))} className="w-full px-3.5 py-2.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] text-sm text-[var(--color-text-primary)] outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100 transition-all">
+              {seatClassOptions.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+            </select>
           </div>
           <div>
             <label className="block text-[11px] font-semibold text-[var(--color-text-tertiary)] uppercase mb-1.5">Số ghế</label>

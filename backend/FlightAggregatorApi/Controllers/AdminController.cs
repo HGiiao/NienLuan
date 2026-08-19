@@ -133,6 +133,25 @@ public class AdminController : ControllerBase
         return Ok(new { items, total, page, pageSize });
     }
 
+    [HttpPost("bookings/{id:long}/confirm")]
+    public async Task<IActionResult> ConfirmBooking(long id)
+    {
+        var booking = await _db.Bookings.FindAsync(id);
+        if (booking == null) return NotFound(new { message = "Đặt chỗ không tồn tại" });
+        if (booking.Status == "Confirmed")
+            return Ok(new { message = "Đặt chỗ đã được xác nhận", status = "Confirmed" });
+        if (booking.Status == "Cancelled")
+            return BadRequest(new { message = "Đặt chỗ đã bị hủy" });
+
+        booking.Status = "Confirmed";
+        booking.PaymentProvider = booking.PaymentProvider ?? "manual";
+        booking.TransactionId ??= $"TXN_{DateTime.UtcNow:yyyyMMddHHmmss}";
+        await _db.SaveChangesAsync();
+        _logger.LogInformation("Admin confirmed booking #{BookingId} (manual payment)", id);
+
+        return Ok(new { message = "Đã xác nhận thanh toán", status = "Confirmed" });
+    }
+
     [HttpGet("flights")]
     public async Task<IActionResult> GetFlights([FromQuery] string? search, [FromQuery] string? airline, [FromQuery] DateTime? dateFrom, [FromQuery] DateTime? dateTo, [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
     {
@@ -167,6 +186,9 @@ public class AdminController : ControllerBase
         if (string.IsNullOrWhiteSpace(request.AirlineCode) || string.IsNullOrWhiteSpace(request.DepartureLocation))
             return BadRequest(new { message = "Thông tin chuyến bay không hợp lệ" });
 
+        if (await _db.Flights.AnyAsync(f => f.AirlineCode.ToUpper() == request.AirlineCode.Trim().ToUpper()))
+            return Conflict(new { message = $"Mã chuyến bay \"{request.AirlineCode}\" đã tồn tại" });
+
         var flight = new Flight
         {
             AirlineCode = request.AirlineCode,
@@ -192,6 +214,9 @@ public class AdminController : ControllerBase
     {
         var flight = await _db.Flights.FindAsync(id);
         if (flight == null) return NotFound(new { message = "Chuyến bay không tồn tại" });
+
+        if (await _db.Flights.AnyAsync(f => f.Id != id && f.AirlineCode.ToUpper() == request.AirlineCode.Trim().ToUpper()))
+            return Conflict(new { message = $"Mã chuyến bay \"{request.AirlineCode}\" đã tồn tại" });
 
         flight.AirlineCode = request.AirlineCode;
         flight.AirlineName = request.AirlineName ?? request.AirlineCode;
@@ -248,6 +273,9 @@ public class AdminController : ControllerBase
         if (string.IsNullOrWhiteSpace(request.TrainCode) || string.IsNullOrWhiteSpace(request.DepartureLocation))
             return BadRequest(new { message = "Thông tin tàu không hợp lệ" });
 
+        if (await _db.Trains.AnyAsync(t => t.TrainCode.ToUpper() == request.TrainCode.Trim().ToUpper()))
+            return Conflict(new { message = $"Mã tàu \"{request.TrainCode}\" đã tồn tại" });
+
         var train = new Train
         {
             TrainCode = request.TrainCode,
@@ -273,6 +301,9 @@ public class AdminController : ControllerBase
     {
         var train = await _db.Trains.FindAsync(id);
         if (train == null) return NotFound(new { message = "Tàu không tồn tại" });
+
+        if (await _db.Trains.AnyAsync(t => t.Id != id && t.TrainCode.ToUpper() == request.TrainCode.Trim().ToUpper()))
+            return Conflict(new { message = $"Mã tàu \"{request.TrainCode}\" đã tồn tại" });
 
         train.TrainCode = request.TrainCode;
         train.TrainName = request.TrainName ?? request.TrainCode;
@@ -584,6 +615,9 @@ public class AdminController : ControllerBase
         if (string.IsNullOrWhiteSpace(request.BusCode) || string.IsNullOrWhiteSpace(request.DepartureLocation))
             return BadRequest(new { message = "Thông tin xe khách không hợp lệ" });
 
+        if (await _db.Buses.AnyAsync(b => b.BusCode.ToUpper() == request.BusCode.Trim().ToUpper()))
+            return Conflict(new { message = $"Mã chuyến xe \"{request.BusCode}\" đã tồn tại" });
+
         var bus = new Bus
         {
             BusCode = request.BusCode,
@@ -611,6 +645,9 @@ public class AdminController : ControllerBase
     {
         var bus = await _db.Buses.FindAsync(id);
         if (bus == null) return NotFound(new { message = "Chuyến xe không tồn tại" });
+
+        if (await _db.Buses.AnyAsync(b => b.Id != id && b.BusCode.ToUpper() == request.BusCode.Trim().ToUpper()))
+            return Conflict(new { message = $"Mã chuyến xe \"{request.BusCode}\" đã tồn tại" });
 
         bus.BusCode = request.BusCode;
         bus.BusCompany = request.BusCompany ?? "";

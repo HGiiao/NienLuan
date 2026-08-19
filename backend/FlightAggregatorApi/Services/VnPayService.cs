@@ -110,7 +110,7 @@ public class VnPayService
         {
             _logger.LogWarning("VNPay signature mismatch. Expected: {Expected}, Got: {Actual}",
                 computedHash, incomingHash);
-            return new VnPayVerifyResult { IsValid = false, Message = "Chữ ký không hợp lệ" };
+            return new VnPayVerifyResult { IsValid = false, Message = "Chữ ký không hợp lệ", SignatureValid = false };
         }
 
         var responseCode = queryParams.GetValueOrDefault("vnp_ResponseCode", "");
@@ -128,6 +128,7 @@ public class VnPayService
             TxnRef = txnRef,
             Amount = long.TryParse(amount, out var a) ? a / 100m : 0,
             ResponseCode = responseCode,
+            SignatureValid = true,
         };
     }
 
@@ -144,6 +145,7 @@ public class VnPayService
 public class VnPayVerifyResult
 {
     public bool IsValid { get; set; }
+    public bool SignatureValid { get; set; }
     public string Message { get; set; } = string.Empty;
     public string TransactionNo { get; set; } = string.Empty;
     public string TxnRef { get; set; } = string.Empty;

@@ -3,11 +3,24 @@ import { motion } from 'framer-motion'
 import { Bus, Plus, Edit3, Trash2, Upload, Download } from 'lucide-react'
 import DataTable from '../DataTable'
 import ModalForm from '../ModalForm'
+import LocationSelect from '../LocationSelect'
 import { useAdmin } from '../AdminContext'
 import { getAdminBuses, createAdminBus, updateAdminBus, deleteAdminBus, importAdminBuses, exportAdminBuses } from '../../services/api'
 
 const coachOptions = ['Giường nằm', 'Ghế ngồi', 'Limousine', 'VIP']
-const companyOptions = ['Mai Linh', 'Kumho Samco', 'Hải Âu', 'Sao Việt', 'Phương Trang']
+const companyOptions = [
+  { code: 'ML', name: 'Mai Linh' },
+  { code: 'KH', name: 'Kumho Samco' },
+  { code: 'HA', name: 'Hải Âu' },
+  { code: 'SV', name: 'Sao Việt' },
+  { code: 'PT', name: 'Phương Trang' },
+]
+
+const busPointOptions = [
+  'Bến xe Giáp Bát', 'Bến xe Mỹ Đình', 'Bến xe Nước Ngầm', 'Bến xe Lương Yên', 'Bến xe Gia Lâm',
+  'Bến xe Miền Đông', 'Bến xe Miền Tây', 'Bến xe An Sương',
+  'Bến xe Trung tâm Đà Nẵng', 'Bến xe Trung tâm Nha Trang', 'Bến xe Phú Bài', 'Bến xe Vinh',
+]
 
 const coachLabels = {
   'Giường nằm': 'bg-[var(--color-success)]/10 text-[var(--color-success)]',
@@ -105,8 +118,26 @@ export default function BusesPage() {
     })
   }
 
+  const handleCompanyChange = (name) => {
+    const company = companyOptions.find(c => c.name === name)
+    setForm(p => ({ ...p, busCompany: name, busCode: p.busCode || (company ? company.code : '') }))
+  }
+
+  const generateBusCode = () => {
+    const prefix = companyOptions.find(c => c.name === form.busCompany)?.code || 'XE'
+    let code = ''
+    for (let i = 0; i < 20; i++) {
+      code = `${prefix}${String(Math.floor(100 + Math.random() * 900))}`
+      if (!data.some(r => r.id !== editing?.id && r.busCode === code)) break
+    }
+    setForm(p => ({ ...p, busCode: code }))
+  }
+
+  const codeDuplicate = !!form.busCode && data.some(r => r.id !== editing?.id && r.busCode === form.busCode.trim())
+
   const handleSubmit = async (e) => {
     e.preventDefault()
+    if (codeDuplicate) { toast(`Mã chuyến xe "${form.busCode}" đã tồn tại`, 'error'); return }
     setSaving(true)
     try {
       const payload = { ...form, price: parseFloat(form.price), seats: parseInt(form.seats) }
@@ -180,7 +211,7 @@ export default function BusesPage() {
         searchValue={search}
         searchPlaceholder="Tìm mã xe, nhà xe, tuyến..."
         filters={[
-          { key: 'company', label: 'Nhà xe', type: 'select', value: companyFilter, onChange: v => { setCompanyFilter(v); setPage(1) }, options: companyOptions.map(c => ({ label: c, value: c })) },
+          { key: 'company', label: 'Nhà xe', type: 'select', value: companyFilter, onChange: v => { setCompanyFilter(v); setPage(1) }, options: companyOptions.map(c => ({ label: c.name, value: c.name })) },
         ]}
         emptyIcon={Bus}
         emptyTitle="Không có chuyến xe nào"
@@ -205,23 +236,21 @@ export default function BusesPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className={labelCls}>Mã chuyến xe</label>
-            <input required value={form.busCode} onChange={e => setForm(p => ({ ...p, busCode: e.target.value }))} placeholder="ML001" className={inputCls} />
+            <div className="flex gap-2">
+              <input required value={form.busCode} onChange={e => setForm(p => ({ ...p, busCode: e.target.value }))} placeholder="ML001" className={`${inputCls} flex-1`} />
+              <button type="button" onClick={generateBusCode} className="px-3 rounded-xl text-xs font-semibold text-primary-600 bg-primary-50 hover:bg-primary-100 transition-all whitespace-nowrap">Tự sinh</button>
+            </div>
+            {codeDuplicate && <p className="mt-1.5 text-[11px] font-medium text-[var(--color-danger)]">Mã này đã tồn tại, vui lòng đổi mã.</p>}
           </div>
           <div>
             <label className={labelCls}>Nhà xe</label>
-            <select required value={form.busCompany} onChange={e => setForm(p => ({ ...p, busCompany: e.target.value }))} className={inputCls}>
+            <select required value={form.busCompany} onChange={e => handleCompanyChange(e.target.value)} className={inputCls}>
               <option value="">Chọn nhà xe</option>
-              {companyOptions.map(c => <option key={c} value={c}>{c}</option>)}
+              {companyOptions.map(c => <option key={c.code} value={c.name}>{c.name}</option>)}
             </select>
           </div>
-          <div>
-            <label className={labelCls}>Đi</label>
-            <input required value={form.departureLocation} onChange={e => setForm(p => ({ ...p, departureLocation: e.target.value }))} placeholder="HAN" className={inputCls} />
-          </div>
-          <div>
-            <label className={labelCls}>Đến</label>
-            <input required value={form.arrivalLocation} onChange={e => setForm(p => ({ ...p, arrivalLocation: e.target.value }))} placeholder="SGN" className={inputCls} />
-          </div>
+          <LocationSelect label="Đi" value={form.departureLocation} onChange={v => setForm(p => ({ ...p, departureLocation: v }))} placeholder="Chọn điểm đi" />
+          <LocationSelect label="Đến" value={form.arrivalLocation} onChange={v => setForm(p => ({ ...p, arrivalLocation: v }))} placeholder="Chọn điểm đến" />
           <div>
             <label className={labelCls}>Giờ đi</label>
             <input type="datetime-local" required value={form.departureTime} onChange={e => setForm(p => ({ ...p, departureTime: e.target.value }))} className={inputCls} />
@@ -246,11 +275,17 @@ export default function BusesPage() {
           </div>
           <div>
             <label className={labelCls}>Điểm đón</label>
-            <input value={form.pickupPoint} onChange={e => setForm(p => ({ ...p, pickupPoint: e.target.value }))} placeholder="Bến xe Giáp Bát" className={inputCls} />
+            <select value={form.pickupPoint} onChange={e => setForm(p => ({ ...p, pickupPoint: e.target.value }))} className={inputCls}>
+              <option value="">Chọn điểm đón</option>
+              {busPointOptions.map(o => <option key={o} value={o}>{o}</option>)}
+            </select>
           </div>
           <div>
             <label className={labelCls}>Điểm trả</label>
-            <input value={form.dropoffPoint} onChange={e => setForm(p => ({ ...p, dropoffPoint: e.target.value }))} placeholder="Bến xe Miền Đông" className={inputCls} />
+            <select value={form.dropoffPoint} onChange={e => setForm(p => ({ ...p, dropoffPoint: e.target.value }))} className={inputCls}>
+              <option value="">Chọn điểm trả</option>
+              {busPointOptions.map(o => <option key={o} value={o}>{o}</option>)}
+            </select>
           </div>
         </div>
       </ModalForm>

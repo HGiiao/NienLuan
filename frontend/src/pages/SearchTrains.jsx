@@ -146,8 +146,8 @@ export default function SearchTrains() {
   }
 
   const filteredItems = useMemo(() => {
-    if (!buyNowFilter || !prediction || prediction.recommendation !== 'buy_now') return items
-    return items
+    if (!buyNowFilter) return items
+    return prediction?.recommendation === 'buy_now' ? items : []
   }, [items, buyNowFilter, prediction])
 
   const handleWatch = (train) => {
@@ -373,8 +373,8 @@ export default function SearchTrains() {
                 <TrainCard train={t} onBook={(train) => setBookingItem(train)} onDetail={(train) => setDetailItem(train)} onWatch={handleWatch} watched={watchedIds.has(t.id)}  prediction={prediction} />
               </motion.div>
             ))}
-            {items.length === 0 && hasSearched && (
-              <EmptyState icon={Train} title="Không tìm thấy chuyến tàu nào" desc="Thử thay đổi điểm đi, điểm đến hoặc ngày khởi hành" />
+            {filteredItems.length === 0 && hasSearched && (
+              <EmptyState icon={Train} title={buyNowFilter ? 'Không có chuyến nào nên mua ngay theo dự đoán giá' : 'Không tìm thấy chuyến tàu nào'} desc="Thử thay đổi điểm đi, điểm đến hoặc ngày khởi hành" />
             )}
             {items.length === 0 && !hasSearched && (
               <EmptyState icon={Train} title="Nhập điểm đi và điểm đến để tìm chuyến tàu" />

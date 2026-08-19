@@ -25,6 +25,7 @@ export default function ReviewSection({ flightId, trainId, busId, bookingId }) {
   const [form, setForm] = useState({ rating: 5, comment: '' })
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState('')
+  const [error, setError] = useState('')
 
   useEffect(() => {
     const load = async () => {
@@ -40,12 +41,13 @@ export default function ReviewSection({ flightId, trainId, busId, bookingId }) {
       } catch {} finally { setLoading(false) }
     }
     load()
-  }, [flightId, trainId])
+  }, [flightId, trainId, busId])
 
   const handleSubmit = async () => {
     if (!form.comment.trim()) return
     const stored = (() => { try { return JSON.parse(sessionStorage.getItem('user')) } catch { return null } })()
     setSubmitting(true)
+    setError('')
     try {
       const res = await createReview({
         flightId: flightId || null,
@@ -62,7 +64,9 @@ export default function ReviewSection({ flightId, trainId, busId, bookingId }) {
       setShowForm(false)
       setSuccess('Cảm ơn bạn đã đánh giá!')
       setTimeout(() => setSuccess(''), 3000)
-    } catch {} finally { setSubmitting(false) }
+    } catch (err) {
+      setError(err.response?.data?.message || 'Không thể gửi đánh giá, vui lòng thử lại')
+    } finally { setSubmitting(false) }
   }
 
   return (
@@ -93,6 +97,13 @@ export default function ReviewSection({ flightId, trainId, busId, bookingId }) {
         <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
           className="flex items-center gap-2 text-sm text-emerald-600 bg-emerald-50 px-4 py-3 rounded-xl border border-emerald-200">
           <ThumbsUp className="w-4 h-4" />{success}
+        </motion.div>
+      )}
+
+      {error && (
+        <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
+          className="flex items-center gap-2 text-sm text-[var(--color-danger)] bg-[var(--color-danger)]/10 px-4 py-3 rounded-xl border border-[var(--color-danger)]/20">
+          <X className="w-4 h-4" />{error}
         </motion.div>
       )}
 

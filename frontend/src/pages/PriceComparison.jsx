@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   ArrowLeftRight, Plane, Train, Bus, CalendarDays, Trophy, BarChart4, ArrowRight, ArrowLeft,
   TrendingUp, DollarSign, BarChart3, ArrowUp, ArrowDown, Activity, Zap, Award, Sparkles, Search, ChevronDown,
-  WifiOff, RefreshCcw, Bell
+  WifiOff, RefreshCcw, Bell, AlertCircle
 } from 'lucide-react'
 import LocationInput from '../components/LocationInput'
 import CommunityTips from '../components/CommunityTips'
@@ -439,6 +439,8 @@ export default function PriceComparison() {
   const [prediction, setPrediction] = useState(null)
   const [compareLoading, setCompareLoading] = useState(false)
   const [trendLoading, setTrendLoading] = useState(false)
+  const [compareError, setCompareError] = useState('')
+  const [trendError, setTrendError] = useState('')
   const [lastUpdated, setLastUpdated] = useState(null)
   const [realtimeEnabled, setRealtimeEnabled] = useState(true)
   const [nextTick, setNextTick] = useState(30)
@@ -451,6 +453,7 @@ export default function PriceComparison() {
   const fetchCompare = useCallback(async (q) => {
     if (!q.from || !q.to) return
     setCompareLoading(true)
+    setCompareError('')
     try {
       const params = { from: q.from, to: q.to, date: q.date || undefined }
       // Truyền email để backend áp dụng đúng quyền lợi gói (Free chỉ so sánh 1 hãng)
@@ -462,12 +465,17 @@ export default function PriceComparison() {
       }
       const res = await compareRoutes(params)
       setCompareData(res.data)
-    } catch { setCompareData(null) } finally { setCompareLoading(false) }
+      setCompareError('')
+    } catch {
+      setCompareData(null)
+      setCompareError('Không thể tải dữ liệu so sánh. Vui lòng thử lại.')
+    } finally { setCompareLoading(false) }
   }, [])
 
   const fetchTrends = useCallback(async (q, mode = trendMode) => {
     if (!q.from || !q.to) return
     setTrendLoading(true)
+    setTrendError('')
     try {
       const res = await getPriceTrends({ from: q.from, to: q.to, days: q.days, mode })
       const mapped = res.data.map(d => ({
@@ -479,7 +487,11 @@ export default function PriceComparison() {
       }))
       setTrendData(mapped)
       setLastUpdated(new Date())
-    } catch { setTrendData([]) } finally { setTrendLoading(false) }
+      setTrendError('')
+    } catch {
+      setTrendData([])
+      setTrendError('Không thể tải dữ liệu xu hướng. Vui lòng thử lại.')
+    } finally { setTrendLoading(false) }
   }, [trendMode])
 
   const changeTrendMode = (mode) => {
@@ -566,7 +578,7 @@ export default function PriceComparison() {
     last: trendData[trendData.length - 1]?.avgPrice || 0,
   } : null
   const trend = trendStats ? (trendStats.last >= trendStats.first ? 'up' : 'down') : null
-  const change = trendStats ? Math.abs(((trendStats.last - trendStats.first) / trendStats.first) * 100) : 0
+  const change = trendStats && trendStats.first > 0 ? Math.abs(((trendStats.last - trendStats.first) / trendStats.first) * 100) : 0
 
   const liveDelta = useMemo(() => {
     if (!lastUpdate || !trendStats?.avg || !trendStats.avg) return null
@@ -784,7 +796,17 @@ export default function PriceComparison() {
         </div>
       )}
 
-      {!compareLoading && !trendLoading && !compareData && trendData.length === 0 && (
+      {(compareError || trendError) && !compareLoading && !trendLoading && !compareData && trendData.length === 0 && (
+        <div className="flex flex-col items-center py-16">
+          <div className="w-16 h-16 rounded-2xl bg-[var(--color-danger)]/10 border border-[var(--color-danger)]/20 flex items-center justify-center mb-4">
+            <AlertCircle className="w-7 h-7 text-[var(--color-danger)]" />
+          </div>
+          <p className="text-sm font-semibold text-[var(--color-text-secondary)] mb-1">{compareError || trendError}</p>
+          <button onClick={handleSearch} className="mt-3 text-sm text-primary-500 font-semibold hover:underline">Thử lại</button>
+        </div>
+      )}
+
+      {!compareLoading && !trendLoading && !compareData && trendData.length === 0 && !compareError && !trendError && (
         <div className="flex flex-col items-center py-16">
           <div className="w-16 h-16 rounded-2xl bg-[var(--color-bg)] border border-[var(--color-border)] flex items-center justify-center mb-4">
             <BarChart4 className="w-7 h-7 text-[var(--color-text-tertiary)]" />
@@ -1048,6 +1070,11 @@ export default function PriceComparison() {
                       <div className="flex flex-col items-center gap-3">
                         <div className="w-8 h-8 border-3 border-primary-500 border-t-transparent rounded-full animate-spin" />
                         <p className="text-sm text-[var(--color-text-tertiary)]">Đang tải xu hướng giá...</p>
+                      </div>
+                    ) : trendError ? (
+                      <div className="flex flex-col items-center gap-3">
+                        <p className="text-sm text-[var(--color-danger)]">{trendError}</p>
+                        <button onClick={() => fetchTrends(query, trendMode)} className="text-sm text-primary-500 font-semibold hover:underline">Thử lại</button>
                       </div>
                     ) : (
                       <p className="text-sm text-[var(--color-text-tertiary)]">Chưa có dữ liệu xu hướng cho tuyến này.</p>

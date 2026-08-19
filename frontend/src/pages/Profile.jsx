@@ -108,7 +108,7 @@ export default function Profile() {
     name: profile?.fullName || (isClerkAuth ? clerkUser?.fullName : stored?.fullName) || 'Người dùng',
     email: profile?.email || clerkEmail || stored?.email || '',
     phone: profile?.phone || (isClerkAuth ? clerkUser?.primaryPhoneNumber?.phoneNumber || '' : stored?.phone || '') || '',
-    verified: profile?.isEmailVerified ?? true,
+    verified: profile?.isEmailVerified ?? false,
     joined: profile?.createdAt ? new Date(profile.createdAt).toLocaleDateString('vi-VN') : '—',
   }
 

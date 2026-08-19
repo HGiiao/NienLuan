@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { CreditCard, Wallet, Building2, CheckCircle, XCircle, Crown, ArrowRight, Home, RefreshCw, Shield, Ban, Loader, Check } from 'lucide-react'
+import { CreditCard, Wallet, Building2, CheckCircle, XCircle, Crown, ArrowRight, Home, RefreshCw, Shield, Loader, Check } from 'lucide-react'
 import { subscribeToPlan } from '../services/api'
 import { formatCurrencyVnd } from '../utils/formatters'
 import BankTransferPanel from '../components/BankTransferPanel'
@@ -42,7 +42,7 @@ export default function SubscriptionPaymentPage() {
 
   const plan = location.state?.plan || null
   const billing = location.state?.billing || 'monthly'
-  const price = location.state?.price || 0
+  const price = location.state?.price ?? (plan ? (billing === 'yearly' ? plan.yearlyPrice : plan.monthlyPrice) : 0)
 
   const [status, setStatus] = useState('idle')
   const [error, setError] = useState('')
@@ -93,14 +93,20 @@ export default function SubscriptionPaymentPage() {
     setStatus('processing')
     setError('')
     try {
-      await subscribeToPlan({
+      const res = await subscribeToPlan({
         userId: localUser.id,
         planId: Number(planId),
         billingCycle: billing,
         paymentMethod: selectedMethod,
         paymentProvider: selectedMethod === 'e_wallet' ? walletProvider : null,
       })
-      setTransactionId(`SUB_${Date.now()}_${Math.random().toString(36).slice(2, 6).toUpperCase()}`)
+      if (res.data?.success === false) {
+        setError(res.data.message || 'Giao dịch không thể hoàn tất. Vui lòng thử lại.')
+        setStatus('failed')
+        return
+      }
+      const subId = res.data?.subscription?.id
+      setTransactionId(subId ? `SUB_${subId}` : '')
       setStatus('success')
     } catch (err) {
       setError(err.response?.data?.message || 'Giao dịch không thể hoàn tất. Vui lòng thử lại.')
@@ -116,11 +122,6 @@ export default function SubscriptionPaymentPage() {
       animate={{ opacity: 1 }}
       className="max-w-3xl mx-auto px-4 py-6 md:py-10"
     >
-      <div className="flex items-center justify-center gap-1.5 mb-4 text-xs font-semibold text-primary-400 bg-primary-500/10 px-3 py-1.5 rounded-full border border-primary-500/20 w-fit mx-auto">
-        <Ban className="w-3.5 h-3.5" />
-        Cổng thanh toán Sandbox — giao dịch luôn thành công
-      </div>
-
       <AnimatePresence mode="wait">
         {status === 'idle' && (
           <motion.div key="idle" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>

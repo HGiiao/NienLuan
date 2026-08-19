@@ -85,6 +85,18 @@ public class ReviewsController : ControllerBase
         if (string.IsNullOrEmpty(request.Comment))
             return BadRequest("Comment is required");
 
+        var emailKey = request.Email?.Trim().ToUpperInvariant() ?? "";
+        if (emailKey.Length > 0)
+        {
+            var existing = await _db.Reviews.AnyAsync(r =>
+                r.Email.ToUpper() == emailKey &&
+                ((request.FlightId.HasValue && r.FlightId == request.FlightId) ||
+                 (request.TrainId.HasValue && r.TrainId == request.TrainId) ||
+                 (request.BusId.HasValue && r.BusId == request.BusId)));
+            if (existing)
+                return Conflict(new { message = "Bạn đã đánh giá chuyến này rồi" });
+        }
+
         var review = new Review
         {
             FlightId = request.FlightId,

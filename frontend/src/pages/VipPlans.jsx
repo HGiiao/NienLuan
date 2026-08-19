@@ -51,6 +51,7 @@ export default function VipPlans() {
   const [currentSub, setCurrentSub] = useState(null)
   const [billing, setBilling] = useState('monthly')
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
 
   const user = JSON.parse(sessionStorage.getItem('user') || 'null')
 
@@ -58,7 +59,8 @@ export default function VipPlans() {
     Promise.all([
       getSubscriptionPlans().then(r => setPlans(r.data)),
       user?.id ? getUserSubscription(user.id).then(r => setCurrentSub(r.data)) : Promise.resolve(),
-    ]).finally(() => setLoading(false))
+    ]).catch(() => setLoadError('Không thể tải danh sách gói VIP. Vui lòng thử lại.'))
+      .finally(() => setLoading(false))
   }, [user?.id])
 
   const handleSubscribe = (planId, planName, price) => {
@@ -131,6 +133,15 @@ export default function VipPlans() {
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {[1,2,3].map(i => <div key={i} className="h-80 bg-[var(--color-border)]/20 rounded-2xl animate-pulse" />)}
+        </div>
+      ) : loadError ? (
+        <div className="flex flex-col items-center gap-2 py-10 text-center">
+          <p className="text-sm font-semibold text-[var(--color-danger)]">{loadError}</p>
+          <button onClick={() => { setLoadError(''); setLoading(true); Promise.all([
+            getSubscriptionPlans().then(r => setPlans(r.data)),
+            user?.id ? getUserSubscription(user.id).then(r => setCurrentSub(r.data)) : Promise.resolve(),
+          ]).catch(() => setLoadError('Không thể tải danh sách gói VIP. Vui lòng thử lại.'))
+            .finally(() => setLoading(false)) }} className="text-sm text-primary-500 font-semibold hover:underline">Thử lại</button>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

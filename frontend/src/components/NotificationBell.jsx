@@ -55,7 +55,12 @@ export default function NotificationBell() {
   if (!email) return null
 
   const handleMarkRead = async (id) => {
-    try { await markNotificationRead(id); setNotifications(p => p.map(n => n.id === id ? { ...n, isRead: true } : n)); setUnread(p => Math.max(0, p - 1)) } catch {}
+    const wasUnread = !notifications.find(n => n.id === id)?.isRead
+    try {
+      await markNotificationRead(id)
+      setNotifications(p => p.map(n => n.id === id ? { ...n, isRead: true } : n))
+      if (wasUnread) setUnread(p => Math.max(0, p - 1))
+    } catch {}
   }
 
   const handleMarkAllRead = async () => {

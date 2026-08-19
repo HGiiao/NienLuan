@@ -345,8 +345,8 @@ export default function BookingPage() {
         specialRequests: form.specialRequests || null,
       })
       navigate(`/payment/${res.data.id}`, { state: { booking: res.data, item, type, walletProvider } })
-    } catch {
-      setError('Đặt vé thất bại. Vui lòng thử lại.')
+    } catch (err) {
+      setError(err.response?.data?.message || 'Đặt vé thất bại. Vui lòng thử lại.')
     } finally {
       setLoading(false)
     }

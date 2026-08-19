@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useUser } from '@clerk/clerk-react'
 import { motion } from 'framer-motion'
-import { CheckCircle, Plane, Train, User, Mail, Phone, Users, CalendarDays, CreditCard, ArrowRight, Ticket, Home } from 'lucide-react'
+import { CheckCircle, Plane, Train, Bus, User, Mail, Phone, Users, CalendarDays, CreditCard, ArrowRight, Ticket, Home } from 'lucide-react'
 import { getBooking } from '../services/api'
 import { formatCurrencyVnd } from '../utils/formatters'
 
@@ -68,8 +68,21 @@ export default function BookingConfirmation() {
     )
   }
 
-  const item = booking.flight || booking.train
-  const type = booking.flight ? 'flight' : 'train'
+  const segments = booking.segments || []
+  const isMulti = segments.length > 0
+  const item = booking.flight || booking.train || booking.bus
+  const type = booking.flight ? 'flight' : booking.train ? 'train' : booking.bus ? 'bus' : null
+  const routeCode = isMulti
+    ? segments.map(s => s.code).filter(Boolean).join(' + ')
+    : type === 'flight'
+      ? `${item?.airlineCode}${item?.id}`
+      : item?.trainCode || item?.busCode || '—'
+  const routeName = isMulti
+    ? 'Lộ trình kết hợp'
+    : item?.airlineName || item?.trainName || item?.busCompany || '—'
+  const fromCode = isMulti ? segments[0]?.departureLocation : item?.departureLocation
+  const toCode = isMulti ? segments[segments.length - 1]?.arrivalLocation : item?.arrivalLocation
+  const depTime = isMulti ? segments[0]?.departureTime : item?.departureTime
 
   return (
     <motion.div
@@ -86,8 +99,12 @@ export default function BookingConfirmation() {
         <CheckCircle className="w-10 h-10 text-[var(--color-success)]" />
       </motion.div>
 
-      <h1 className="text-2xl md:text-3xl font-bold text-center text-[var(--color-text-primary)] mb-1">Đặt vé thành công!</h1>
-      <p className="text-center text-[var(--color-text-secondary)] mb-6">Thông tin đặt chỗ đã được ghi nhận</p>
+      <h1 className="text-2xl md:text-3xl font-bold text-center text-[var(--color-text-primary)] mb-1">
+        {booking.status === 'Cancelled' ? 'Đặt chỗ đã hủy' : 'Đặt vé thành công!'}
+      </h1>
+      <p className="text-center text-[var(--color-text-secondary)] mb-6">
+        {booking.status === 'Cancelled' ? 'Đặt chỗ này đã bị hủy và không còn hiệu lực' : 'Thông tin đặt chỗ đã được ghi nhận'}
+      </p>
 
       <motion.div
         initial={{ y: 20, opacity: 0 }}
@@ -103,20 +120,18 @@ export default function BookingConfirmation() {
         <div className="h-px bg-[var(--color-border)]" />
 
         <div className="flex items-center gap-3">
-          <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${
-            type === 'flight'
-              ? 'bg-primary-50 text-primary-500'
-              : 'bg-primary-50 text-primary-500'
-          }`}>
-            {type === 'flight' ? <Plane className="w-5 h-5" /> : <Train className="w-5 h-5" />}
+          <div className="w-11 h-11 rounded-xl flex items-center justify-center bg-primary-50 text-primary-500">
+            {type === 'flight' ? <Plane className="w-5 h-5" /> : type === 'bus' ? <Bus className="w-5 h-5" /> : <Train className="w-5 h-5" />}
           </div>
           <div>
-            <p className="font-semibold text-[var(--color-text-primary)]">
-              {type === 'flight' ? `${item.airlineCode}${item.id}` : item.trainCode}
-            </p>
+            <p className="font-semibold text-[var(--color-text-primary)]">{routeCode}</p>
+            <p className="text-sm text-[var(--color-text-secondary)]">{routeName}</p>
             <p className="text-sm text-[var(--color-text-secondary)]">
-              {item.departureLocation} <ArrowRight className="w-3 h-3 inline" /> {item.arrivalLocation}
+              {fromCode} <ArrowRight className="w-3 h-3 inline" /> {toCode}
             </p>
+            {isMulti && (
+              <p className="text-[11px] text-[var(--color-text-tertiary)] mt-0.5">{segments.length} chặng trong lộ trình</p>
+            )}
           </div>
           <div className={`ml-auto px-3 py-1 rounded-lg border text-xs font-semibold ${statusConfig[booking.status]?.class || ''}`}>
             {statusConfig[booking.status]?.label || booking.status}
@@ -129,7 +144,7 @@ export default function BookingConfirmation() {
           <div className="flex items-center gap-3">
             <CalendarDays className="w-4 h-4 text-[var(--color-text-tertiary)] shrink-0" />
             <span className="text-sm text-[var(--color-text-secondary)]">
-              Ngày đi: <strong className="text-[var(--color-text-primary)]">{new Date(item.departureTime).toLocaleDateString('vi-VN')}</strong>
+              Ngày đi: <strong className="text-[var(--color-text-primary)]">{depTime ? new Date(depTime).toLocaleDateString('vi-VN') : '--'}</strong>
             </span>
           </div>
           <div className="flex items-center gap-3">

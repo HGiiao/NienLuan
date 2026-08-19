@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using FlightAggregatorApi.Data;
+using FlightAggregatorApi.Models;
 using FlightAggregatorApi.Services;
 
 namespace FlightAggregatorApi.Controllers;
@@ -31,24 +32,34 @@ public class PaymentsController : ControllerBase
     {
         var result = _vnPay.VerifyReturnQuery(queryParams);
 
-        if (result.IsValid && long.TryParse(result.TxnRef, out var bookingId))
+        if (result.SignatureValid && long.TryParse(result.TxnRef, out var bookingId))
         {
-            var booking = await _db.Bookings.FindAsync(bookingId);
+            var booking = await _db.Bookings
+                .Include(b => b.Segments)
+                .FirstOrDefaultAsync(b => b.Id == bookingId);
+
             if (booking != null && booking.Status == "Pending")
             {
-                booking.Status = "Confirmed";
-                booking.TransactionId = $"VNPAY_{result.TransactionNo}";
-                booking.VnPayTransactionNo = result.TransactionNo;
-                await _db.SaveChangesAsync();
-                _logger.LogInformation("VNPay return: Booking #{Id} confirmed via TXN {Txn}",
-                    bookingId, result.TransactionNo);
+                if (result.IsValid)
+                {
+                    booking.Status = "Confirmed";
+                    booking.TransactionId = $"VNPAY_{result.TransactionNo}";
+                    booking.VnPayTransactionNo = result.TransactionNo;
+                    await _db.SaveChangesAsync();
+                    _logger.LogInformation("VNPay return: Booking #{Id} confirmed via TXN {Txn}",
+                        bookingId, result.TransactionNo);
+                }
+                else
+                {
+                    await CancelUnpaidBookingAsync(booking);
+                }
             }
 
             return Ok(new
             {
-                success = true,
-                transactionId = booking?.TransactionId ?? $"VNPAY_{result.TransactionNo}",
-                message = "Thanh toán thành công",
+                success = result.IsValid,
+                transactionId = result.IsValid ? booking?.TransactionId ?? $"VNPAY_{result.TransactionNo}" : null,
+                message = result.IsValid ? "Thanh toán thành công" : (result.Message ?? "Thanh toán chưa hoàn tất"),
             });
         }
 
@@ -102,14 +113,23 @@ public class PaymentsController : ControllerBase
         // Parse orderId: "{bookingId}{3 digits suffix}"
         if (long.TryParse(new string(orderId.TakeWhile(char.IsDigit).ToArray()), out var bookingId))
         {
-            var booking = await _db.Bookings.FindAsync(bookingId);
-            if (booking != null && resultCode == "0" && booking.Status == "Pending")
+            var booking = await _db.Bookings
+                .Include(b => b.Segments)
+                .FirstOrDefaultAsync(b => b.Id == bookingId);
+            if (booking != null && booking.Status == "Pending")
             {
-                booking.Status = "Confirmed";
-                booking.TransactionId = $"MOMO_{transId}";
-                booking.PaymentProvider = "momo";
-                await _db.SaveChangesAsync();
-                _logger.LogInformation("MoMo return: Booking #{Id} confirmed via TXN {Txn}", bookingId, transId);
+                if (resultCode == "0")
+                {
+                    booking.Status = "Confirmed";
+                    booking.TransactionId = $"MOMO_{transId}";
+                    booking.PaymentProvider = "momo";
+                    await _db.SaveChangesAsync();
+                    _logger.LogInformation("MoMo return: Booking #{Id} confirmed via TXN {Txn}", bookingId, transId);
+                }
+                else
+                {
+                    await CancelUnpaidBookingAsync(booking);
+                }
             }
 
             return Ok(new { success = resultCode == "0", transactionId = $"MOMO_{transId}", message = resultCode == "0" ? "Thanh toán thành công" : "Thanh toán chưa hoàn tất" });
@@ -160,19 +180,28 @@ public class PaymentsController : ControllerBase
         if (!valid || result == null)
             return Ok(new { success = false, message = "Chữ ký không hợp lệ" });
 
-        if (result.Status == 1 && long.TryParse(result.AppUser, out var bookingId))
+        if (long.TryParse(result.AppUser, out var bookingId))
         {
-            var booking = await _db.Bookings.FindAsync(bookingId);
+            var booking = await _db.Bookings
+                .Include(b => b.Segments)
+                .FirstOrDefaultAsync(b => b.Id == bookingId);
             if (booking != null && booking.Status == "Pending")
             {
-                booking.Status = "Confirmed";
-                booking.TransactionId = $"ZALOPAY_{result.AppTransId}";
-                booking.PaymentProvider = "zalopay";
-                await _db.SaveChangesAsync();
-                _logger.LogInformation("ZaloPay return: Booking #{Id} confirmed via TXN {Txn}", bookingId, result.AppTransId);
+                if (result.Status == 1)
+                {
+                    booking.Status = "Confirmed";
+                    booking.TransactionId = $"ZALOPAY_{result.AppTransId}";
+                    booking.PaymentProvider = "zalopay";
+                    await _db.SaveChangesAsync();
+                    _logger.LogInformation("ZaloPay return: Booking #{Id} confirmed via TXN {Txn}", bookingId, result.AppTransId);
+                }
+                else
+                {
+                    await CancelUnpaidBookingAsync(booking);
+                }
             }
 
-            return Ok(new { success = true, transactionId = $"ZALOPAY_{result.AppTransId}", message = "Thanh toán thành công" });
+            return Ok(new { success = result.Status == 1, transactionId = $"ZALOPAY_{result.AppTransId}", message = result.Status == 1 ? "Thanh toán thành công" : "Thanh toán chưa hoàn tất" });
         }
 
         return Ok(new { success = false, message = "Thanh toán chưa hoàn tất" });
@@ -263,12 +292,21 @@ public class PaymentsController : ControllerBase
             });
         }
 
+        var isCancelled = status == "CANCELLED" || code == "cancel";
+
+        if (isCancelled && orderCode > 0)
+        {
+            var booking = await _db.Bookings
+                .Include(b => b.Segments)
+                .FirstOrDefaultAsync(b => b.PayOSOrderCode == orderCode || b.Id == (long)orderCode);
+            if (booking != null && booking.Status == "Pending")
+                await CancelUnpaidBookingAsync(booking);
+        }
+
         return Ok(new
         {
             success = false,
-            message = status == "CANCELLED" || code == "cancel"
-                ? "Đơn hàng đã bị hủy"
-                : "Thanh toán chưa hoàn tất",
+            message = isCancelled ? "Đơn hàng đã bị hủy" : "Thanh toán chưa hoàn tất",
         });
     }
 
@@ -306,6 +344,44 @@ public class PaymentsController : ControllerBase
         {
             _logger.LogError(ex, "PayOS IPN processing error");
             return Ok(new { error = -1, message = "Internal Error" });
+        }
+    }
+
+    private async Task CancelUnpaidBookingAsync(Booking booking)
+    {
+        if (booking.Segments.Count > 0)
+        {
+            foreach (var seg in booking.Segments)
+                await RestoreSeatAsync(seg.Mode, seg.ItemId, booking.Passengers);
+        }
+        else
+        {
+            if (booking.FlightId != null) await RestoreSeatAsync("flight", booking.FlightId.Value, booking.Passengers);
+            if (booking.TrainId != null) await RestoreSeatAsync("train", booking.TrainId.Value, booking.Passengers);
+            if (booking.BusId != null) await RestoreSeatAsync("bus", booking.BusId.Value, booking.Passengers);
+        }
+        booking.Status = "Cancelled";
+        booking.RefundAmount = 0;
+        await _db.SaveChangesAsync();
+        _logger.LogInformation("Booking #{Id} auto-cancelled — payment failed/abandoned", booking.Id);
+    }
+
+    private async Task RestoreSeatAsync(string mode, long itemId, int passengers)
+    {
+        switch ((mode ?? "").ToLowerInvariant())
+        {
+            case "flight":
+                var f = await _db.Flights.FindAsync(itemId);
+                if (f != null) f.Seats += passengers;
+                break;
+            case "train":
+                var t = await _db.Trains.FindAsync(itemId);
+                if (t != null) t.Seats += passengers;
+                break;
+            case "bus":
+                var b = await _db.Buses.FindAsync(itemId);
+                if (b != null) b.Seats += passengers;
+                break;
         }
     }
 }
