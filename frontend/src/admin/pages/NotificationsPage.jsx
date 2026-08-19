@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
-import { Megaphone, Send, CheckCircle2, AlertCircle, Link2, Bell, Sparkles, BadgePercent, Wrench } from 'lucide-react'
+import { Megaphone, Send, CheckCircle2, AlertCircle, Link2, Bell, Sparkles, BadgePercent, Wrench, ChevronDown } from 'lucide-react'
 import { useAdmin } from '../AdminContext'
 import { broadcastNotification } from '../../services/api'
 
@@ -8,6 +8,18 @@ const typeOptions = [
   { value: 'announcement', label: 'Thông báo chung', desc: 'Khuyến mãi, tính năng mới...', icon: Sparkles },
   { value: 'promo', label: 'Khuyến mãi', desc: 'Giảm giá, sự kiện đặc biệt', icon: BadgePercent },
   { value: 'maintenance', label: 'Bảo trì', desc: 'Bảo trì hệ thống, tạm ngừng dịch vụ', icon: Wrench },
+]
+
+const linkOptions = [
+  { path: '/', label: 'Trang chủ' },
+  { path: '/flights', label: 'Tìm chuyến bay' },
+  { path: '/trains', label: 'Vé tàu hỏa' },
+  { path: '/buses', label: 'Vé xe khách' },
+  { path: '/compare', label: 'So sánh giá' },
+  { path: '/optimal-route', label: 'Tìm lộ trình tối ưu' },
+  { path: '/bookings', label: 'Vé của tôi' },
+  { path: '/vip', label: 'Gói VIP' },
+  { path: '/profile', label: 'Trang cá nhân' },
 ]
 
 export default function NotificationsPage() {
@@ -19,6 +31,22 @@ export default function NotificationsPage() {
   const [sending, setSending] = useState(false)
   const [result, setResult] = useState(null)
   const [error, setError] = useState('')
+  const [linkOpen, setLinkOpen] = useState(false)
+  const linkWrapRef = useRef(null)
+
+  const filteredLinks = link.trim().startsWith('/')
+    ? linkOptions.filter(o => o.path.includes(link.trim().toLowerCase()))
+    : linkOptions
+
+  useEffect(() => {
+    const onClickOutside = (e) => {
+      if (linkWrapRef.current && !linkWrapRef.current.contains(e.target)) setLinkOpen(false)
+    }
+    const onKey = (e) => { if (e.key === 'Escape') setLinkOpen(false) }
+    document.addEventListener('mousedown', onClickOutside)
+    document.addEventListener('keydown', onKey)
+    return () => { document.removeEventListener('mousedown', onClickOutside); document.removeEventListener('keydown', onKey) }
+  }, [])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -81,9 +109,44 @@ export default function NotificationsPage() {
 
         <div>
           <label className={labelCls}>Đường dẫn (tùy chọn — bấm thông báo sẽ mở trang này)</label>
-          <div className="relative">
+          <div className="relative" ref={linkWrapRef}>
             <Link2 className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-text-tertiary)]" />
-            <input value={link} onChange={e => setLink(e.target.value)} placeholder="/flights hoặc /compare" className={`${inputCls} pl-10`} />
+            <input
+              value={link}
+              onChange={e => { setLink(e.target.value); setLinkOpen(true) }}
+              onFocus={() => setLinkOpen(true)}
+              placeholder="/flights hoặc /compare"
+              className={`${inputCls} pl-10 pr-9`}
+            />
+            <button
+              type="button"
+              onClick={() => setLinkOpen(o => !o)}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded-md text-[var(--color-text-tertiary)] hover:text-primary-500 hover:bg-primary-500/10 transition-colors"
+              aria-label="Chọn đường dẫn"
+            >
+              <ChevronDown className={`w-4 h-4 transition-transform ${linkOpen ? 'rotate-180' : ''}`} />
+            </button>
+
+            {linkOpen && (
+              <div className="absolute z-20 mt-2 w-full max-h-64 overflow-auto rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-card)] shadow-lg shadow-black/5">
+                <p className="px-3.5 pt-3 pb-1.5 text-[10px] font-semibold uppercase text-[var(--color-text-tertiary)]">
+                  Đường dẫn cho thông báo
+                </p>
+                {filteredLinks.length === 0 ? (
+                  <p className="px-3.5 py-2.5 text-xs text-[var(--color-text-tertiary)]">Không tìm thấy đường dẫn khớp. Bạn có thể tự gõ trực tiếp.</p>
+                ) : filteredLinks.map(o => (
+                  <button
+                    key={o.path}
+                    type="button"
+                    onClick={() => { setLink(o.path); setLinkOpen(false) }}
+                    className={`w-full flex items-center justify-between gap-2 px-3.5 py-2.5 text-left text-sm transition-colors hover:bg-primary-500/5 ${link === o.path ? 'text-primary-500 bg-primary-500/5' : 'text-[var(--color-text-primary)]'}`}
+                  >
+                    <span className="font-mono text-primary-500 font-semibold">{o.path}</span>
+                    <span className="text-[11px] text-[var(--color-text-tertiary)]">{o.label}</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 

@@ -44,18 +44,8 @@ export default function Overview({ onNavigate }) {
   const d = dashboard || {}
   const s = stats || {}
 
-  // Bar chart data từ revenueOverTime thật (label dd/MM)
-  const revenueChart = useMemo(() => {
-    const rows = s.revenueOverTime || []
-    const max = Math.max(...rows.map(r => r.revenue), 1)
-    const best = rows.reduce((a, b) => (b.revenue > (a?.revenue ?? 0) ? b : a), null)
-    return rows.map(r => ({
-      day: r.date.slice(8) + '/' + r.date.slice(5, 7),
-      value: r.revenue,
-      pct: Math.max((r.revenue / max) * 100, 2),
-      isBest: best != null && r.date === best.date,
-    }))
-  }, [s])
+  // Doanh thu bình quân/ngày cần biết số ngày có doanh thu
+  const daysWithRevenue = (s.revenueOverTime || []).filter(r => r.revenue > 0).length
 
   const bestDay = useMemo(() => {
     const rows = s.revenueOverTime || []
@@ -83,16 +73,6 @@ export default function Overview({ onNavigate }) {
   }, [s])
   const totalBookings = s.bookingStatusDistribution?.reduce((sum, r) => sum + r.count, 0) ?? 0
 
-  const bookingChart = useMemo(() => {
-    const rows = s.bookingsOverTime || []
-    const max = Math.max(...rows.map(r => r.count), 1)
-    return rows.map(r => ({
-      day: r.date.slice(8) + '/' + r.date.slice(5, 7),
-      value: r.count,
-      pct: Math.max((r.count / max) * 100, 2),
-    }))
-  }, [s])
-
   // Top tuyến bay thật (backend trả { route, count })
   const topFlightRoutes = useMemo(() => {
     const rows = s.topFlightRoutes || []
@@ -118,10 +98,13 @@ export default function Overview({ onNavigate }) {
 
   const conv = d.totalBookings ? ((d.confirmedBookings ?? 0) / d.totalBookings * 100).toFixed(0) : '0'
   const revChange = s.revenueComparison?.change ?? 0
-  const gm = s.growthMetrics || {}
+  const revenueCurrent = s.revenueComparison?.current ?? 0
+  const revenuePrevious = s.revenueComparison?.previous ?? 0
+  const revenueDelta = revenueCurrent - revenuePrevious
+  const revenueAvg = daysWithRevenue > 0 ? Math.round(revenueCurrent / daysWithRevenue) : 0
   // StatCard nhận change là số % (null = kỳ trước không có dữ liệu → hiển thị "Mới")
-  const userChange = gm.usersWoW ?? null
-  const bookingChange = gm.bookingsWoW ?? null
+  const userChange = null
+  const bookingChange = null
 
   if (loading) {
     return (
@@ -147,7 +130,7 @@ export default function Overview({ onNavigate }) {
         <StatCard icon={Plane} label="Chuyến bay" value={d.totalFlights ?? 0} change={null} color="sky" />
         <StatCard icon={Train} label="Tàu hỏa" value={d.totalTrains ?? 0} change={null} color="emerald" />
         <StatCard icon={Ticket} label="Đặt chỗ" value={d.totalBookings ?? 0} change={bookingChange} color="sky" />
-        <StatCard icon={DollarSign} label="Doanh thu" value={(d.totalRevenue ?? 0).toLocaleString('vi-VN') + ' ₫'} change={revChange} color="rose" />
+        <StatCard icon={DollarSign} label="Tổng doanh thu" value={(d.totalRevenue ?? 0).toLocaleString('vi-VN') + ' ₫'} change={revChange} color="rose" />
         <StatCard icon={TrendingUp} label="Tỉ lệ xác nhận" value={`${conv}%`} change={null} color="violet" />
       </motion.div>
 
@@ -155,55 +138,49 @@ export default function Overview({ onNavigate }) {
       <motion.div variants={item} className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Revenue Chart — thiết kế dễ hiểu cho người không rành CNTT */}
         <div className="lg:col-span-2 bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl p-5">
-          {/* Tổng doanh thu — số lớn dễ đọc */}
+          {/* Tổng doanh thu — số lớn dễ đọc, chỉ tính đặt chỗ Đã xác nhận */}
           <div className="flex flex-wrap items-end justify-between gap-3 mb-5">
             <div>
-              <p className="text-xs text-[var(--color-text-tertiary)] mb-1">Tổng doanh thu trong 30 ngày qua</p>
+              <p className="text-xs text-[var(--color-text-tertiary)] mb-1">Doanh thu đã xác nhận · 30 ngày qua</p>
               <p className="text-3xl font-bold text-[var(--color-text-primary)]">
-                {(s.revenueComparison?.current ?? 0).toLocaleString('vi-VN')} <span className="text-base font-semibold text-[var(--color-text-secondary)]">₫</span>
+                {revenueCurrent.toLocaleString('vi-VN')} <span className="text-base font-semibold text-[var(--color-text-secondary)]">₫</span>
+              </p>
+              <p className="text-[11px] text-[var(--color-text-tertiary)] mt-1">
+                Trong đó có {daysWithRevenue} ngày có doanh thu (không phải ngày nào cũng bán được)
               </p>
             </div>
-            <span className={`text-[11px] font-medium px-2 py-1 rounded-md ${revChange >= 0 ? 'bg-[var(--color-success)]/10 text-[var(--color-success)]' : 'bg-[var(--color-danger)]/10 text-[var(--color-danger)]'}`}>
-              {revChange >= 0 ? '+' : ''}{revChange}% so với 30 ngày trước đó
-            </span>
+            <div className="text-right">
+              <p className="text-[11px] font-medium text-[var(--color-text-secondary)]">So với 30 ngày trước đó</p>
+              <p className={`text-sm font-bold ${revenueDelta >= 0 ? 'text-[var(--color-success)]' : 'text-[var(--color-danger)]'}`}>
+                {revenueDelta >= 0 ? '+' : '−'}{formatVndShort(Math.abs(revenueDelta))}
+                <span className="text-[11px] font-medium text-[var(--color-text-tertiary)] ml-1">{revenueDelta >= 0 ? 'tăng' : 'giảm'}</span>
+              </p>
+              <p className="text-[10px] text-[var(--color-text-tertiary)]">Kỳ trước: {formatVndFull(revenuePrevious)}</p>
+            </div>
           </div>
 
-          {revenueChart.length === 0 ? (
-            <p className="text-sm text-[var(--color-text-tertiary)] py-8 text-center">Chưa có dữ liệu doanh thu</p>
-          ) : (
-            <>
-              {/* Biểu đồ cột — mỗi cột là 1 ngày có đặt chỗ */}
-              <div className="flex items-end justify-between gap-2 h-36">
-                {revenueChart.map((r, i) => (
-                  <div key={i} className="flex-1 flex flex-col items-center gap-1.5 min-w-0">
-                    <span className="text-[10px] font-semibold text-[var(--color-text-secondary)] truncate max-w-full">
-                      {formatVndShort(r.value)}
-                    </span>
-                    <motion.div
-                      initial={{ height: 0 }}
-                      animate={{ height: `${r.pct}%` }}
-                      transition={{ duration: 0.5, delay: i * 0.06, ease: [0.25, 0.46, 0.45, 0.94] }}
-                      className={`w-full rounded-md bg-gradient-to-t from-primary-500 to-primary-400 ${r.isBest ? 'ring-2 ring-accent-500/60' : ''}`}
-                      title={`${r.day}: ${r.value.toLocaleString('vi-VN')} ₫`}
-                    />
-                    <span className="text-[10px] text-[var(--color-text-tertiary)] font-medium">{r.day}</span>
-                  </div>
-                ))}
-              </div>
-
-              {/* Tóm tắt bằng lời — dễ hiểu nhất */}
-              <div className="mt-4 pt-4 border-t border-[var(--color-border)] flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-[var(--color-text-secondary)]">
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-sm bg-primary-500" />
-                  <span><b>{bestDay.day}</b> bán chạy nhất: <b className="text-[var(--color-text-primary)]">{formatVndFull(bestDay.value)}</b></span>
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-sm bg-[var(--color-border)]" />
-                  Những ngày không có cột nghĩa là không có đặt chỗ
-                </span>
-              </div>
-            </>
-          )}
+          {/* Các thẻ thống kê — số lớn, dễ đọc */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="rounded-xl bg-[var(--color-bg-hover)] border border-[var(--color-border)] p-4">
+              <p className="text-[11px] font-medium text-[var(--color-text-tertiary)] mb-2">Ngày bán chạy nhất</p>
+              <p className="text-xl font-bold text-[var(--color-text-primary)]">{bestDay.day}</p>
+              <p className="text-xs text-[var(--color-text-secondary)] mt-1">{formatVndFull(bestDay.value)}</p>
+            </div>
+            <div className="rounded-xl bg-[var(--color-bg-hover)] border border-[var(--color-border)] p-4">
+              <p className="text-[11px] font-medium text-[var(--color-text-tertiary)] mb-2">Trung bình mỗi ngày có doanh thu</p>
+              <p className="text-xl font-bold text-[var(--color-text-primary)]">{formatVndFull(revenueAvg)}</p>
+              <p className="text-xs text-[var(--color-text-secondary)] mt-1">Tổng chia cho {daysWithRevenue} ngày</p>
+            </div>
+            <div className="rounded-xl bg-[var(--color-bg-hover)] border border-[var(--color-border)] p-4">
+              <p className="text-[11px] font-medium text-[var(--color-text-tertiary)] mb-2">So với kỳ trước</p>
+              <p className={`text-xl font-bold ${revenueDelta >= 0 ? 'text-[var(--color-success)]' : 'text-[var(--color-danger)]'}`}>
+                {revenueDelta >= 0 ? '+' : '−'}{formatVndShort(Math.abs(revenueDelta))}
+              </p>
+              <p className="text-xs text-[var(--color-text-secondary)] mt-1">
+                {revenueDelta >= 0 ? 'Tăng' : 'Giảm'} so với {formatVndFull(revenuePrevious)} của kỳ trước
+              </p>
+            </div>
+          </div>
 
           {/* Phân bố trạng thái đặt chỗ — kèm chú giải */}
           <div className="mt-5 pt-5 border-t border-[var(--color-border)]">
@@ -375,63 +352,6 @@ export default function Overview({ onNavigate }) {
               ))}
             </div>
           )}
-        </div>
-      </motion.div>
-
-      {/* Row 4: Booking chart thật + Tăng trưởng */}
-      <motion.div variants={item} className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Booking chart — bookingsOverTime thật */}
-        <div className="bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold text-[var(--color-text-primary)]">Số lượng đặt chỗ</h3>
-            <span className="text-xs text-[var(--color-text-tertiary)]">30 ngày qua</span>
-          </div>
-          {bookingChart.length === 0 ? (
-            <p className="text-sm text-[var(--color-text-tertiary)] py-8 text-center">Chưa có dữ liệu đặt chỗ</p>
-          ) : (
-            <div className="flex items-end justify-between gap-2 h-32">
-              {bookingChart.map((b, i) => (
-                <div key={i} className="flex-1 flex flex-col items-center gap-1.5 min-w-0">
-                  <motion.div
-                    initial={{ height: 0 }}
-                    animate={{ height: `${b.pct}%` }}
-                    transition={{ duration: 0.5, delay: i * 0.06, ease: [0.25, 0.46, 0.45, 0.94] }}
-                    className="w-full rounded-md bg-gradient-to-t from-primary-500 to-primary-400"
-                    title={`${b.value} đặt chỗ`}
-                  />
-                  <span className="text-[10px] text-[var(--color-text-tertiary)] font-medium">{b.day}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Tăng trưởng — growthMetrics thật */}
-        <div className="bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold text-[var(--color-text-primary)]">Tăng trưởng</h3>
-          </div>
-          <div className="space-y-3">
-            {[
-              { label: 'Người dùng mới (tuần này)', value: gm.usersThisWeek ?? 0, prev: gm.usersWoW ?? null, isPct: true },
-              { label: 'Đặt chỗ mới (tuần này)', value: gm.bookingsThisWeek ?? 0, prev: gm.bookingsWoW ?? null, isPct: true },
-              { label: 'Tổng người dùng', value: d.totalUsers ?? 0, prev: null, isPct: false },
-            ].map((s, i) => (
-              <div key={i} className="flex items-center justify-between py-1">
-                <span className="text-xs text-[var(--color-text-secondary)]">{s.label}</span>
-                <div className="flex items-center gap-3">
-                  <span className="text-sm font-semibold text-[var(--color-text-primary)]">{(s.value ?? 0).toLocaleString('vi-VN')}</span>
-                  {s.isPct && s.prev != null ? (
-                    <span className={`text-[11px] font-medium px-1.5 py-0.5 rounded-md ${s.prev >= 0 ? 'text-[var(--color-success)] bg-[var(--color-success)]/10' : 'text-[var(--color-danger)] bg-[var(--color-danger)]/10'}`}>
-                      {s.prev >= 0 ? '+' : ''}{s.prev}%
-                    </span>
-                  ) : s.isPct && (s.value ?? 0) > 0 ? (
-                    <span className="text-[11px] font-medium px-1.5 py-0.5 rounded-md bg-primary-50 text-primary-600">Mới</span>
-                  ) : null}
-                </div>
-              </div>
-            ))}
-          </div>
         </div>
       </motion.div>
     </motion.div>
