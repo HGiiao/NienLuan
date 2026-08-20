@@ -7,7 +7,7 @@ import {
   Trash2, Target, ArrowRight, AlertCircle, Check, Loader, Ticket,
 } from 'lucide-react'
 import LocationInput from '../components/LocationInput'
-import { getOptimalRoute, getPriceAlerts, createPriceAlert, deletePriceAlert, togglePriceAlert, checkPriceAlerts } from '../services/api'
+import { getOptimalRoute, getOptimalRoundTrip, getPriceAlerts, createPriceAlert, deletePriceAlert, togglePriceAlert, checkPriceAlerts } from '../services/api'
 import useRefetchOnTabVisible from '../hooks/useRefetchOnTabVisible'
 import { formatCurrencyVnd } from '../utils/formatters'
 import { useUser } from '@clerk/clerk-react'
@@ -71,7 +71,125 @@ function LiveIndicator({ connected = true }) {
   )
 }
 
-function RouteTab({ form, setForm, handleSearch, routes, loading, routeError, directCheapest, onBook, onBookRoute }) {
+function SegmentTimeline({ segments, onBook }) {
+  return (
+    <div className="relative">
+      <div className="absolute left-[18px] top-3 bottom-3 w-0.5 bg-gradient-to-b from-primary-400 via-primary-400 to-primary-400 rounded-full opacity-30" />
+      {segments.map((seg, j) => {
+        const prevSeg = j > 0 ? segments[j - 1] : null
+        const transferTime = prevSeg ? (new Date(seg.departureTime) - new Date(prevSeg.arrivalTime)) / 60000 : 0
+        return (
+          <div key={j}
+            onClick={seg.id != null ? () => onBook?.({ ...seg, type: seg.type }) : undefined}
+            className={`relative flex gap-4 pb-5 last:pb-0 ${seg.id != null ? 'cursor-pointer rounded-lg -mx-1 px-1 transition-colors hover:bg-[var(--color-border)]/20' : ''}`}
+          >
+            <div className="relative z-10 mt-1">
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center text-sm shadow-sm bg-primary-500 text-white">
+                {seg.type === 'flight' ? <Plane className="w-4 h-4" /> : seg.type === 'bus' ? <Bus className="w-4 h-4" /> : <Train className="w-4 h-4" />}
+              </div>
+            </div>
+            <div className="flex-1 min-w-0">
+              {prevSeg && transferTime > 0 && (
+                <div className="flex items-center gap-2 mb-2.5 text-xs text-[var(--color-text-tertiary)]">
+                  <span className="w-1 h-1 rounded-full bg-[var(--color-border)]" />
+                  Chờ {formatDuration(transferTime)} tại {prevSeg.arrivalLocation}
+                </div>
+              )}
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-primary-500 text-white">
+                  {seg.type === 'flight' ? <Plane className="w-3 h-3 inline" /> : seg.type === 'bus' ? <Bus className="w-3 h-3 inline" /> : <Train className="w-3 h-3 inline" />} {seg.code}
+                </span>
+                <span className="text-sm font-medium text-[var(--color-text-primary)]">{seg.name}</span>
+              </div>
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-1">
+                <span className="text-sm font-semibold text-primary-400">{seg.departureLocation}</span>
+                <span className="text-xs text-[var(--color-text-tertiary)]">{formatTime(seg.departureTime)}</span>
+                {formatDate(seg.departureTime) && <span className="text-xs text-[var(--color-text-tertiary)]">({formatDate(seg.departureTime)})</span>}
+                <span className="text-[var(--color-border)] text-sm">&rarr;</span>
+                <span className="text-sm font-semibold text-primary-400">{seg.arrivalLocation}</span>
+                <span className="text-xs text-[var(--color-text-tertiary)]">{formatTime(seg.arrivalTime)}</span>
+              </div>
+              <div className="flex items-center gap-2 mt-1.5">
+                <span className="text-xs text-[var(--color-text-tertiary)]">
+                  {(() => { const diff = (new Date(seg.arrivalTime) - new Date(seg.departureTime)) / 60000; return formatDuration(diff) })()}
+                </span>
+                <span className="text-xs font-bold text-primary-400 ml-auto">{formatCurrencyVnd(seg.price)}</span>
+              </div>
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+const modeName = (type) => type === 'flight' ? 'Máy bay' : type === 'bus' ? 'Xe khách' : 'Tàu hỏa'
+const modesSummary = (segments) => [...new Set(segments.map(s => s.type))].map(modeName).join(' + ')
+
+function RoundTripCard({ combo, index, onBook, onBookRoundTrip }) {
+  const outbound = combo.outbound?.segments || []
+  const returnex = combo.return?.segments || []
+  const segCount = outbound.length + returnex.length
+  return (
+    <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: index * 0.08 }}
+      className="bg-[var(--color-bg-card)] rounded-2xl border border-[var(--color-border)] hover:shadow-lg transition-all overflow-hidden">
+      <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--color-border)]">
+        <div className="flex items-center gap-3">
+          <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 300, delay: index * 0.08 }}
+            className={`inline-flex items-center justify-center w-9 h-9 rounded-xl text-sm font-bold text-white ${index === 0 ? 'bg-primary-500 shadow-lg shadow-primary-500/20' : 'bg-primary-500'}`}>{index + 1}</motion.span>
+          <div>
+            <span className="font-semibold text-[var(--color-text-primary)]">Khứ hồi</span>
+            <span className="text-xs text-[var(--color-text-tertiary)] ml-2 block md:inline">Đi: <strong className="text-primary-400">{modesSummary(outbound)}</strong> · Về: <strong className="text-primary-400">{modesSummary(returnex)}</strong></span>
+          </div>
+        </div>
+        <div className="text-right">
+          <div className="text-xl font-bold text-primary-500">{formatCurrencyVnd(combo.totalPrice)}</div>
+          <div className="text-xs text-[var(--color-text-tertiary)]">{formatDuration(combo.totalDurationMinutes)}</div>
+        </div>
+      </div>
+
+      <div className="px-5 py-4 space-y-4">
+        <div className="rounded-xl border border-[var(--color-border)] p-3.5 bg-[var(--color-bg)]/60">
+          <div className="flex items-center gap-2 mb-3">
+            <ArrowRight className="w-4 h-4 text-primary-500 rotate-[-45deg]" />
+            <span className="text-xs font-bold text-primary-500 uppercase tracking-wider">Chiều đi</span>
+            <span className="text-xs text-[var(--color-text-secondary)]">{outbound[0]?.departureLocation} &rarr; {outbound[outbound.length - 1]?.arrivalLocation}</span>
+            <span className="ml-auto text-xs font-bold text-primary-400">{formatCurrencyVnd(outbound.reduce((s, seg) => s + Number(seg.price || 0), 0))}</span>
+          </div>
+          <SegmentTimeline segments={outbound} onBook={onBook} />
+        </div>
+        <div className="rounded-xl border border-[var(--color-border)] p-3.5 bg-[var(--color-bg)]/60">
+          <div className="flex items-center gap-2 mb-3">
+            <ArrowRight className="w-4 h-4 text-accent-500" />
+            <span className="text-xs font-bold text-accent-500 uppercase tracking-wider">Chiều về</span>
+            <span className="text-xs text-[var(--color-text-secondary)]">{returnex[0]?.departureLocation} &rarr; {returnex[returnex.length - 1]?.arrivalLocation}</span>
+            <span className="ml-auto text-xs font-bold text-primary-400">{formatCurrencyVnd(returnex.reduce((s, seg) => s + Number(seg.price || 0), 0))}</span>
+          </div>
+          <SegmentTimeline segments={returnex} onBook={onBook} />
+        </div>
+      </div>
+
+      {onBookRoundTrip && (
+        <div className="px-5 pb-4 pt-2 border-t border-[var(--color-border)] flex items-center justify-between gap-3">
+          <p className="text-xs text-[var(--color-text-tertiary)]">
+            Mua <span className="font-bold text-[var(--color-text-primary)]">{segCount} vé</span> 2 chiều cùng lúc trong 1 lần đặt
+          </p>
+          <button
+            type="button"
+            onClick={() => onBookRoundTrip(combo)}
+            className="flex items-center gap-2 bg-gradient-to-r from-primary-500 to-primary-600 text-white px-4 py-2.5 rounded-xl text-sm font-bold hover:shadow-lg hover:shadow-primary-500/20 transition-all shadow-md"
+          >
+            <Ticket className="w-4 h-4" />
+            Đặt cả khứ hồi — {formatCurrencyVnd(combo.totalPrice)}
+          </button>
+        </div>
+      )}
+    </motion.div>
+  )
+}
+
+function RouteTab({ form, setForm, handleSearch, routes, combos, loading, routeError, directCheapest, onBook, onBookRoute, onBookRoundTrip }) {
+  const isRoundTrip = form.tripType === 'round-trip'
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}>
       {loading && (
@@ -83,7 +201,27 @@ function RouteTab({ form, setForm, handleSearch, routes, loading, routeError, di
         </div>
       )}
 
-      {routes.length > 0 && !loading && (
+      {isRoundTrip && combos.length > 0 && !loading && (
+        <>
+          <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
+            className="bg-gradient-to-r from-primary-500/10 to-primary-500/5 border border-primary-500/20 rounded-2xl p-4 mb-6 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <Lightbulb className="w-5 h-5 text-primary-500" />
+              <span className="text-sm text-[var(--color-text-secondary)]">
+                Tìm thấy <strong className="text-primary-400">{combos.length}</strong> combo khứ hồi {form.originCity} &rarr; {form.destinationCity}
+              </span>
+            </div>
+          </motion.div>
+
+          <div className="space-y-5">
+            {combos.map((combo, i) => (
+              <RoundTripCard key={i} combo={combo} index={i} onBook={onBook} onBookRoundTrip={onBookRoundTrip} />
+            ))}
+          </div>
+        </>
+      )}
+
+      {!isRoundTrip && routes.length > 0 && !loading && (
         <>
           <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
             className="bg-gradient-to-r from-primary-500/10 to-primary-500/5 border border-primary-500/20 rounded-2xl p-4 mb-6 flex flex-wrap items-center justify-between gap-3">
@@ -131,53 +269,7 @@ function RouteTab({ form, setForm, handleSearch, routes, loading, routeError, di
                   </div>
 
                   <div className="px-5 py-4">
-                    <div className="relative">
-                      <div className="absolute left-[18px] top-3 bottom-3 w-0.5 bg-gradient-to-b from-primary-400 via-primary-400 to-primary-400 rounded-full opacity-30" />
-                      {segments.map((seg, j) => {
-                        const prevSeg = j > 0 ? segments[j - 1] : null
-                        const transferTime = prevSeg ? (new Date(seg.departureTime) - new Date(prevSeg.arrivalTime)) / 60000 : 0
-                        return (
-                          <div key={j}
-                            onClick={seg.id != null ? () => onBook?.({ ...seg, type: seg.type }) : undefined}
-                            className={`relative flex gap-4 pb-5 last:pb-0 ${seg.id != null ? 'cursor-pointer rounded-lg -mx-1 px-1 transition-colors hover:bg-[var(--color-border)]/20' : ''}`}
-                          >
-                            <div className="relative z-10 mt-1">
-                              <div className="w-9 h-9 rounded-xl flex items-center justify-center text-sm shadow-sm bg-primary-500 text-white">
-                                {seg.type === 'flight' ? <Plane className="w-4 h-4" /> : seg.type === 'bus' ? <Bus className="w-4 h-4" /> : <Train className="w-4 h-4" />}
-                              </div>
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              {prevSeg && transferTime > 0 && (
-                                <div className="flex items-center gap-2 mb-2.5 text-xs text-[var(--color-text-tertiary)]">
-                                  <span className="w-1 h-1 rounded-full bg-[var(--color-border)]" />
-                                  Chờ {formatDuration(transferTime)} tại {prevSeg.arrivalLocation}
-                                </div>
-                              )}
-                              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                                <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-primary-500 text-white">
-                                  {seg.type === 'flight' ? <Plane className="w-3 h-3 inline" /> : seg.type === 'bus' ? <Bus className="w-3 h-3 inline" /> : <Train className="w-3 h-3 inline" />} {seg.code}
-                                </span>
-                                <span className="text-sm font-medium text-[var(--color-text-primary)]">{seg.name}</span>
-                              </div>
-                              <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-1">
-                                <span className="text-sm font-semibold text-primary-400">{seg.departureLocation}</span>
-                                <span className="text-xs text-[var(--color-text-tertiary)]">{formatTime(seg.departureTime)}</span>
-                                {formatDate(seg.departureTime) && <span className="text-xs text-[var(--color-text-tertiary)]">({formatDate(seg.departureTime)})</span>}
-                                <span className="text-[var(--color-border)] text-sm">&rarr;</span>
-                                <span className="text-sm font-semibold text-primary-400">{seg.arrivalLocation}</span>
-                                <span className="text-xs text-[var(--color-text-tertiary)]">{formatTime(seg.arrivalTime)}</span>
-                              </div>
-                              <div className="flex items-center gap-2 mt-1.5">
-                                <span className="text-xs text-[var(--color-text-tertiary)]">
-                                  {(() => { const diff = (new Date(seg.arrivalTime) - new Date(seg.departureTime)) / 60000; return formatDuration(diff) })()}
-                                </span>
-                                <span className="text-xs font-bold text-primary-400 ml-auto">{formatCurrencyVnd(seg.price)}</span>
-                              </div>
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
+                    <SegmentTimeline segments={segments} onBook={onBook} />
 
                     {isMultiLeg && onBookRoute && (
                       <div className="mt-4 pt-4 border-t border-[var(--color-border)] flex items-center justify-between gap-3">
@@ -209,7 +301,7 @@ function RouteTab({ form, setForm, handleSearch, routes, loading, routeError, di
         </div>
       )}
 
-      {!loading && routes.length === 0 && !routeError && (
+      {!loading && (isRoundTrip ? combos.length === 0 : routes.length === 0) && !routeError && (
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col items-center py-16">
           <div className="w-16 h-16 rounded-2xl bg-[var(--color-bg)] border border-[var(--color-border)] flex items-center justify-center mb-4">
             <MapPin className="w-7 h-7 text-[var(--color-text-tertiary)]" />
@@ -473,6 +565,7 @@ export default function OptimalRoute() {
     originCity: '', destinationCity: '', startDate: '', endDate: '', preferences: 'cheapest', tripType: 'one-way',
   })
   const [routes, setRoutes] = useState([])
+  const [combos, setCombos] = useState([])
   const [loading, setLoading] = useState(false)
   const [routeError, setRouteError] = useState('')
   const [directCheapest, setDirectCheapest] = useState(null)
@@ -480,24 +573,38 @@ export default function OptimalRoute() {
 
   const handleSearch = useCallback(async () => {
     if (!form.originCity || !form.destinationCity || !form.startDate) return
+    if (form.tripType === 'round-trip' && !form.endDate) return
     searchedRef.current = true
     setLoading(true)
     setRouteError('')
+    const isRoundTrip = form.tripType === 'round-trip'
     try {
-      const res = await getOptimalRoute({
-        originCity: form.originCity,
-        destinationCity: form.destinationCity,
-        startDate: new Date(form.startDate).toISOString(),
-        endDate: form.tripType === 'round-trip' && form.endDate
-          ? new Date(form.endDate).toISOString()
-          : new Date(form.startDate).toISOString(),
-        preferences: form.preferences,
-      })
-      const data = res.data || []
-      setRoutes(data)
-      setDirectCheapest(data.find(r => r.label === 'direct') || null)
+      if (isRoundTrip) {
+        const res = await getOptimalRoundTrip({
+          originCity: form.originCity,
+          destinationCity: form.destinationCity,
+          startDate: new Date(form.startDate).toISOString(),
+          endDate: new Date(form.endDate).toISOString(),
+          preferences: form.preferences,
+        })
+        setCombos(res.data || [])
+        setRoutes([])
+      } else {
+        const res = await getOptimalRoute({
+          originCity: form.originCity,
+          destinationCity: form.destinationCity,
+          startDate: new Date(form.startDate).toISOString(),
+          endDate: new Date(form.startDate).toISOString(),
+          preferences: form.preferences,
+        })
+        const data = res.data || []
+        setRoutes(data)
+        setCombos([])
+        setDirectCheapest(data.find(r => r.label === 'direct') || null)
+      }
     } catch {
       setRoutes([])
+      setCombos([])
       setRouteError('Không thể tìm lộ trình. Vui lòng thử lại sau.')
     } finally { setLoading(false) }
   }, [form])
@@ -635,7 +742,7 @@ export default function OptimalRoute() {
 
         <div className="p-4 md:p-5">
           <AnimatePresence mode="wait">
-            {tab === 'route' && <RouteTab key="route" form={form} setForm={setForm} handleSearch={handleSearch} routes={routes} loading={loading} routeError={routeError} directCheapest={directCheapest} onBook={(item) => navigate(`/booking/${item.type}/${item.id}`, { state: { item } })} onBookRoute={(route) => navigate(`/booking/multi/route`, { state: { route } })} />}
+            {tab === 'route' && <RouteTab key="route" form={form} setForm={setForm} handleSearch={handleSearch} routes={routes} combos={combos} loading={loading} routeError={routeError} directCheapest={directCheapest} onBook={(item) => navigate(`/booking/${item.type}/${item.id}`, { state: { item } })} onBookRoute={(route) => navigate(`/booking/multi/route`, { state: { route } })} onBookRoundTrip={(combo) => navigate(`/booking/multi/roundtrip`, { state: { route: { segments: [...(combo.outbound?.segments || []), ...(combo.return?.segments || [])], totalPrice: combo.totalPrice, roundTrip: true, outboundCount: combo.outbound?.segments?.length || 0 } } })} />}
             {tab === 'alerts' && <AlertsTab key="alerts" />}
           </AnimatePresence>
         </div>

@@ -11,7 +11,6 @@ namespace FlightAggregatorApi.Tests;
 public class RouteOptimizerServiceTests
 {
     private static readonly DateOnly Day = new(2026, 8, 16);
-    private static readonly DateTime DayStart = Day.ToDateTime(TimeOnly.MinValue);
 
     // ---------- Helpers ----------
 
@@ -36,7 +35,7 @@ public class RouteOptimizerServiceTests
         return await svc.FindOptimalRoute(origin, dest, s, e, preference);
     }
 
-    private static Flight Flight(long id, string from, string to, int depHour, int depMin, int arrHour, int arrMin, decimal price)
+    private static Flight Flight(long id, string from, string to, int depHour, int depMin, int arrHour, int arrMin, decimal price, DateOnly? d = null)
         => new()
         {
             Id = id,
@@ -44,15 +43,15 @@ public class RouteOptimizerServiceTests
             AirlineName = "Vietnam Airlines",
             DepartureLocation = from,
             ArrivalLocation = to,
-            DepartureTime = DayStart.AddHours(depHour).AddMinutes(depMin),
-            ArrivalTime = DayStart.AddHours(arrHour).AddMinutes(arrMin),
+            DepartureTime = (d ?? Day).ToDateTime(new TimeOnly(depHour, depMin)),
+            ArrivalTime = (d ?? Day).ToDateTime(new TimeOnly(arrHour, arrMin)),
             Price = price,
             Seats = 50,
-            FlightDate = Day,
+            FlightDate = d ?? Day,
             SeatClass = "Economy",
         };
 
-    private static Train Train(long id, string from, string to, int depHour, int depMin, int arrHour, int arrMin, decimal price)
+    private static Train Train(long id, string from, string to, int depHour, int depMin, int arrHour, int arrMin, decimal price, DateOnly? d = null)
         => new()
         {
             Id = id,
@@ -60,15 +59,15 @@ public class RouteOptimizerServiceTests
             TrainName = "SE1",
             DepartureLocation = from,
             ArrivalLocation = to,
-            DepartureTime = DayStart.AddHours(depHour).AddMinutes(depMin),
-            ArrivalTime = DayStart.AddHours(arrHour).AddMinutes(arrMin),
+            DepartureTime = (d ?? Day).ToDateTime(new TimeOnly(depHour, depMin)),
+            ArrivalTime = (d ?? Day).ToDateTime(new TimeOnly(arrHour, arrMin)),
             Price = price,
             Seats = 100,
-            TrainDate = Day,
+            TrainDate = d ?? Day,
             CoachClass = "Soft Seat",
         };
 
-    private static Bus Bus(long id, string from, string to, int depHour, int depMin, int arrHour, int arrMin, decimal price)
+    private static Bus Bus(long id, string from, string to, int depHour, int depMin, int arrHour, int arrMin, decimal price, DateOnly? d = null)
         => new()
         {
             Id = id,
@@ -76,11 +75,11 @@ public class RouteOptimizerServiceTests
             BusCompany = "Mai Linh",
             DepartureLocation = from,
             ArrivalLocation = to,
-            DepartureTime = DayStart.AddHours(depHour).AddMinutes(depMin),
-            ArrivalTime = DayStart.AddHours(arrHour).AddMinutes(arrMin),
+            DepartureTime = (d ?? Day).ToDateTime(new TimeOnly(depHour, depMin)),
+            ArrivalTime = (d ?? Day).ToDateTime(new TimeOnly(arrHour, arrMin)),
             Price = price,
             Seats = 40,
-            BusDate = Day,
+            BusDate = d ?? Day,
             CoachClass = "Giường nằm",
         };
 
@@ -312,7 +311,121 @@ public class RouteOptimizerServiceTests
         Assert.Equal(TimeSpan.FromHours(1.5), routes[0].TotalDuration);
     }
 
-    // ---------- Cache ----------
+    [Fact]
+    public async Task Balanced_Preference_Is_A_Real_Tradeoff_Not_Same_As_Cheapest()
+    {
+        using var db = CreateContext();
+        db.Flights.Add(Flight(1, "HAN", "SGN", 6, 0, 7, 30, 1_000_000)); // nhanh 1.5h, giá cao
+        db.Buses.Add(Bus(1, "HAN", "SGN", 6, 0, 20, 0, 300_000));        // rẻ nhất nhưng 14h
+        db.Flights.Add(Flight(2, "HAN", "DAD", 6, 0, 7, 30, 250_000));
+        db.Buses.Add(Bus(2, "DAD", "SGN", 10, 0, 14, 0, 350_000));       // combo 600k, ~8h
+        await db.SaveChangesAsync();
+
+        var cheapest = await FindRoutes(db, "HAN", "SGN", preference: "cheapest");
+        var balanced = await FindRoutes(db, "HAN", "SGN", preference: "balanced");
+
+        // cheapest đặt xe khách 300k (14h) lên đầu
+        Assert.Equal(300_000m, cheapest[0].TotalPrice);
+        // balanced phải khác cheapest — ưu tiên chuyến bay 1M/1.5h (cân bằng giá+thời gian)
+        Assert.NotEqual(300_000m, balanced[0].TotalPrice);
+        Assert.Equal("flight", balanced[0].Segments[0].Type);
+        Assert.Equal(TimeSpan.FromHours(1.5), balanced[0].TotalDuration);
+    }
+
+    // ---------- Round-trip combos ----------
+
+    [Fact]
+    public async Task RoundTrip_Combines_Outbound_And_Return_Legs()
+    {
+        using var db = CreateContext();
+        var returnDay = Day.AddDays(2);
+
+        db.Flights.Add(Flight(1, "HAN", "SGN", 6, 0, 7, 30, 1_000_000));          // outbound flight
+        db.Buses.Add(Bus(1, "HAN", "SGN", 8, 0, 20, 0, 400_000));                   // outbound bus (cheaper)
+        db.Flights.Add(Flight(2, "SGN", "HAN", 9, 0, 10, 30, 900_000, returnDay));  // return flight
+        db.Trains.Add(Train(1, "SGN", "HAN", 12, 0, 20, 0, 500_000, returnDay));    // return train (cheaper)
+        await db.SaveChangesAsync();
+
+        var svc = CreateService(db);
+        var combos = await svc.FindRoundTripRoute("HAN", "SGN", Day, returnDay, "cheapest");
+
+        Assert.NotEmpty(combos);
+        var combo = combos[0];
+        Assert.Equal("bus", combo.Outbound.Segments[0].Type);
+        Assert.Equal("train", combo.Return.Segments[0].Type);
+        Assert.Equal(combo.Outbound.TotalPrice + combo.Return.TotalPrice, combo.TotalPrice);
+        Assert.Equal(900_000m, combo.TotalPrice);
+        Assert.Equal(TimeSpan.FromHours(20), combo.TotalDuration);
+    }
+
+    [Fact]
+    public async Task RoundTrip_Keeps_One_Combo_Per_Mode_Combination()
+    {
+        using var db = CreateContext();
+        var returnDay = Day.AddDays(3);
+
+        // Two outbound flights (different prices) + two return flights — all combos are "flight|flight"
+        db.Flights.Add(Flight(1, "HAN", "SGN", 6, 0, 7, 30, 1_000_000));
+        db.Flights.Add(Flight(2, "HAN", "SGN", 8, 0, 9, 30, 800_000));
+        db.Flights.Add(Flight(3, "SGN", "HAN", 10, 0, 11, 30, 900_000, returnDay));
+        db.Flights.Add(Flight(4, "SGN", "HAN", 13, 0, 14, 30, 700_000, returnDay));
+        await db.SaveChangesAsync();
+
+        var svc = CreateService(db);
+        var combos = await svc.FindRoundTripRoute("HAN", "SGN", Day, returnDay, "cheapest");
+
+        // 2 outbound × 2 return = 4 combos, but all share the "flight|flight" mode key → deduped to 1 cheapest
+        var combo = Assert.Single(combos);
+        Assert.Equal(1_500_000m, combo.TotalPrice); // 800k + 700k
+        Assert.Equal("flight", combo.Outbound.Segments[0].Type);
+        Assert.Equal("flight", combo.Return.Segments[0].Type);
+    }
+
+    [Fact]
+    public async Task RoundTrip_Sorts_By_Total_Price_Ascending()
+    {
+        using var db = CreateContext();
+        var returnDay = Day.AddDays(4);
+
+        db.Flights.Add(Flight(1, "HAN", "SGN", 6, 0, 7, 30, 1_200_000));           // expensive outbound
+        db.Buses.Add(Bus(1, "HAN", "SGN", 8, 0, 20, 0, 350_000));                   // cheap outbound
+        db.Flights.Add(Flight(2, "SGN", "HAN", 9, 0, 10, 30, 1_000_000, returnDay)); // expensive return
+        db.Trains.Add(Train(1, "SGN", "HAN", 12, 0, 20, 0, 450_000, returnDay));     // cheap return
+        await db.SaveChangesAsync();
+
+        var svc = CreateService(db);
+        var combos = await svc.FindRoundTripRoute("HAN", "SGN", Day, returnDay, "cheapest");
+
+        Assert.NotEmpty(combos);
+        Assert.Equal(800_000m, combos[0].TotalPrice); // bus(350k) + train(450k)
+        Assert.True(combos[0].TotalPrice <= combos.Last().TotalPrice);
+    }
+
+    [Fact]
+    public async Task RoundTrip_Applies_Preference_To_Combo_Ordering()
+    {
+        using var db = CreateContext();
+        var returnDay = Day.AddDays(2);
+
+        db.Flights.Add(Flight(1, "HAN", "SGN", 6, 0, 7, 30, 1_000_000));           // outbound flight (fast)
+        db.Buses.Add(Bus(1, "HAN", "SGN", 6, 0, 20, 0, 350_000));                    // outbound bus (cheap)
+        db.Flights.Add(Flight(2, "SGN", "HAN", 9, 0, 10, 30, 1_000_000, returnDay)); // return flight (fast)
+        db.Buses.Add(Bus(2, "SGN", "HAN", 12, 0, 20, 0, 350_000, returnDay));        // return bus (cheap)
+        await db.SaveChangesAsync();
+
+        var svc = CreateService(db);
+
+        var cheapest = await svc.FindRoundTripRoute("HAN", "SGN", Day, returnDay, "cheapest");
+        Assert.Equal(700_000m, cheapest[0].TotalPrice); // bus|bus
+
+        var fastest = await svc.FindRoundTripRoute("HAN", "SGN", Day, returnDay, "fastest");
+        Assert.Equal(2_000_000m, fastest[0].TotalPrice); // flight|flight
+        Assert.Equal(TimeSpan.FromHours(3), fastest[0].TotalDuration);
+
+        var balanced = await svc.FindRoundTripRoute("HAN", "SGN", Day, returnDay, "balanced");
+        Assert.NotEqual(700_000m, balanced[0].TotalPrice); // không phải rẻ nhất
+        Assert.Equal(TimeSpan.FromHours(3), balanced[0].TotalDuration);
+    }
 
     [Fact]
     public async Task Same_Query_Within_Ttl_Hits_Cache()

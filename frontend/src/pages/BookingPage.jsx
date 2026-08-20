@@ -13,6 +13,28 @@ function getStoredUser() {
   try { return JSON.parse(sessionStorage.getItem('user')) } catch { return null }
 }
 
+function SegmentBox({ seg, fmtTime }) {
+  return (
+    <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] p-3">
+      <div className="flex items-center gap-2 mb-1.5">
+        <div className="w-7 h-7 rounded-lg bg-primary-500/10 flex items-center justify-center text-primary-500 shrink-0">
+          {seg.type === 'flight' ? <Plane className="w-3.5 h-3.5" /> : seg.type === 'bus' ? <Bus className="w-3.5 h-3.5" /> : <Train className="w-3.5 h-3.5" />}
+        </div>
+        <span className="text-xs font-bold text-primary-500 px-1.5 py-0.5 rounded bg-primary-500/10">{seg.code}</span>
+        <span className="text-xs text-[var(--color-text-secondary)] truncate">{seg.name}</span>
+        <span className="ml-auto text-xs font-bold text-primary-500 shrink-0">{formatCurrencyVnd(seg.price)}</span>
+      </div>
+      <div className="flex items-center gap-2 text-xs">
+        <span className="font-semibold text-[var(--color-text-primary)]">{seg.departureLocation}</span>
+        <span className="text-[var(--color-text-tertiary)]">{fmtTime(seg.departureTime)}</span>
+        <ArrowRight className="w-3 h-3 text-primary-500" />
+        <span className="font-semibold text-[var(--color-text-primary)]">{seg.arrivalLocation}</span>
+        <span className="text-[var(--color-text-tertiary)]">{fmtTime(seg.arrivalTime)}</span>
+      </div>
+    </div>
+  )
+}
+
 const paymentMethods = [
   { id: 'credit_card', label: 'Thẻ tín dụng', icon: CreditCard, desc: 'Visa, MasterCard, JCB' },
   { id: 'e_wallet', label: 'Ví điện tử', icon: Wallet, desc: 'VNPay, PayOS' },
@@ -50,6 +72,8 @@ export default function BookingPage() {
   // Lộ trình kết hợp: mảng các chặng { type, id, code, name, departureLocation, arrivalLocation, departureTime, arrivalTime, price }
   const [segments, setSegments] = useState(location.state?.route?.segments || null)
   const isMultiLeg = type === 'multi' && Array.isArray(segments) && segments.length > 1
+  const isRoundTripBooking = type === 'multi' && id === 'roundtrip'
+  const isFlightOnly = type === 'flight' || (isMultiLeg && segments.every(s => s.type === 'flight'))
   const [fetching, setFetching] = useState(false)
   const [form, setForm] = useState({
     fullName: '', email: '', phone: '', address: '',
@@ -383,9 +407,11 @@ export default function BookingPage() {
         <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-gradient-to-br from-primary-500 to-primary-600 text-white mb-4 shadow-lg shadow-primary-500/20">
           {isMultiLeg ? <Ticket className="w-6 h-6" /> : isFlight ? <Plane className="w-6 h-6" /> : isBus ? <Bus className="w-6 h-6" /> : <Train className="w-6 h-6" />}
         </div>
-        <h1 className="text-2xl md:text-3xl font-bold text-[var(--color-text-primary)]">{isMultiLeg ? 'Đặt lộ trình kết hợp' : 'Đặt vé'}</h1>
+        <h1 className="text-2xl md:text-3xl font-bold text-[var(--color-text-primary)]">{isRoundTripBooking ? 'Đặt vé khứ hồi' : isMultiLeg ? 'Đặt lộ trình kết hợp' : 'Đặt vé'}</h1>
         <p className="text-[var(--color-text-secondary)] mt-1">
-          {isMultiLeg
+          {isRoundTripBooking
+            ? `Mua ${segments.length} vé 2 chiều cùng lúc — nhập thông tin 1 lần cho cả khứ hồi`
+            : isMultiLeg
             ? `Mua ${segments.length} vé cùng lúc — nhập thông tin 1 lần cho cả lộ trình`
             : 'Vui lòng nhập thông tin để hoàn tất đặt vé'}
         </p>
@@ -720,11 +746,11 @@ export default function BookingPage() {
             </div>
           </details>
 
-          {(isFlight || isMultiLeg) && (
+          {isFlightOnly && (
             <>
               <div className="h-px bg-[var(--color-border)]" />
 
-              {/* Insurance Section — chỉ áp dụng cho máy bay và lộ trình kết hợp */}
+              {/* Insurance Section — chỉ áp dụng khi toàn bộ chặng di chuyển bằng máy bay */}
               <div>
                 <div className="flex items-center gap-2 mb-3">
                   <Shield className="w-4 h-4 text-accent-500" />
@@ -966,32 +992,45 @@ export default function BookingPage() {
             <div className="w-8 h-8 rounded-lg bg-primary-500/10 flex items-center justify-center text-primary-500">
               <Clock className="w-4 h-4" />
             </div>
-            <h2 className="text-base font-bold text-[var(--color-text-primary)] leading-tight">{isMultiLeg ? 'Chi tiết lộ trình' : 'Chi tiết vé'}</h2>
+            <h2 className="text-base font-bold text-[var(--color-text-primary)] leading-tight">{isRoundTripBooking ? 'Chi tiết khứ hồi' : isMultiLeg ? 'Chi tiết lộ trình' : 'Chi tiết vé'}</h2>
           </div>
 
           {isMultiLeg ? (
             <div className="space-y-3">
-              {segments.map((seg, i) => (
-                <div key={i} className="rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] p-3">
-                  <div className="flex items-center gap-2 mb-1.5">
-                    <div className="w-7 h-7 rounded-lg bg-primary-500/10 flex items-center justify-center text-primary-500 shrink-0">
-                      {seg.type === 'flight' ? <Plane className="w-3.5 h-3.5" /> : seg.type === 'bus' ? <Bus className="w-3.5 h-3.5" /> : <Train className="w-3.5 h-3.5" />}
-                    </div>
-                    <span className="text-xs font-bold text-primary-500 px-1.5 py-0.5 rounded bg-primary-500/10">{seg.code}</span>
-                    <span className="text-xs text-[var(--color-text-secondary)] truncate">{seg.name}</span>
-                    <span className="ml-auto text-xs font-bold text-primary-500 shrink-0">{formatCurrencyVnd(seg.price)}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-xs">
-                    <span className="font-semibold text-[var(--color-text-primary)]">{seg.departureLocation}</span>
-                    <span className="text-[var(--color-text-tertiary)]">{fmtTime(seg.departureTime)}</span>
-                    <ArrowRight className="w-3 h-3 text-primary-500" />
-                    <span className="font-semibold text-[var(--color-text-primary)]">{seg.arrivalLocation}</span>
-                    <span className="text-[var(--color-text-tertiary)]">{fmtTime(seg.arrivalTime)}</span>
-                  </div>
-                </div>
+              {isRoundTripBooking && (() => {
+                const outCount = Number(location.state?.route?.outboundCount) || Math.ceil(segments.length / 2)
+                const outbound = segments.slice(0, outCount)
+                const returnex = segments.slice(outCount)
+                return (
+                  <>
+                    {outbound.length > 0 && (
+                      <>
+                        <div className="flex items-center gap-2 pt-1">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-primary-500 bg-primary-500/10 px-2 py-0.5 rounded">Chiều đi</span>
+                        </div>
+                        {outbound.map((seg, i) => (
+                          <SegmentBox key={`o${i}`} seg={seg} fmtTime={fmtTime} />
+                        ))}
+                      </>
+                    )}
+                    {returnex.length > 0 && (
+                      <>
+                        <div className="flex items-center gap-2 pt-2">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-accent-500 bg-accent-500/10 px-2 py-0.5 rounded">Chiều về</span>
+                        </div>
+                        {returnex.map((seg, i) => (
+                          <SegmentBox key={`r${i}`} seg={seg} fmtTime={fmtTime} />
+                        ))}
+                      </>
+                    )}
+                  </>
+                )
+              })()}
+              {!isRoundTripBooking && segments.map((seg, i) => (
+                <SegmentBox key={i} seg={seg} fmtTime={fmtTime} />
               ))}
               <div className="flex justify-between items-center text-sm">
-                <span className="text-[var(--color-text-secondary)]">Tổng {segments.length} vé</span>
+                <span className="text-[var(--color-text-secondary)]">Tổng {segments.length} vé{isRoundTripBooking ? ' (2 chiều)' : ''}</span>
                 <span className="font-bold text-[var(--color-text-primary)]">{formatCurrencyVnd(segments.reduce((s, seg) => s + Number(seg.price || 0), 0))}</span>
               </div>
             </div>

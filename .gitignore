@@ -27,3 +27,7 @@ Thumbs.db
 # Build
 publish/
 *.zip
+
+# Database backups (local, không push lên GitHub)
+backups/
+*.bacpac

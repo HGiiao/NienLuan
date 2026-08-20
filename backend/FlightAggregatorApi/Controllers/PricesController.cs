@@ -303,6 +303,26 @@ public class PricesController : ControllerBase
         return Ok(routes);
     }
 
+    [HttpPost("optimal-roundtrip")]
+    public async Task<IActionResult> GetOptimalRoundTrip([FromBody] OptimalRouteRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.OriginCity) || string.IsNullOrWhiteSpace(request.DestinationCity))
+            return BadRequest(new { message = "originCity and destinationCity are required" });
+
+        var startDate = DateOnly.FromDateTime(request.StartDate);
+        var returnDate = request.EndDate != default ? DateOnly.FromDateTime(request.EndDate) : startDate;
+        if (returnDate <= startDate) returnDate = startDate.AddDays(1);
+
+        var combos = await _routeService.FindRoundTripRoute(
+            request.OriginCity.Trim().ToUpperInvariant(),
+            request.DestinationCity.Trim().ToUpperInvariant(),
+            startDate,
+            returnDate,
+            request.Preferences ?? "cheapest");
+
+        return Ok(combos);
+    }
+
     [HttpGet("carbon")]
     public IActionResult GetCarbonFootprint([FromQuery] string from, [FromQuery] string to)
     {

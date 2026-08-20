@@ -139,12 +139,112 @@ public class RouteOptimizerService
             "fastest" => [.. routes.OrderBy(r => r.TotalDuration)],
             "fewest_stops" => [.. routes.OrderBy(r => r.Segments.Count).ThenBy(r => r.TotalPrice)],
             "earliest_arrival" => [.. routes.OrderBy(r => r.Segments.Last().ArrivalTime)],
-            _ => [.. routes.OrderBy(r => r.TotalPrice * 0.5m + (decimal)r.TotalDuration.TotalMinutes * 0.5m)]
+            _ => RankBalanced(routes),
         };
 
         var result = routes.Take(10).ToList();
         _cache.Set(cacheKey, result, CacheTtl);
         return result;
+    }
+
+    public async Task<List<RoundTripCombo>> FindRoundTripRoute(
+        string origin, string destination, DateOnly startDate, DateOnly returnDate, string preference)
+    {
+        var cacheKey = $"roundtrip:{origin}:{destination}:{startDate}:{returnDate}:{preference}";
+        if (_cache.TryGetValue(cacheKey, out List<RoundTripCombo>? cached))
+        {
+            _logger.LogInformation("Round-trip cache hit for {Origin}->{Destination} {Start}/{Return}", origin, destination, startDate, returnDate);
+            return cached!;
+        }
+
+        var outbound = await FindOptimalRoute(origin, destination, startDate, startDate, preference);
+        var returnLeg = await FindOptimalRoute(destination, origin, returnDate, returnDate, preference);
+
+        // Ghép mọi cặp chiều đi x chiều về, giữ 1 combo rẻ nhất cho mỗi tổ hợp
+        // phương tiện (đi bằng gì | về bằng gì) để gợi ý đa dạng.
+        var combos = outbound
+            .SelectMany(o => returnLeg.Select(r => new RoundTripCombo
+            {
+                Outbound = o,
+                Return = r,
+                TotalPrice = o.TotalPrice + r.TotalPrice,
+                TotalDuration = o.TotalDuration + r.TotalDuration,
+            }))
+            .GroupBy(c => $"{ModeKey(c.Outbound)}|{ModeKey(c.Return)}")
+            .Select(g => g.OrderBy(c => c.TotalPrice).First())
+            .OrderBy(c => c.TotalPrice)
+            .Take(10)
+            .ToList();
+
+        combos = SortRoundTrip(combos, preference).ToList();
+
+        _cache.Set(cacheKey, combos, CacheTtl);
+        return combos;
+    }
+
+    /// <summary>
+    /// Áp dụng ưu tiên vào thứ tự combo khứ hồi (trước đây luôn sort theo giá nên
+    /// đổi ưu tiên không thay đổi kết quả hiển thị).
+    /// </summary>
+    private static IEnumerable<RoundTripCombo> SortRoundTrip(List<RoundTripCombo> combos, string preference)
+    {
+        return preference switch
+        {
+            "cheapest" => combos.OrderBy(c => c.TotalPrice),
+            "fastest" => combos.OrderBy(c => c.TotalDuration),
+            "fewest_stops" => combos
+                .OrderBy(c => c.Outbound.Segments.Count + c.Return.Segments.Count)
+                .ThenBy(c => c.TotalPrice),
+            "earliest_arrival" => combos.OrderBy(c => c.Return.Segments.Last().ArrivalTime),
+            _ => RankBalancedCombos(combos),
+        };
+    }
+
+    private static List<RoundTripCombo> RankBalancedCombos(List<RoundTripCombo> combos)
+    {
+        if (combos.Count == 0) return combos;
+
+        var minPrice = combos.Min(c => c.TotalPrice);
+        var minDuration = combos.Min(c => c.TotalDuration.TotalMinutes);
+        if (minPrice <= 0) minPrice = 1m;
+        if (minDuration <= 0) minDuration = 1;
+
+        return [.. combos
+            .Select(c => new
+            {
+                Combo = c,
+                Score = (double)(c.TotalPrice / minPrice) + (c.TotalDuration.TotalMinutes / minDuration)
+            })
+            .OrderBy(x => x.Score)
+            .Select(x => x.Combo)];
+    }
+
+    private static string ModeKey(OptimizedRoute route) =>
+        string.Join("+", route.Segments.Select(s => s.Type));
+
+    /// <summary>
+    /// Xếp hạng "cân bằng": chuẩn hóa giá và thời lượng về cùng thang đo (tỉ lệ với
+    /// mức tốt nhất của từng tiêu chí) rồi cộng lại. Tránh trộn VND (hàng triệu) với
+    /// phút (hàng trăm) khiến giá luôn lấn át như công thức cũ.
+    /// </summary>
+    private static List<OptimizedRoute> RankBalanced(IEnumerable<OptimizedRoute> routes)
+    {
+        var list = routes.ToList();
+        if (list.Count == 0) return list;
+
+        var minPrice = list.Min(r => r.TotalPrice);
+        var minDuration = list.Min(r => r.TotalDuration.TotalMinutes);
+        if (minPrice <= 0) minPrice = 1m;
+        if (minDuration <= 0) minDuration = 1;
+
+        return [.. list
+            .Select(r => new
+            {
+                Route = r,
+                Score = (double)(r.TotalPrice / minPrice) + (r.TotalDuration.TotalMinutes / minDuration)
+            })
+            .OrderBy(x => x.Score)
+            .Select(x => x.Route)];
     }
 
     private static void AddDirect(List<OptimizedRoute> routes, IEnumerable<RouteSegment> segments, string origin, string destination)
@@ -258,4 +358,15 @@ public class RouteSegment
     public DateTime ArrivalTime { get; set; }
     public decimal Price { get; set; }
     public long Id { get; set; }
+}
+
+public class RoundTripCombo
+{
+    public OptimizedRoute Outbound { get; set; } = new();
+    public OptimizedRoute Return { get; set; } = new();
+    public decimal TotalPrice { get; set; }
+    public TimeSpan TotalDuration { get; set; }
+    public double TotalDurationMinutes => TotalDuration.TotalMinutes;
+    public string OutboundModes => string.Join("+", Outbound.Segments.Select(s => s.Type));
+    public string ReturnModes => string.Join("+", Return.Segments.Select(s => s.Type));
 }

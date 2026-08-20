@@ -338,11 +338,18 @@ public class BookingsController : ControllerBase
             totalPrice = bus.Price * passengerCount;
         }
 
-        // Bảo hiểm chuyến đi: giá gói × số hành khách, cộng vào tổng tiền
+        // Bảo hiểm chuyến đi: chỉ áp dụng khi toàn bộ chặng di chuyển bằng máy bay
         decimal insuranceTotal = 0;
         long? insurancePackageId = null;
         if (request.InsurancePackageId.HasValue)
         {
+            var isFlightOnly = request.FlightId.HasValue && !request.TrainId.HasValue && !request.BusId.HasValue;
+            if (isMultiLeg)
+                isFlightOnly = request.Segments!.All(s => (s.Mode ?? "").Equals("flight", StringComparison.OrdinalIgnoreCase));
+
+            if (!isFlightOnly)
+                return BadRequest(new { message = "Bảo hiểm chuyến đi chỉ áp dụng cho vé máy bay" });
+
             var insurancePkg = await _db.InsurancePackages.FindAsync(request.InsurancePackageId.Value);
             if (insurancePkg == null || !insurancePkg.IsActive)
                 return BadRequest(new { message = "Gói bảo hiểm không tồn tại hoặc đã ngừng hoạt động" });
@@ -492,13 +499,13 @@ public class BookingsController : ControllerBase
                         providerTransactionId = result.AppTransId;
                         break;
                     }
-                    case "vnpay":
-                    {
-                        var ip = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "127.0.0.1";
-                        paymentUrl = _vnPay.CreatePaymentUrl(booking.Id, amount, $"Ve247 booking #{booking.Id}", ip);
-                        providerTransactionId = booking.Id.ToString();
-                        break;
-                    }
+case "vnpay":
+                        {
+                            var ip = VnPayService.ResolveClientIp(HttpContext);
+                            paymentUrl = _vnPay.CreatePaymentUrl(booking.Id, amount, $"Ve247 booking #{booking.Id}", ip);
+                            providerTransactionId = booking.Id.ToString();
+                            break;
+                        }
                     case "payos":
                     {
                         if (!_payOS.IsConfigured)

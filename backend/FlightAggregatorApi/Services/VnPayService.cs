@@ -1,6 +1,8 @@
 using System.Net;
+using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Text;
+using Microsoft.AspNetCore.Http;
 
 namespace FlightAggregatorApi.Services;
 
@@ -21,13 +23,25 @@ public class VnPayService
         ?? "https://sandbox.vnpayment.vn/paymentv2/vpcpay.html";
     private string ReturnUrl => _config["VnPay:ReturnUrl"]
         ?? "http://localhost:5173/payment/vnpay-return";
-    private string IpnUrl => _config["VnPay:IpnUrl"]
-        ?? "http://localhost:5000/api/payments/vnpay-ipn";
 
     public string CreatePaymentUrl(long orderId, decimal amount, string orderInfo, string ipAddress)
     {
-        var amountLong = (long)(amount * 100);
-        var createDate = DateTime.UtcNow.AddHours(7);
+        if (string.IsNullOrWhiteSpace(TmnCode) || string.IsNullOrWhiteSpace(HashSecret))
+            throw new InvalidOperationException("VNPay chưa được cấu hình: thiếu TmnCode hoặc HashSecret. Đăng ký tại https://sandbox.vnpayment.vn/devreg/ và điền vào appsettings.");
+
+        // Số tiền phải là số nguyên = VND × 100 (VNPay khử phần thập phân)
+        var amountLong = (long)Math.Round(amount * 100, 0, MidpointRounding.AwayFromZero);
+        if (amountLong <= 0)
+            throw new InvalidOperationException("Số tiền thanh toán phải lớn hơn 0");
+
+        // IP phải là IPv4 hợp lệ — `::1` (IPv6 loopback) bị VNPay từ chối (lỗi code 99)
+        var vnpIpAddr = NormalizeIpv4(ipAddress);
+
+        // KHÔNG gửi vnp_IpnUrl trong URL thanh toán: VNPay sandbox hiện tại từ chối
+        // request có tham số này (trả code 99). IPN URL phải được khai báo riêng
+        // với VNPay khi đăng ký merchant (xem tài liệu "Cài đặt Code IPN URL").
+        var createDate = DateTime.UtcNow.AddHours(7); // GMT+7
+        var expireDate = createDate.AddMinutes(15);
 
         var params_ = new SortedList<string, string>
         {
@@ -41,10 +55,9 @@ public class VnPayService
             { "vnp_OrderType", "other" },
             { "vnp_Locale", "vn" },
             { "vnp_ReturnUrl", ReturnUrl },
-            { "vnp_IpnUrl", IpnUrl },
             { "vnp_CreateDate", createDate.ToString("yyyyMMddHHmmss") },
-            { "vnp_ExpireDate", createDate.AddMinutes(15).ToString("yyyyMMddHHmmss") },
-            { "vnp_IpAddr", ipAddress },
+            { "vnp_ExpireDate", expireDate.ToString("yyyyMMddHHmmss") },
+            { "vnp_IpAddr", vnpIpAddr },
         };
 
         var hashData = "";
@@ -70,7 +83,43 @@ public class VnPayService
         var secureHash = HmacSha512(HashSecret, hashData);
         query += "&vnp_SecureHash=" + WebUtility.UrlEncode(secureHash);
 
-        return SandboxUrl + "?" + query;
+        var url = SandboxUrl + "?" + query;
+        _logger.LogInformation("VNPay payment URL created for order {OrderId}: {Url}", orderId, url);
+        return url;
+    }
+
+    /// <summary>
+    /// Chuẩn hóa IP về IPv4 — VNPay yêu cầu vnp_IpAddr là IPv4.
+    /// Khi chạy localhost, RemoteIpAddress thường là `::1` (IPv6 loopback) → đổi thành 127.0.0.1.
+    /// </summary>
+    public static string NormalizeIpv4(string? ip)
+    {
+        if (string.IsNullOrWhiteSpace(ip)) return "127.0.0.1";
+
+        ip = ip.Trim();
+        if (IPAddress.TryParse(ip, out var parsed))
+        {
+            if (IPAddress.IsLoopback(parsed) || parsed.AddressFamily == AddressFamily.InterNetworkV6 && parsed.IsIPv4MappedToIPv6)
+                return parsed.IsIPv4MappedToIPv6 ? parsed.MapToIPv4().ToString() : "127.0.0.1";
+            if (parsed.AddressFamily == AddressFamily.InterNetwork)
+                return parsed.ToString();
+        }
+        // Trường hợp còn lại: dùng luôn chuỗi gốc hoặc fallback
+        return ip.Length > 45 ? ip[..45] : ip;
+    }
+
+    public static string ResolveClientIp(HttpContext? context)
+    {
+        if (context == null) return "127.0.0.1";
+
+        var forwarded = context.Request.Headers["X-Forwarded-For"].FirstOrDefault();
+        if (!string.IsNullOrWhiteSpace(forwarded))
+        {
+            var first = forwarded.Split(',')[0].Trim();
+            if (!string.IsNullOrWhiteSpace(first)) return NormalizeIpv4(first);
+        }
+
+        return NormalizeIpv4(context.Connection.RemoteIpAddress?.ToString());
     }
 
     public VnPayVerifyResult VerifyReturnQuery(Dictionary<string, string> queryParams)

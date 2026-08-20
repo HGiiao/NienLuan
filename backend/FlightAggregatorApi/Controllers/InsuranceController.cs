@@ -41,8 +41,17 @@ public class InsuranceController : ControllerBase
     [HttpPost("booking/{bookingId:long}")]
     public async Task<IActionResult> AddInsurance(long bookingId, [FromBody] AddInsuranceRequest request)
     {
-        var booking = await _db.Bookings.FindAsync(bookingId);
+        var booking = await _db.Bookings
+            .Include(b => b.Segments)
+            .FirstOrDefaultAsync(b => b.Id == bookingId);
         if (booking == null) return NotFound(new { message = "Không tìm thấy đặt chỗ" });
+
+        // Bảo hiểm chuyến đi chỉ áp dụng khi toàn bộ chặng di chuyển bằng máy bay
+        var isFlightOnly = booking.FlightId.HasValue && !booking.TrainId.HasValue && !booking.BusId.HasValue;
+        if (booking.Segments is { Count: > 0 })
+            isFlightOnly = booking.Segments.All(s => (s.Mode ?? "").Equals("flight", StringComparison.OrdinalIgnoreCase));
+        if (!isFlightOnly)
+            return BadRequest(new { message = "Bảo hiểm chuyến đi chỉ áp dụng cho vé máy bay" });
 
         var existing = await _db.BookingInsurances.FirstOrDefaultAsync(i => i.BookingId == bookingId);
         if (existing != null) return BadRequest(new { message = "Đã có bảo hiểm cho đặt chỗ này" });

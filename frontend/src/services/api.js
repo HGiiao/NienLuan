@@ -23,6 +23,7 @@ export const getCurrentPrices = (params) => api.get('/api/prices/current', { par
 export const compareRoutes = (params) => api.get('/api/prices/compare', { params })
 export const predictPrice = (params) => api.get('/api/prices/predict', { params })
 export const getOptimalRoute = (data) => api.post('/api/prices/optimal-route', data)
+export const getOptimalRoundTrip = (data) => api.post('/api/prices/optimal-roundtrip', data)
 export const getBookings = (params) => api.get('/api/bookings', { params })
 export const getBooking = (id) => api.get(`/api/bookings/${id}`)
 export const getRefundInfo = (id) => api.get(`/api/bookings/${id}/refund-info`)
