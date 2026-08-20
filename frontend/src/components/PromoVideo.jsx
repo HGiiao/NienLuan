@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Plane, Bus, Train, Sparkles, CheckCircle2, ArrowRight, TrendingDown, Zap, Star, ShieldCheck, Clock, Flame, BadgeCheck } from 'lucide-react'
+import { Plane, Bus, Train, Sparkles, CheckCircle2, ArrowRight, TrendingDown, Zap, Star, ShieldCheck, Clock, Flame, BadgeCheck, Headphones } from 'lucide-react'
 import { VIETNAM_PATH } from './IntroAnimation'
 
 const SCENE_DURATION = 2500
