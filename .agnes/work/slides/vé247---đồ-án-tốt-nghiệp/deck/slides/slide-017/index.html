@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>Slide 17 - Seed dữ liệu</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #fff; }
+  .slide { width: 1280px; height: 720px; position: relative; overflow: hidden; }
+  .slide-title { font-size: 32px; font-weight: 700; color: #0F172A; padding: 30px 50px 0; }
+  .slide-title::after { content: ''; display: block; width: 80px; height: 4px; background: #2563EB; margin-top: 8px; }
+  .content { padding: 25px 50px; display: flex; flex-direction: column; gap: 16px; }
+  .seed-card { background: linear-gradient(135deg, #0F172A, #1e293b); color: white; border-radius: 14px; padding: 20px 24px; }
+  .seed-card h3 { font-size: 16px; color: #60a5fa; margin-bottom: 12px; }
+  .seed-card .desc { font-size: 12px; color: #94A3B8; line-height: 1.6; }
+  .seed-card code { background: #334155; padding: 2px 7px; border-radius: 4px; font-size: 11px; color: #FCD34D; }
+  .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+  .stat-box { background: #EFF6FF; border: 1px solid #BFDBFE; border-radius: 10px; padding: 16px; text-align: center; }
+  .stat-box .num { font-size: 28px; font-weight: 800; color: #1D4ED8; }
+  .stat-box .label { font-size: 11px; color: #64748B; margin-top: 4px; }
+  .price-example { display: flex; gap: 12px; flex-wrap: wrap; }
+  .price-item { background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 10px 14px; font-size: 12px; }
+  .price-item strong { color: #1D4ED8; }
+  .price-item .range { color: #64748B; font-size: 11px; }
+  .footer { position: absolute; bottom: 20px; right: 40px; font-size: 13px; color: #94A3B8; }
+</style>
+</head>
+<body>
+<div class="slide">
+  <div class="slide-title">SEED DỮ LIỆU & DỮ LIỆU DEMO</div>
+  <div class="content">
+    <div class="seed-card">
+      <h3>🌱 SeedDataService — Sinh dữ liệu tự động khi khởi động</h3>
+      <div class="desc">
+        Mỗi khi backend khởi động, <code>DatabaseInitializerService</code> kiểm tra: nếu bảng <code>Flights</code> rỗng → gọi <code>SeedDataService</code> sinh dữ liệu.<br>
+        Dữ liệu được tạo <strong>idempotent</strong>: khởi động lại không xóa dữ liệu cũ, chỉ seed thêm nếu trống.<br>
+        Giá mô phỏng theo <strong>PriceConfigs</strong> (hệ số theo tuyến × tháng): cao điểm Tết/hè giá tăng, bình thường giá thấp.
+      </div>
+    </div>
+    <div class="stats-grid">
+      <div class="stat-box"><div class="num">~600</div><div class="label">Chuyến bay / ngày</div></div>
+      <div class="stat-box"><div class="num">30</div><div class="label">Ngày dữ liệu</div></div>
+      <div class="stat-box"><div class="num">4+</div><div class="label">Hãng hàng không</div></div>
+      <div class="stat-box"><div class="num">12</div><div class="label">Tuyến phổ biến</div></div>
+    </div>
+    <div style="background:#FFFBEB; border:1px solid #FDE68A; border-radius:10px; padding:14px 18px; font-size:12px; color:#92400E;">
+      <strong>Giá mô phỏng thực tế:</strong><br>
+      <div class="price-example" style="margin-top:8px;">
+        <div class="price-item"><strong>VietJet</strong><br><span class="range">HAN→SGN: 506k–868k VNĐ</span></div>
+        <div class="price-item"><strong>Vietnam Airlines</strong><br><span class="range">HAN→SGN: 1.04M–1.5M VNĐ</span></div>
+        <div class="price-item"><strong>Bamboo Airways</strong><br><span class="range">HAN→SGN: 1.2M–1.8M VNĐ</span></div>
+        <div class="price-item"><strong>Giá cuối tuần</strong><br><span class="range">Tăng ~15–20% so với ngày thường</span></div>
+      </div>
+    </div>
+    <div style="display:flex; gap:12px; flex-wrap:wrap;">
+      <div style="background:#F0F9FF; border:1px solid #BAE6FD; border-radius:8px; padding:10px 14px; font-size:12px; color:#0369A1;">
+        <strong>📧 Tài khoản demo:</strong><br>Admin: admin@ve247.vn / Admin123<br>User: user@example.com / 123456
+      </div>
+      <div style="background:#F0FDF4; border:1px solid #BBF7D0; border-radius:8px; padding:10px 14px; font-size:12px; color:#166534;">
+        <strong>🎟️ Mã giảm giá seed sẵn:</strong><br>WELCOME10 (10%) · SUMMER25 (25%) · VIP20 (20%)
+      </div>
+    </div>
+  </div>
+  <div class="footer">Slide 17 / 23</div>
+</div>
+</body>
+</html>

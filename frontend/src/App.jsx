@@ -5,7 +5,8 @@ import { Loader, AlertCircle } from 'lucide-react'
 import Navbar from './components/Navbar'
 import Footer from './components/Footer'
 import ChatBot from './components/ChatBot'
-import IntroAnimation from './components/IntroAnimation'
+import IntroAnimation3D from './components/IntroAnimation3D'
+import PromoVideo from './components/PromoVideo'
 import ErrorBoundary from './components/ErrorBoundary'
 import Home from './pages/Home'
 import SearchFlights from './pages/SearchFlights'
@@ -174,7 +175,7 @@ function AppLayout() {
 
   return (
     <div className={`${isAdminRoute ? '' : 'min-h-screen flex flex-col bg-[var(--color-bg)] text-[var(--color-text-primary)] transition-colors duration-300'}`}>
-      {!introComplete && <ErrorBoundary><IntroAnimation onComplete={handleIntroComplete} /></ErrorBoundary>}
+      {!introComplete && <ErrorBoundary><IntroAnimation3D onComplete={handleIntroComplete} /></ErrorBoundary>}
       {!isAdminRoute && <Navbar />}
       {!isAdminRoute && <ClerkSync />}
       {!isAdminRoute && introComplete && <ChatBot />}
@@ -182,6 +183,7 @@ function AppLayout() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/flights" element={<SearchFlights />} />
+          <Route path="/promo" element={<PromoVideo />} />
           <Route path="/trains" element={<SearchTrains />} />
           <Route path="/buses" element={<SearchBuses />} />
           <Route path="/compare" element={<PriceComparison />} />

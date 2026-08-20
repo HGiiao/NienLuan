@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>Slide 20 - Kết quả</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #fff; }
+  .slide { width: 1280px; height: 720px; position: relative; overflow: hidden; }
+  .slide-title { font-size: 32px; font-weight: 700; color: #0F172A; padding: 30px 50px 0; }
+  .slide-title::after { content: ''; display: block; width: 80px; height: 4px; background: #2563EB; margin-top: 8px; }
+  .content { padding: 30px 50px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+  .stat-card { background: linear-gradient(135deg, #EFF6FF, #DBEAFE); border: 2px solid #2563EB; border-radius: 14px; padding: 20px; text-align: center; }
+  .stat-card .num { font-size: 42px; font-weight: 900; color: #1D4ED8; }
+  .stat-card .label { font-size: 13px; color: #475569; margin-top: 6px; }
+  .highlights { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .highlight-item { background: #F8FAFC; border-radius: 10px; padding: 14px 18px; border: 1px solid #E2E8F0; }
+  .highlight-item h4 { font-size: 13px; color: #0F172A; margin-bottom: 6px; }
+  .highlight-item p { font-size: 11px; color: #64748B; line-height: 1.4; }
+  .footer { position: absolute; bottom: 20px; right: 40px; font-size: 13px; color: #94A3B8; }
+</style>
+</head>
+<body>
+<div class="slide">
+  <div class="slide-title">KẾT QUẢ ĐẠT ĐƯỢC</div>
+  <div class="content">
+    <div class="stat-card"><div class="num">25+</div><div class="label">Trang Frontend</div></div>
+    <div class="stat-card"><div class="num">19</div><div class="label">Controllers</div></div>
+    <div class="stat-card"><div class="num">19</div><div class="label">Services</div></div>
+    <div class="stat-card"><div class="num">~20</div><div class="label">Bảng Database</div></div>
+    <div class="stat-card"><div class="num">5</div><div class="label">Cổng Thanh toán</div></div>
+    <div class="stat-card"><div class="num">3</div><div class="label">Phương tiện</div></div>
+    <div class="stat-card"><div class="num">600+</div><div class="label">Chuyến bay / ngày</div></div>
+    <div class="stat-card"><div class="num">30</div><div class="label">Ngày dữ liệu</div></div>
+    <div class="highlights">
+      <div class="highlight-item">
+        <h4>✅ Website chạy THẬT trên Internet</h4>
+        <p>https://ve247-booking.vercel.app — truy cập được từ mọi nơi, không phải localhost.</p>
+      </div>
+      <div class="highlight-item">
+        <h4>✅ Backend deploy thật trên Azure</h4>
+        <p>https://ve247-api.azurewebsites.net — chạy 24/7 với Always On, background service hoạt động.</p>
+      </div>
+      <div class="highlight-item">
+        <h4>✅ Dữ liệu demo đầy đủ</h4>
+        <p>~600 chuyến bay/ngày × 30 ngày, giá mô phỏng thực tế theo hãng/tuyến/tháng.</p>
+      </div>
+      <div class="highlight-item">
+        <h4>✅ Thanh toán test được</h4>
+        <p>5 cổng thanh toán Việt Nam (sandbox) — VNPay, MoMo, ZaloPay, PayOS, VietQR.</p>
+      </div>
+      <div class="highlight-item">
+        <h4>✅ Realtime giá qua SignalR</h4>
+        <p>WebSocket push giá mới mỗi 30s, tự reconnect, fallback polling — trải nghiệm "sống".</p>
+      </div>
+      <div class="highlight-item">
+        <h4>✅ Unit tests + CI/CD</h4>
+        <p>3 bộ test xUnit, GitHub Actions tự động test mỗi khi push — đảm bảo chất lượng code.</p>
+      </div>
+    </div>
+  </div>
+  <div class="footer">Slide 20 / 23</div>
+</div>
+</body>
+</html>

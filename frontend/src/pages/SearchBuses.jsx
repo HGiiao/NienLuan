@@ -19,6 +19,7 @@ const PAGE_SIZE = 20
 export default function SearchBuses() {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
+  const highlightId = searchParams.get('highlight')
   const [query, setQuery] = useState({
     from: searchParams.get('from') || '',
     to: searchParams.get('to') || '',
@@ -101,6 +102,14 @@ export default function SearchBuses() {
     if (query.from || query.to) setHasSearched(true)
     initialLoad.current = false
   }, [])
+
+  // Cuộn tới vé được chỉ định từ trang so sánh (highlight=id) khi danh sách đã có
+  useEffect(() => {
+    if (!highlightId) return
+    const el = document.getElementById(`bus-card-${highlightId}`)
+    if (!el) return
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [items, outboundItems, returnItems, highlightId])
 
   useEffect(() => {
     if (initialLoad.current) return
@@ -303,7 +312,7 @@ export default function SearchBuses() {
           {!loading && (
             <motion.div {...stagger} className="space-y-3">
               {outboundItems.map(b => (
-                <motion.div key={b.id} variants={cardVariant}>
+                <motion.div key={b.id} id={highlightId ? `bus-card-${b.id}` : undefined} variants={cardVariant} className={highlightId === String(b.id) ? 'ring-2 ring-primary-500 rounded-2xl' : ''}>
                   <BusCard bus={b} onBook={(bus) => setBookingItem(bus)} onDetail={(bus) => setDetailItem(bus)} onWatch={handleWatch} watched={watchedIds.has(b.id)}  prediction={null} />
                 </motion.div>
               ))}
@@ -326,7 +335,7 @@ export default function SearchBuses() {
           {!loading && (
             <motion.div {...stagger} className="space-y-3">
               {returnItems.map(b => (
-                <motion.div key={b.id} variants={cardVariant}>
+                <motion.div key={b.id} id={highlightId ? `bus-card-${b.id}` : undefined} variants={cardVariant} className={highlightId === String(b.id) ? 'ring-2 ring-primary-500 rounded-2xl' : ''}>
                   <BusCard bus={b} onBook={(bus) => setBookingItem(bus)} onDetail={(bus) => setDetailItem(bus)} onWatch={handleWatch} watched={watchedIds.has(b.id)}  prediction={null} />
                 </motion.div>
               ))}
@@ -345,7 +354,7 @@ export default function SearchBuses() {
         <>
           <motion.div {...stagger} className="space-y-3">
             {items.map(b => (
-              <motion.div key={b.id} variants={cardVariant}>
+              <motion.div key={b.id} id={highlightId ? `bus-card-${b.id}` : undefined} variants={cardVariant} className={highlightId === String(b.id) ? 'ring-2 ring-primary-500 rounded-2xl' : ''}>
                 <BusCard bus={b} onBook={(bus) => setBookingItem(bus)} onDetail={(bus) => setDetailItem(bus)} onWatch={handleWatch} watched={watchedIds.has(b.id)}  prediction={null} />
               </motion.div>
             ))}

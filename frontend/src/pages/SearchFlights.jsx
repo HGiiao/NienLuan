@@ -19,6 +19,7 @@ const PAGE_SIZE = 20
 export default function SearchFlights() {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
+  const highlightId = searchParams.get('highlight')
   const [query, setQuery] = useState({
     from: searchParams.get('from') || '',
     to: searchParams.get('to') || '',
@@ -108,6 +109,14 @@ export default function SearchFlights() {
     if (query.from || query.to) setHasSearched(true)
     initialLoad.current = false
   }, [])
+
+  // Cuộn tới vé được chỉ định từ trang so sánh (highlight=id) khi danh sách đã có
+  useEffect(() => {
+    if (!highlightId) return
+    const el = document.getElementById(`flight-card-${highlightId}`)
+    if (!el) return
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [items, outboundItems, returnItems, highlightId])
 
   useEffect(() => {
     if (initialLoad.current) return
@@ -220,7 +229,7 @@ export default function SearchFlights() {
   const renderFlightList = (flightList, badgeMap, emptyMsg, pred) => (
     <div className="space-y-3">
       {flightList.map((f, i) => (
-        <FlightCard key={f.id} flight={f} onBook={(flight) => setBookingItem(flight)} onDetail={(flight) => setDetailItem(flight)} onWatch={handleWatch} watched={watchedIds.has(f.id)} badge={badgeMap[f.id]} index={i} prediction={pred} />
+        <FlightCard key={f.id} id={highlightId ? `flight-card-${f.id}` : undefined} highlight={highlightId === String(f.id)} flight={f} onBook={(flight) => setBookingItem(flight)} onDetail={(flight) => setDetailItem(flight)} onWatch={handleWatch} watched={watchedIds.has(f.id)} badge={badgeMap[f.id]} index={i} prediction={pred} />
       ))}
       {!loading && flightList.length === 0 && hasSearched && (
         <EmptyState icon={Plane} title={emptyMsg} desc="Thử thay đổi điểm đi, điểm đến hoặc ngày khởi hành" />

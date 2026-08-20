@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>Slide 7 - Backend Tech</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #fff; }
+  .slide { width: 1280px; height: 720px; position: relative; overflow: hidden; }
+  .slide-title { font-size: 32px; font-weight: 700; color: #0F172A; padding: 30px 50px 0; }
+  .slide-title::after { content: ''; display: block; width: 80px; height: 4px; background: #2563EB; margin-top: 8px; }
+  .content { padding: 25px 50px; display: flex; flex-direction: column; gap: 18px; }
+  .tech-block { background: #F8FAFC; border-radius: 12px; padding: 18px 22px; border: 1px solid #E2E8F0; }
+  .tech-block h3 { font-size: 16px; color: #1D4ED8; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+  .tech-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+  .tech-item { background: white; border-radius: 8px; padding: 10px 14px; border: 1px solid #E2E8F0; }
+  .tech-item .name { font-size: 13px; font-weight: 700; color: #0F172A; }
+  .tech-item .desc { font-size: 11px; color: #64748B; margin-top: 3px; }
+  .deploy-tag { display: inline-block; background: #DCFCE7; color: #16A34A; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+  .footer { position: absolute; bottom: 20px; right: 40px; font-size: 13px; color: #94A3B8; }
+</style>
+</head>
+<body>
+<div class="slide">
+  <div class="slide-title">CÔNG NGHỆ — BACKEND & DATABASE</div>
+  <div class="content">
+    <div class="tech-block">
+      <h3>⚙️ BACKEND — ASP.NET Core 10 Web API</h3>
+      <div class="tech-grid">
+        <div class="tech-item"><div class="name">ASP.NET Core 10</div><div class="desc">Web API framework, .NET 10.0</div></div>
+        <div class="tech-item"><div class="name">Entity Framework Core 10</div><div class="desc">ORM, LINQ queries, migrations</div></div>
+        <div class="tech-item"><div class="name">SignalR</div><div class="desc">WebSocket Hub cho realtime giá</div></div>
+        <div class="tech-item"><div class="name">BCrypt.Net-Next</div><div class="desc">Hash mật khẩu người dùng</div></div>
+        <div class="tech-item"><div class="name">xUnit</div><div class="desc">Unit testing framework (3 bộ test)</div></div>
+        <div class="tech-item"><div class="name">MemoryCache</div><div class="desc">Cache kết quả route optimizer 5 phút</div></div>
+      </div>
+    </div>
+    <div class="tech-block">
+      <h3>🗄️ DATABASE — Azure SQL</h3>
+      <div class="tech-grid">
+        <div class="tech-item"><div class="name">SQL Server</div><div class="desc">Azure SQL Database (Serverless)</div></div>
+        <div class="tech-item"><div class="name">~20 bảng</div><div class="desc">Flights, Trains, Buses, Bookings, Users, PriceAlerts, PromoCodes, Reviews...</div></div>
+        <div class="tech-item"><div class="name">Transaction</div><div class="desc">Đặt vé atomic: Booking + Passengers + Segments + Insurance</div></div>
+        <div class="tech-item"><div class="name">Index</div><div class="desc">IX_Flights_Route_Date, IX_Bookings_Status, IX_PriceHistory_Route...</div></div>
+        <div class="tech-item"><div class="name">FK Cascade</div><div class="desc">Xóa booking → xóa luôn dữ liệu con (passengers, segments, insurance)</div></div>
+        <div class="tech-item"><div class="name">UTC DateTime</div><div class="desc">Custom converter đảm bảo timezone đúng</div></div>
+      </div>
+      <div style="margin-top:12px"><span class="deploy-tag">Azure App Service Plan B1 · Always On = true</span></div>
+    </div>
+  </div>
+  <div class="footer">Slide 7 / 23</div>
+</div>
+</body>
+</html>

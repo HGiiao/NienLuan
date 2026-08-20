@@ -18,7 +18,7 @@ const formatDuration = (minutes) => {
 }
 const formatTime = (dateStr) => {
   if (!dateStr) return '--'
-  return new Date(dateStr).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
+  return new Date(dateStr).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false })
 }
 const formatDate = (dateStr) => {
   if (!dateStr) return ''

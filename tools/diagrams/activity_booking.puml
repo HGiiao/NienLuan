@@ -1,0 +1,34 @@
+@startuml
+title Activity Diagram luồng đặt vé
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 12
+skinparam activityStartColor #333
+skinparam activityEndColor #333
+
+start
+:Người dùng chọn vé (chuyến bay/tàu/xe);
+if (Đã đăng nhập?) then (Có)
+else (Chưa)
+  :Đăng nhập / Đăng ký;
+endif
+:Xem chi tiết vé;
+:Chọn "Đặt vé";
+:Chọn nơi đặt vé (BookingOptionsModal);
+if (Nơi đặt vé?) then (Đặt tại Vé247)
+  :Nhập thông tin hành khách;
+  :Hệ thống tạo đặt chỗ (Booking);
+  :Chọn phương thức thanh toán;
+  :Chuyển đến cổng thanh toán;
+  if (Thanh toán thành công?) then (Có)
+    :Cập nhật trạng thái "Đã thanh toán";
+    :Hiển thị xác nhận đặt chỗ;
+  else (Không)
+    :Hiển thị thông báo thất bại;
+  endif
+else (Đặt tại website chính thức)
+  :Mở trang web hãng (deep link);
+  :Người dùng đặt vé trên trang hãng;
+endif
+stop
+
+@enduml

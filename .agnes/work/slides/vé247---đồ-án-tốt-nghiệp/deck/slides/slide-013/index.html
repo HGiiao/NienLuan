@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>Slide 13 - Thanh toán</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #fff; }
+  .slide { width: 1280px; height: 720px; position: relative; overflow: hidden; }
+  .slide-title { font-size: 32px; font-weight: 700; color: #0F172A; padding: 30px 50px 0; }
+  .slide-title::after { content: ''; display: block; width: 80px; height: 4px; background: #2563EB; margin-top: 8px; }
+  .content { padding: 25px 50px; }
+  .gateway-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+  .gateway-table th { background: #2563EB; color: white; padding: 10px 14px; text-align: left; font-size: 12px; }
+  .gateway-table td { padding: 9px 14px; font-size: 12px; border-bottom: 1px solid #E2E8F0; color: #334155; }
+  .gateway-table tr:nth-child(even) td { background: #F8FAFC; }
+  .status-ok { background: #DCFCE7; color: #16A34A; padding: 2px 10px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+  .status-warn { background: #FEF3C7; color: #D97706; padding: 2px 10px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+  .flow-row { display: flex; align-items: center; gap: 8px; }
+  .flow-step { background: #EFF6FF; border: 1px solid #BFDBFE; border-radius: 8px; padding: 10px 14px; font-size: 11px; color: #1D4ED8; text-align: center; flex: 1; }
+  .flow-arrow { font-size: 18px; color: #94A3B8; }
+  .footer { position: absolute; bottom: 20px; right: 40px; font-size: 13px; color: #94A3B8; }
+</style>
+</head>
+<body>
+<div class="slide">
+  <div class="slide-title">TÍNH NĂNG CHÍNH — THANH TOÁN ONLINE</div>
+  <div class="content">
+    <table class="gateway-table">
+      <thead><tr><th>Cổng thanh toán</th><th>Base URL</th><th>Phương thức</th><th>Trạng thái</th><th>Ghi chú</th></tr></thead>
+      <tbody>
+        <tr><td><strong>VNPay</strong></td><td>sandbox.vnpayment.vn</td><td>Redirect link + IPN webhook</td><td><span class="status-ok">✅ Có cấu hình</span></td><td>Cổng thanh toán truyền thống VN</td></tr>
+        <tr><td><strong>PayOS</strong></td><td>api-merchant.payos.vn</td><td>Tạo đơn → trả mã QR VietQR</td><td><span class="status-ok">✅ Có key thật</span></td><td>Sinh mã QR chuyển khoản ngân hàng</td></tr>
+        <tr><td><strong>MoMo</strong></td><td>test-payment.momo.vn</td><td>Redirect sang gateway MoMo</td><td><span class="status-warn">⚠️ Chưa có key</span></td><td>Cần đăng ký merchant account</td></tr>
+        <tr><td><strong>ZaloPay</strong></td><td>sb-openapi.zalopay.vn</td><td>Open API + webhook</td><td><span class="status-warn">⚠️ Chưa có key</span></td><td>Sandbox sẵn, cần tạo app trên Zalo</td></tr>
+        <tr><td><strong>VietQR</strong></td><td>Thông qua PayOS API</td><td>Sinh QR code ngân hàng</td><td><span class="status-ok">✅ Có cấu hình</span></td><td>Hỗ trợ 100+ ngân hàng Việt Nam</td></tr>
+      </tbody>
+    </table>
+    <div>
+      <div style="font-size:14px; font-weight:700; color:#1D4ED8; margin-bottom:10px;">Luồng thanh toán 6 bước:</div>
+      <div class="flow-row">
+        <div class="flow-step">1. User chọn cổng thanh toán</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">2. Backend tạo đơn + link thanh toán</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">3. Redirect sang cổng (sandbox)</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">4. User thanh toán</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">5. Cổng gọi IPN/Webhook về backend</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">6. Backend xác nhận → Booking = Confirmed</div>
+      </div>
+    </div>
+    <div style="margin-top:10px; display:flex; gap:12px; flex-wrap:wrap;">
+      <span style="background:#F0F9FF; color:#0284C7; padding:5px 12px; border-radius:8px; font-size:11px; font-weight:600;">🔐 Chữ ký HMAC kiểm tra tính toàn vẹn</span>
+      <span style="background:#FEF3C7; color:#92400E; padding:5px 12px; border-radius:8px; font-size:11px; font-weight:600;">⚠️ Tất cả đều dùng sandbox — không thu tiền thật</span>
+      <span style="background:#F0F9FF; color:#0284C7; padding:5px 12px; border-radius:8px; font-size:11px; font-weight:600;">🔄 PayOS retry-safe: tránh trùng orderCode</span>
+    </div>
+  </div>
+  <div class="footer">Slide 13 / 23</div>
+</div>
+</body>
+</html>

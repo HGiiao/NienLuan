@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>Slide 19 - Deployment</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #fff; }
+  .slide { width: 1280px; height: 720px; position: relative; overflow: hidden; }
+  .slide-title { font-size: 32px; font-weight: 700; color: #0F172A; padding: 30px 50px 0; }
+  .slide-title::after { content: ''; display: block; width: 80px; height: 4px; background: #2563EB; margin-top: 8px; }
+  .content { padding: 25px 50px; display: flex; flex-direction: column; gap: 16px; }
+  .deploy-row { display: flex; gap: 16px; align-items: stretch; }
+  .deploy-card { flex: 1; background: #F8FAFC; border-radius: 12px; padding: 18px; border: 1px solid #E2E8F0; }
+  .deploy-card h3 { font-size: 15px; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+  .deploy-card p { font-size: 12px; color: #475569; line-height: 1.5; }
+  .deploy-card .url { background: #0F172A; color: #60a5fa; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-family: Consolas, monospace; display: inline-block; margin-top: 6px; }
+  .deploy-card .tag { display: inline-block; background: #DCFCE7; color: #16A34A; padding: 2px 8px; border-radius: 6px; font-size: 10px; font-weight: 600; margin-right: 4px; }
+  .deploy-card .tag.warn { background: #FEF3C7; color: #D97706; }
+  .before-after { display: flex; gap: 16px; }
+  .before-card, .after-card { flex: 1; border-radius: 12px; padding: 16px; }
+  .before-card { background: #FEF2F2; border: 1px solid #FECACA; }
+  .after-card { background: #DCFCE7; border: 1px solid #BBF7D0; }
+  .before-card h4 { font-size: 13px; color: #DC2626; margin-bottom: 8px; }
+  .after-card h4 { font-size: 13px; color: #16A34A; margin-bottom: 8px; }
+  .before-card p, .after-card p { font-size: 11px; color: #334155; line-height: 1.5; }
+  .footer { position: absolute; bottom: 20px; right: 40px; font-size: 13px; color: #94A3B8; }
+</style>
+</head>
+<body>
+<div class="slide">
+  <div class="slide-title">TRIỂN KHAI (DEPLOYMENT) — PRODUCTION THẬT</div>
+  <div class="content">
+    <div class="deploy-row">
+      <div class="deploy-card">
+        <h3>🖥️ Frontend → Vercel</h3>
+        <p>GitHub push → Vercel tự build (Vite) → deploy tĩnh<br>Cài đặt env: <code>VITE_API_URL</code> = URL backend<br><code>VITE_CLERK_PUBLISHABLE_KEY</code></p>
+        <div class="url">https://ve247-booking.vercel.app</div>
+        <div style="margin-top:8px;"><span class="tag">CI/CD tự động</span><span class="tag"> HTTPS</span></div>
+      </div>
+      <div class="deploy-card">
+        <h3>⚙️ Backend → Azure App Service</h3>
+        <p>dotnet publish → zip → az webapp deploy<br>Plan B1, Always On = true (giữ background service awake)<br>Connection string + CORS config trong App Settings</p>
+        <div class="url">https://ve247-api.azurewebsites.net</div>
+        <div style="margin-top:8px;"><span class="tag">Windows Plan B1</span><span class="tag"> Always On</span><span class="tag"> .NET 10</span></div>
+      </div>
+      <div class="deploy-card">
+        <h3>🗄️ Database → Azure SQL</h3>
+        <p>SQL Server Serverless trên Azure<br>Firewall mở cho dịch vụ Azure<br>Backup tự động, scaling linh hoạt</p>
+        <div class="url">ve247-serverless-nguyen2.database.windows.net</div>
+        <div style="margin-top:8px;"><span class="tag">Serverless</span><span class="tag"> Auto-pause</span><span class="tag"> Backup tự động</span></div>
+      </div>
+    </div>
+    <div class="before-after">
+      <div class="before-card">
+        <h4>❌ Trước đây (Localhost)</h4>
+        <p>Frontend chạy localhost:5173, backend localhost:5000, DB Azure SQL.<br>Không truy cập được từ ngoài. CORS bị lỗi. Không có domain thật.</p>
+      </div>
+      <div class="after-card">
+        <h4>✅ Sau khi deploy Production</h4>
+        <p>Website truy cập được từ mọi nơi qua domain thật.<br>Frontend + Backend + DB đều chạy trên cloud. CI/CD tự động mỗi khi push code.</p>
+      </div>
+    </div>
+    <div style="background:#FFFBEB; border:1px solid #FDE68A; border-radius:10px; padding:12px 16px; font-size:12px; color:#92400E;">
+      <strong>⚠️ Lưu ý quan trọng:</strong> Vercel chỉ chứa giao diện tĩnh. Nếu backend không truy cập được (DNS lỗi, Azure stopped), trang sẽ trống trơn — không có dữ liệu hiển thị. Đây là lỗi đã từng xảy ra và đã được khắc phục.
+    </div>
+  </div>
+  <div class="footer">Slide 19 / 23</div>
+</div>
+</body>
+</html>

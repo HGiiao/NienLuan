@@ -118,7 +118,7 @@ public class FlightsController : ControllerBase
             "price" => query.OrderBy(f => f.Price),
             "price_desc" => query.OrderByDescending(f => f.Price),
             "departure" => query.OrderBy(f => f.DepartureTime),
-            "duration" => query.OrderBy(f => f.ArrivalTime - f.DepartureTime),
+            "duration" => query.OrderBy(f => EF.Functions.DateDiffMinute(f.DepartureTime, f.ArrivalTime)),
             _ => query.OrderBy(f => f.Price)
         };
     }

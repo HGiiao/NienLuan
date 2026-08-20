@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>Slide 3 - Bài toán</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #fff; }
+  .slide { width: 1280px; height: 720px; position: relative; overflow: hidden; }
+  .slide-title { font-size: 32px; font-weight: 700; color: #0F172A; padding: 30px 50px 0; }
+  .slide-title::after { content: ''; display: block; width: 80px; height: 4px; background: #2563EB; margin-top: 8px; }
+  .content { display: flex; gap: 40px; padding: 35px 50px; }
+  .col { flex: 1; }
+  .col-title { font-size: 18px; font-weight: 700; margin-bottom: 16px; padding: 10px 16px; border-radius: 8px; }
+  .col-title.problem { background: #FEF2F2; color: #DC2626; border-left: 4px solid #DC2626; }
+  .col-title.solution { background: #EFF6FF; color: #2563EB; border-left: 4px solid #2563EB; }
+  .problem-list { list-style: none; }
+  .problem-list li { padding: 10px 0; font-size: 14px; color: #334155; border-bottom: 1px solid #F1F5F9; display: flex; align-items: flex-start; gap: 10px; }
+  .problem-list li::before { content: '❌'; font-size: 14px; }
+  .solution-list { list-style: none; }
+  .solution-list li { padding: 10px 0; font-size: 14px; color: #334155; border-bottom: 1px solid #F1F5F9; display: flex; align-items: flex-start; gap: 10px; }
+  .solution-list li::before { content: '✅'; font-size: 14px; }
+  .arrow-center { display: flex; align-items: center; justify-content: center; font-size: 40px; color: #2563EB; }
+  .footer { position: absolute; bottom: 20px; right: 40px; font-size: 13px; color: #94A3B8; }
+</style>
+</head>
+<body>
+<div class="slide">
+  <div class="slide-title">BÀI TOÁN & Ý TƯỞNG</div>
+  <div class="content">
+    <div class="col">
+      <div class="col-title problem">🚨 VẤN ĐỀ THỰC TẾ</div>
+      <ul class="problem-list">
+        <li>Phải mở nhiều website riêng lẻ (VietJet, Vietnam Airlines, website xe khách, tàu hỏa)</li>
+        <li>Khó so sánh giá giữa các hãng cùng lúc</li>
+        <li>Không có công cụ dự báo giá để mua đúng thời điểm</li>
+        <li>Phải đặt vé từng phương tiện riêng biệt, không gợi ý lộ trình kết hợp</li>
+        <li>Thanh toán phức tạp, không tích hợp đa cổng</li>
+      </ul>
+    </div>
+    <div class="arrow-center">➜</div>
+    <div class="col">
+      <div class="col-title solution">💡 GIẢI PHÁP VÉ247</div>
+      <ul class="solution-list">
+        <li><strong>1 website tổng hợp</strong> — tìm kiếm 3 phương tiện cùng lúc</li>
+        <li><strong>So sánh giá</strong> trực tiếp giữa các hãng, các phương tiện</li>
+        <li><strong>Dự đoán giá</strong> theo lịch sử + PriceConfigs</li>
+        <li><strong>Gợi ý lộ trình</strong> kết hợp bay + tàu + xe tối ưu</li>
+        <li><strong>Đặt vé + thanh toán online</strong> ngay trên 1 nền tảng</li>
+        <li><strong>Giá realtime</strong> qua WebSocket — không bỏ lỡ cơ hội</li>
+      </ul>
+    </div>
+  </div>
+  <div class="footer">Slide 3 / 23</div>
+</div>
+</body>
+</html>

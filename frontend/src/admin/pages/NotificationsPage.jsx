@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Megaphone, Send, CheckCircle2, AlertCircle, Link2, Bell, Sparkles, BadgePercent, Wrench, ChevronDown } from 'lucide-react'
+import { Megaphone, Send, CheckCircle2, AlertCircle, Bell, Sparkles, BadgePercent, Wrench } from 'lucide-react'
 import { useAdmin } from '../AdminContext'
 import { broadcastNotification } from '../../services/api'
 
@@ -10,43 +10,14 @@ const typeOptions = [
   { value: 'maintenance', label: 'Bảo trì', desc: 'Bảo trì hệ thống, tạm ngừng dịch vụ', icon: Wrench },
 ]
 
-const linkOptions = [
-  { path: '/', label: 'Trang chủ' },
-  { path: '/flights', label: 'Tìm chuyến bay' },
-  { path: '/trains', label: 'Vé tàu hỏa' },
-  { path: '/buses', label: 'Vé xe khách' },
-  { path: '/compare', label: 'So sánh giá' },
-  { path: '/optimal-route', label: 'Tìm lộ trình tối ưu' },
-  { path: '/bookings', label: 'Vé của tôi' },
-  { path: '/vip', label: 'Gói VIP' },
-  { path: '/profile', label: 'Trang cá nhân' },
-]
-
 export default function NotificationsPage() {
   const { toast } = useAdmin()
   const [title, setTitle] = useState('')
   const [message, setMessage] = useState('')
-  const [link, setLink] = useState('')
   const [type, setType] = useState('announcement')
   const [sending, setSending] = useState(false)
   const [result, setResult] = useState(null)
   const [error, setError] = useState('')
-  const [linkOpen, setLinkOpen] = useState(false)
-  const linkWrapRef = useRef(null)
-
-  const filteredLinks = link.trim().startsWith('/')
-    ? linkOptions.filter(o => o.path.includes(link.trim().toLowerCase()))
-    : linkOptions
-
-  useEffect(() => {
-    const onClickOutside = (e) => {
-      if (linkWrapRef.current && !linkWrapRef.current.contains(e.target)) setLinkOpen(false)
-    }
-    const onKey = (e) => { if (e.key === 'Escape') setLinkOpen(false) }
-    document.addEventListener('mousedown', onClickOutside)
-    document.addEventListener('keydown', onKey)
-    return () => { document.removeEventListener('mousedown', onClickOutside); document.removeEventListener('keydown', onKey) }
-  }, [])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -55,10 +26,10 @@ export default function NotificationsPage() {
     setSending(true)
     setResult(null)
     try {
-      const res = await broadcastNotification({ title: title.trim(), message: message.trim(), link: link.trim() || null, type })
+      const res = await broadcastNotification({ title: title.trim(), message: message.trim(), type })
       setResult(res.data)
       toast(res.data?.message || 'Đã gửi thông báo', 'success')
-      setTitle(''); setMessage(''); setLink('')
+      setTitle(''); setMessage('')
     } catch (err) {
       setError(err.response?.data?.message || 'Không thể gửi thông báo')
     } finally { setSending(false) }
@@ -105,49 +76,6 @@ export default function NotificationsPage() {
         <div>
           <label className={labelCls}>Nội dung</label>
           <textarea value={message} onChange={e => setMessage(e.target.value)} rows={3} placeholder="Ví dụ: Áp dụng từ hôm nay đến hết tháng, nhập mã SUMMER20 khi thanh toán..." className={`${inputCls} resize-none`} />
-        </div>
-
-        <div>
-          <label className={labelCls}>Đường dẫn (tùy chọn — bấm thông báo sẽ mở trang này)</label>
-          <div className="relative" ref={linkWrapRef}>
-            <Link2 className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-text-tertiary)]" />
-            <input
-              value={link}
-              onChange={e => { setLink(e.target.value); setLinkOpen(true) }}
-              onFocus={() => setLinkOpen(true)}
-              placeholder="/flights hoặc /compare"
-              className={`${inputCls} pl-10 pr-9`}
-            />
-            <button
-              type="button"
-              onClick={() => setLinkOpen(o => !o)}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded-md text-[var(--color-text-tertiary)] hover:text-primary-500 hover:bg-primary-500/10 transition-colors"
-              aria-label="Chọn đường dẫn"
-            >
-              <ChevronDown className={`w-4 h-4 transition-transform ${linkOpen ? 'rotate-180' : ''}`} />
-            </button>
-
-            {linkOpen && (
-              <div className="absolute z-20 mt-2 w-full max-h-64 overflow-auto rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-card)] shadow-lg shadow-black/5">
-                <p className="px-3.5 pt-3 pb-1.5 text-[10px] font-semibold uppercase text-[var(--color-text-tertiary)]">
-                  Đường dẫn cho thông báo
-                </p>
-                {filteredLinks.length === 0 ? (
-                  <p className="px-3.5 py-2.5 text-xs text-[var(--color-text-tertiary)]">Không tìm thấy đường dẫn khớp. Bạn có thể tự gõ trực tiếp.</p>
-                ) : filteredLinks.map(o => (
-                  <button
-                    key={o.path}
-                    type="button"
-                    onClick={() => { setLink(o.path); setLinkOpen(false) }}
-                    className={`w-full flex items-center justify-between gap-2 px-3.5 py-2.5 text-left text-sm transition-colors hover:bg-primary-500/5 ${link === o.path ? 'text-primary-500 bg-primary-500/5' : 'text-[var(--color-text-primary)]'}`}
-                  >
-                    <span className="font-mono text-primary-500 font-semibold">{o.path}</span>
-                    <span className="text-[11px] text-[var(--color-text-tertiary)]">{o.label}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
         </div>
 
         {error && (
@@ -201,9 +129,6 @@ export default function NotificationsPage() {
               <p className="text-[11px] text-[var(--color-text-secondary)] mt-1 leading-relaxed line-clamp-3">
                 {message.trim() || 'Nội dung thông báo sẽ hiển thị ở đây.'}
               </p>
-              {link.trim() && (
-                <p className="text-[10px] text-primary-500 font-medium mt-1.5 break-all">{link.trim()}</p>
-              )}
               <p className="text-[10px] text-[var(--color-text-tertiary)] mt-2">
                 {new Date().toLocaleString('vi-VN', { dateStyle: 'short', timeStyle: 'short' })} • Chưa đọc
               </p>
@@ -224,7 +149,7 @@ export default function NotificationsPage() {
             {[
               'Tiêu đề ngắn gọn dưới 60 ký tự, nêu rõ lợi ích (VD: “Giảm 20% mọi chuyến bay”).',
               'Nội dung 2–3 câu: ưu đãi là gì, áp dụng khi nào, mã giảm giá (nếu có).',
-              'Luôn kèm đường dẫn để khách bấm vào xem ngay (VD: /flights).',
+              'Nếu cần khách mở trang nào, hãy ghi rõ tên trang vào nội dung (VD: “Mở mục Vé xe khách để xem”).',
               'Chọn đúng loại để khách dễ nhận biết — đừng lạm dụng gửi quá nhiều trong ngày.',
             ].map((tip, i) => (
               <li key={i} className="flex items-start gap-2">

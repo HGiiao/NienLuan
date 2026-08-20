@@ -1,0 +1,40 @@
+@startuml
+title Kiến trúc tổng thể của hệ thống
+skinparam componentStyle rectangle
+skinparam monochrome false
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 12
+
+package "Frontend (React + Vite)" as FE {
+  [Pages (Trang: Home, SearchFlights, SearchTrains, PriceComparison, OptimalRoute, Booking...)] as FE_PAGES
+  [Components (FlightCard, TrainCard, BusCard, BookingOptionsModal...)] as FE_COMP
+  [Services / API (axios)] as FE_API
+  [Admin (AdminDashboard, AdminLogin...)] as FE_ADMIN
+}
+
+package "Backend (ASP.NET Core .NET 10)" as BE {
+  [Controllers (Flights, Trains, Buses, Prices, Bookings, Payments, Auth, Admin...)] as BE_CTRL
+  [Services (RouteOptimizer, PriceHistory, PriceAlert, PaymentGateways...)] as BE_SVC
+  [Hubs (PriceHub - SignalR)] as BE_HUB
+  [DbContext (Entity Framework Core)] as BE_EF
+}
+
+database "SQL Server / Azure SQL Server" as DB
+
+package "Dịch vụ bên ngoài" as EXT {
+  [VNPay / PayOS / MoMo / ZaloPay / VietQR] as EXT_PAY
+  [Clerk (Xác thực OAuth)] as EXT_AUTH
+}
+
+FE_PAGES -down-> FE_COMP
+FE_PAGES -down-> FE_API
+FE_ADMIN -down-> FE_API
+FE_API -right-> BE_CTRL : HTTP /api
+FE_API -down-> BE_HUB : WebSocket (SignalR)
+BE_CTRL -down-> BE_SVC
+BE_SVC -down-> BE_EF
+BE_EF -down-> DB : EF Core
+BE_CTRL -right-> EXT_PAY : Redirect / IPN
+FE_API -right-> EXT_AUTH : OAuth
+
+@enduml

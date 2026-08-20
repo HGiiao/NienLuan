@@ -181,6 +181,7 @@ public class BookingsController : ControllerBase
     public async Task<IActionResult> CreateBooking([FromBody] CreateBookingRequest request)
     {
         var isMultiLeg = request.Segments != null && request.Segments.Count > 0;
+        var now = DateTime.Now;
 
         if (request.FlightId == null && request.TrainId == null && request.BusId == null && !isMultiLeg)
             return BadRequest(new { message = "Phải chọn chuyến bay, tàu hỏa hoặc xe khách" });
@@ -239,6 +240,7 @@ public class BookingsController : ControllerBase
                     {
                         var f = await _db.Flights.FindAsync(seg.ItemId);
                         if (f == null) return BadRequest(new { message = $"Chuyến bay {seg.ItemId} không tồn tại" });
+                        if (f.DepartureTime <= now) return BadRequest(new { message = $"Chuyến bay {f.AirlineCode} đã khởi hành — không thể đặt vé" });
                         if (f.Seats < passengerCount) return BadRequest(new { message = $"Chuyến bay {f.AirlineCode}: chỉ còn {f.Seats} ghế trống" });
                         f.Seats -= passengerCount;
                         segments.Add(new Models.BookingSegment
@@ -255,6 +257,7 @@ public class BookingsController : ControllerBase
                     {
                         var t = await _db.Trains.FindAsync(seg.ItemId);
                         if (t == null) return BadRequest(new { message = $"Tàu {seg.ItemId} không tồn tại" });
+                        if (t.DepartureTime <= now) return BadRequest(new { message = $"Tàu {t.TrainCode} đã khởi hành — không thể đặt vé" });
                         if (t.Seats < passengerCount) return BadRequest(new { message = $"Tàu {t.TrainCode}: chỉ còn {t.Seats} ghế trống" });
                         t.Seats -= passengerCount;
                         segments.Add(new Models.BookingSegment
@@ -271,6 +274,7 @@ public class BookingsController : ControllerBase
                     {
                         var b = await _db.Buses.FindAsync(seg.ItemId);
                         if (b == null) return BadRequest(new { message = $"Xe khách {seg.ItemId} không tồn tại" });
+                        if (b.DepartureTime <= now) return BadRequest(new { message = $"Xe {b.BusCode} đã khởi hành — không thể đặt vé" });
                         if (b.Seats < passengerCount) return BadRequest(new { message = $"Xe {b.BusCode}: chỉ còn {b.Seats} chỗ trống" });
                         b.Seats -= passengerCount;
                         segments.Add(new Models.BookingSegment
@@ -294,6 +298,9 @@ public class BookingsController : ControllerBase
             if (flight == null)
                 return BadRequest(new { message = "Chuyến bay không tồn tại" });
 
+            if (flight.DepartureTime <= now)
+                return BadRequest(new { message = "Chuyến bay đã khởi hành — không thể đặt vé" });
+
             if (flight.Seats < passengerCount)
                 return BadRequest(new { message = $"Chỉ còn {flight.Seats} ghế trống" });
 
@@ -306,6 +313,9 @@ public class BookingsController : ControllerBase
             if (train == null)
                 return BadRequest(new { message = "Tàu không tồn tại" });
 
+            if (train.DepartureTime <= now)
+                return BadRequest(new { message = "Chuyến tàu đã khởi hành — không thể đặt vé" });
+
             if (train.Seats < passengerCount)
                 return BadRequest(new { message = $"Chỉ còn {train.Seats} ghế trống" });
 
@@ -317,6 +327,9 @@ public class BookingsController : ControllerBase
             bus = await _db.Buses.FindAsync(request.BusId.Value);
             if (bus == null)
                 return BadRequest(new { message = "Xe khách không tồn tại" });
+
+            if (bus.DepartureTime <= now)
+                return BadRequest(new { message = "Chuyến xe đã khởi hành — không thể đặt vé" });
 
             if (bus.Seats < passengerCount)
                 return BadRequest(new { message = $"Chỉ còn {bus.Seats} chỗ trống" });

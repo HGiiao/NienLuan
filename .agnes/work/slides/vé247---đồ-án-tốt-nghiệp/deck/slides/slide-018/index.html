@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>Slide 18 - Chất lượng & Kiểm thử</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #fff; }
+  .slide { width: 1280px; height: 720px; position: relative; overflow: hidden; }
+  .slide-title { font-size: 32px; font-weight: 700; color: #0F172A; padding: 30px 50px 0; }
+  .slide-title::after { content: ''; display: block; width: 80px; height: 4px; background: #2563EB; margin-top: 8px; }
+  .content { padding: 25px 50px; display: flex; flex-direction: column; gap: 16px; }
+  .test-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+  .test-card { background: #F8FAFC; border-radius: 12px; padding: 16px; border: 1px solid #E2E8F0; }
+  .test-card h4 { font-size: 14px; color: #1D4ED8; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+  .test-card p { font-size: 11px; color: #475569; line-height: 1.5; }
+  .bug-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .bug-card { background: #FEF2F2; border: 1px solid #FECACA; border-radius: 10px; padding: 14px; }
+  .bug-card h4 { font-size: 13px; color: #DC2626; margin-bottom: 6px; }
+  .bug-card p { font-size: 11px; color: #475569; line-height: 1.5; }
+  .bug-card .fix { color: #16A34A; font-weight: 600; margin-top: 4px; }
+  .ci-badge { display: inline-block; background: #DCFCE7; color: #16A34A; padding: 4px 12px; border-radius: 8px; font-size: 12px; font-weight: 600; }
+  .footer { position: absolute; bottom: 20px; right: 40px; font-size: 13px; color: #94A3B8; }
+</style>
+</head>
+<body>
+<div class="slide">
+  <div class="slide-title">CHẤT LƯỢNG & KIỂM THỬ</div>
+  <div class="content">
+    <div class="test-grid">
+      <div class="test-card">
+        <h4>🧪 RouteOptimizerServiceTests</h4>
+        <p>Kiểm thử thuật toán tối ưu lộ trình:<br>• Direct route đúng<br>• 2-leg route qua hub<br>• 3-leg route qua 2 hubs<br>• Sắp xếp đúng theo cheapest/fastest/fewest_stops</p>
+      </div>
+      <div class="test-card">
+        <h4>🧪 PayOSReturnTests</h4>
+        <p>Kiểm thử logic xử lý webhook PayOS:<br>• Xác minh chữ ký HMAC<br>• Tránh trùng orderCode khi retry<br>• Cập nhật đúng trạng thái booking</p>
+      </div>
+      <div class="test-card">
+        <h4>🧪 ChatBotServiceTests</h4>
+        <p>Kiểm thử parser intent tiếng Việt:<br>• Parse đúng location aliases<br>• Parse đúng ngày (ngày mai, chủ nhật...)<br>• Parse đúng budget (500k, 1tr...)<br>• Trả về đúng quick replies</p>
+      </div>
+    </div>
+    <div>
+      <div style="font-size:14px; font-weight:700; color:#1D4ED8; margin-bottom:10px;">🐛 Các bug đã phát hiện & xử lý trong quá trình develop:</div>
+      <div class="bug-grid">
+        <div class="bug-card">
+          <h4>🔴 PayOS orderCode trùng</h4>
+          <p>Khi user refresh trang payment, PayOS tạo đơn mới trùng orderCode → lỗi 400.</p>
+          <div class="fix">✓ Fix: thêm lock/atomic check khi tạo đơn</div>
+        </div>
+        <div class="bug-card">
+          <h4>🔴 /share route lỗi 500</h4>
+          <p>Trang chia sẻ /share/flight/123 throw NullReferenceException khi flight không tồn tại.</p>
+          <div class="fix">✓ Fix: null check + redirect 404</div>
+        </div>
+        <div class="bug-card">
+          <h4>🔴 CORS production chặn frontend</h4>
+          <p>Configuration.GetSection("Cors:AllowedOrigins") parse sai JSON array → trả null → fallback localhost-only.</p>
+          <div class="fix">✓ Fix: custom GetCorsOrigins() parse được cả JSON array & comma-separated</div>
+        </div>
+        <div class="bug-card">
+          <h4>🔴 Seed xóa dữ liệu cũ</h4>
+          <p>Khởi động lại backend xóa toàn bộ dữ liệu hiện có.</p>
+          <div class="fix">✓ Fix: idempotent — chỉ seed khi bảng rỗng</div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <span class="ci-badge">✅ CI/CD GitHub Actions — tự động chạy dotnet test + npm run build mỗi khi push main</span>
+    </div>
+  </div>
+  <div class="footer">Slide 18 / 23</div>
+</div>
+</body>
+</html>

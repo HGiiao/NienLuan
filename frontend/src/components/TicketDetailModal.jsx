@@ -96,7 +96,7 @@ export default function TicketDetailModal({ item, type, onClose }) {
   const isFlight = type === 'flight'
   const isTrain = type === 'train'
   const isBus = type === 'bus'
-  const fmt = (d) => new Date(d).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  const fmt = (d) => new Date(d).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
   const fmtDate = (d) => new Date(d).toLocaleDateString('vi-VN', { weekday: 'long', day: 'numeric', month: 'numeric', year: 'numeric' })
   const durMs = new Date(item.arrivalTime) - new Date(item.departureTime)
   const hours = Math.floor(durMs / 3600000)

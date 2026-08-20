@@ -1,0 +1,50 @@
+@startuml
+title Sơ đồ Use Case tổng quan
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 12
+
+left to right direction
+actor "Khách / Người dùng" as USER
+actor "Quản trị viên" as ADMIN
+
+rectangle "Hệ thống Vé247" {
+  usecase "Đăng ký / Đăng nhập" as UC1
+  usecase "Tra cứu chuyến bay" as UC2
+  usecase "Tra cứu tàu hỏa" as UC3
+  usecase "Tra cứu xe khách" as UC4
+  usecase "So sánh giá vé" as UC5
+  usecase "Xem biểu đồ xu hướng giá" as UC6
+  usecase "Gợi ý lộ trình tối ưu" as UC7
+  usecase "Đặt vé" as UC8
+  usecase "Thanh toán" as UC9
+  usecase "Chuyển hướng đặt vé chính thức" as UC10
+  usecase "Đặt cảnh báo giá" as UC11
+  usecase "Quản lý đặt chỗ" as UC12
+  usecase "Đăng nhập quản trị" as UC13
+  usecase "Quản lý chuyến bay/tàu/xe" as UC14
+  usecase "Quản lý người dùng & đặt chỗ" as UC15
+  usecase "Thống kê & phát thông báo" as UC16
+}
+
+USER --> UC1
+USER --> UC2
+USER --> UC3
+USER --> UC4
+USER --> UC5
+USER --> UC6
+USER --> UC7
+USER --> UC8
+USER --> UC9
+USER --> UC10
+USER --> UC11
+USER --> UC12
+UC8 <.. UC9 : <<include>>
+UC8 <.. UC10 : <<extend>>
+UC9 <.. UC11 : <<include>>
+
+ADMIN --> UC13
+ADMIN --> UC14
+ADMIN --> UC15
+ADMIN --> UC16
+
+@enduml

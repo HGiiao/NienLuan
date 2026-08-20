@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>Slide 5 - Kiến trúc</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #fff; }
+  .slide { width: 1280px; height: 720px; position: relative; overflow: hidden; }
+  .slide-title { font-size: 32px; font-weight: 700; color: #0F172A; padding: 30px 50px 0; }
+  .slide-title::after { content: ''; display: block; width: 80px; height: 4px; background: #2563EB; margin-top: 8px; }
+  .arch-content { padding: 30px 50px; display: flex; flex-direction: column; gap: 20px; }
+  .arch-row { display: flex; align-items: center; justify-content: center; gap: 20px; }
+  .arch-box { background: linear-gradient(135deg, #EFF6FF, #DBEAFE); border: 2px solid #2563EB; border-radius: 14px; padding: 18px 24px; text-align: center; min-width: 280px; }
+  .arch-box h3 { font-size: 18px; color: #1D4ED8; margin-bottom: 6px; }
+  .arch-box p { font-size: 12px; color: #475569; }
+  .arch-box.green { background: linear-gradient(135deg, #F0FDF4, #DCFCE7); border-color: #16A34A; }
+  .arch-box.green h3 { color: #16A34A; }
+  .arch-box.orange { background: linear-gradient(135deg, #FFFBEB, #FEF3C7); border-color: #D97706; }
+  .arch-box.orange h3 { color: #D97706; }
+  .arch-arrow { font-size: 28px; color: #2563EB; font-weight: 700; }
+  .arch-note { font-size: 12px; color: #64748B; text-align: center; margin-top: 10px; padding: 10px; background: #F8FAFC; border-radius: 8px; }
+  .footer { position: absolute; bottom: 20px; right: 40px; font-size: 13px; color: #94A3B8; }
+</style>
+</head>
+<body>
+<div class="slide">
+  <div class="slide-title">KIẾN TRÚC HỆ THỐNG</div>
+  <div class="arch-content">
+    <div class="arch-row">
+      <div class="arch-box">
+        <h3>🖥️ FRONTEND (Vercel)</h3>
+        <p>React 19 + Vite 8 + Tailwind CSS 4<br>ve247-booking.vercel.app<br>~25 trang SPA · Axios · SignalR client</p>
+      </div>
+      <div class="arch-arrow">⟷ HTTPS REST</div>
+      <div class="arch-box green">
+        <h3>⚙️ BACKEND (Azure)</h3>
+        <p>ASP.NET Core 10 Web API<br>ve247-api.azurewebsites.net<br>19 Controllers · 19 Services · SignalR Hub</p>
+      </div>
+      <div class="arch-arrow">⟷ SQL</div>
+      <div class="arch-box orange">
+        <h3>🗄️ DATABASE (Azure SQL)</h3>
+        <p>SQL Server Serverless<br>FlightAggregatorDb<br>~20 bảng · Index · Transaction</p>
+      </div>
+    </div>
+    <div class="arch-note">
+      <strong>SignalR:</strong> Backend PriceStreamService broadcast giá mới mỗi 30s qua Hub → Frontend join theo tuyến → cập nhật realtime · Fallback: polling 30s khi mất WebSocket
+    </div>
+  </div>
+  <div class="footer">Slide 5 / 23</div>
+</div>
+</body>
+</html>

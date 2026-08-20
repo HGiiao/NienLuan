@@ -1,0 +1,39 @@
+@startuml
+title Sequence Diagram chức năng đặt vé
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 12
+
+actor "Người dùng" as U
+participant "Frontend\n(React)" as FE
+participant "Backend\n(ASP.NET Core)" as BE
+database "Database\n(SQL Server)" as DB
+
+U -> FE : Chọn vé & bấm "Đặt vé"
+FE -> BE : POST /api/bookings {thông tin, chuyến}
+activate BE
+BE -> DB : Ghi đặt chỗ (Bookings)
+DB --> BE : bookingId
+BE --> FE : 201 Created {booking}
+deactivate BE
+
+alt Đặt tại Vé247
+  U -> FE : Chọn thanh toán
+  FE -> BE : POST /api/bookings/{id}/pay {phương thức}
+  activate BE
+  BE -> BE : Tạo yêu cầu thanh toán (VNPay/PayOS...)
+  BE --> FE : {paymentUrl, redirect}
+  deactivate BE
+  FE --> U : Chuyển hướng đến cổng thanh toán
+  U -> BE : Quay lại trang return (xác minh)
+  activate BE
+  BE -> DB : Cập nhật trạng thái đặt chỗ
+  DB --> BE : ok
+  BE --> FE : Kết quả thanh toán
+  deactivate BE
+  FE --> U : Hiển thị xác nhận đặt chỗ
+else Đặt tại website chính thức
+  FE --> U : Mở trang web hãng (deep link)
+  U -> FE : Quay lại hệ thống
+end
+
+@enduml

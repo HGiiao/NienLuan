@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { ArrowRight } from 'lucide-react'
 
 /* ─── Data ─── */
-const CITIES = [
+export const CITIES = [
   { id: 'HAN', name: 'Hà Nội', x: 155, y: 72 },
   { id: 'HPH', name: 'Hải Phòng', x: 185, y: 82 },
   { id: 'HUE', name: 'Huế', x: 120, y: 218 },
@@ -15,9 +15,9 @@ const CITIES = [
   { id: 'PQC', name: 'Phú Quốc', x: 58, y: 500 },
 ]
 
-const REVEAL_ORDER = ['HAN', 'DAD', 'CXR', 'SGN', 'CAN']
+export const REVEAL_ORDER = ['HAN', 'DAD', 'CXR', 'SGN', 'CAN']
 
-const FLIGHT_ROUTES = [
+export const FLIGHT_ROUTES = [
   { from: 'HAN', to: 'DAD' },
   { from: 'DAD', to: 'SGN' },
   { from: 'HAN', to: 'SGN' },
@@ -25,7 +25,7 @@ const FLIGHT_ROUTES = [
 
 const TRAIN_ROUTE = ['HAN', 'HPH', 'HUE', 'DAD', 'CXR', 'SGN']
 
-const PRICE_BUBBLES = [
+export const PRICE_BUBBLES = [
   { cityId: 'HAN', x: 162, y: 60, lines: ['✈ Vietnam Airlines 2.540.000đ', '🚄 SE1 790.000đ'] },
   { cityId: 'DAD', x: 128, y: 236, lines: ['✈ VietJet 1.890.000đ', '✈ Bamboo 2.100.000đ'] },
   { cityId: 'SGN', x: 128, y: 436, lines: ['✈ Pacific 1.720.000đ', '🚄 SE3 480.000đ'] },
@@ -33,7 +33,7 @@ const PRICE_BUBBLES = [
   { cityId: 'HUE', x: 128, y: 206, lines: ['🚄 SE2 620.000đ'] },
 ]
 
-const AI_STATES = [
+export const AI_STATES = [
   'Đang phân tích 214 chuyến bay...',
   'Đang phân tích 36 chuyến tàu...',
   'Đang so sánh 125 mức giá...',
@@ -41,12 +41,12 @@ const AI_STATES = [
   'Đã sẵn sàng!',
 ]
 
-const SUGGESTION = {
+export const SUGGESTION = {
   route: 'TP.HCM → Đà Nẵng → Huế',
   saving: '530.000đ',
 }
 
-const VIETNAM_PATH = "M175,28 Q185,38 188,52 Q190,62 182,68 Q170,78 155,75 Q140,72 128,62 Q118,55 112,65 Q106,78 100,90 Q95,100 88,105 Q78,110 65,120 Q55,132 52,145 Q50,158 60,165 Q72,170 85,165 Q95,160 105,158 Q112,158 115,170 Q118,185 112,200 Q105,215 95,225 Q82,238 78,250 Q75,262 85,272 Q98,280 112,280 Q128,280 142,272 Q152,262 155,250 Q157,242 160,248 Q165,258 162,272 Q155,290 145,302 Q135,318 132,335 Q130,350 122,362 Q112,375 100,380 Q88,385 80,395 Q75,408 78,425 Q82,442 78,452 Q70,462 55,470 Q42,478 35,490 Q28,505 32,518 Q38,530 52,538 Q62,544 68,540 Q72,535 65,522 Q58,510 55,498 Q52,488 58,478 Q65,468 75,458 Q85,448 90,435 Q95,420 92,408 Q88,398 80,392 Q72,388 65,382 Q58,375 55,365 Q52,352 58,338 Q65,322 72,308 Q78,295 80,280 Q82,268 78,258 Q72,250 65,245 Q58,240 52,232 Q48,222 55,212 Q62,202 72,195 Q82,188 88,178 Q92,168 90,158 Q88,148 82,140 Q75,132 68,128 Q58,124 55,118 Q52,110 58,100 Q65,90 75,82 Q85,76 92,72 Q98,68 100,62 Q102,55 98,48 Q95,42 88,38 Q80,35 72,38 Q65,42 60,48 Q55,55 52,65 Q48,78 52,88 Q55,95 62,100 Q70,105 78,105 Q85,105 92,100 Q98,95 102,88 Q105,80 108,72 Q112,62 118,55 Q125,48 132,48 Q140,48 148,55 Q155,62 158,72 Q160,82 158,92 Q155,100 152,105 Q148,108 145,108 Q140,108 138,105 Q135,100 135,95 Q135,88 138,80 Q140,72 145,65 Q150,58 158,52 Q165,45 172,38 Q178,30 175,28Z"
+export const VIETNAM_PATH = "M175,28 Q185,38 188,52 Q190,62 182,68 Q170,78 155,75 Q140,72 128,62 Q118,55 112,65 Q106,78 100,90 Q95,100 88,105 Q78,110 65,120 Q55,132 52,145 Q50,158 60,165 Q72,170 85,165 Q95,160 105,158 Q112,158 115,170 Q118,185 112,200 Q105,215 95,225 Q82,238 78,250 Q75,262 85,272 Q98,280 112,280 Q128,280 142,272 Q152,262 155,250 Q157,242 160,248 Q165,258 162,272 Q155,290 145,302 Q135,318 132,335 Q130,350 122,362 Q112,375 100,380 Q88,385 80,395 Q75,408 78,425 Q82,442 78,452 Q70,462 55,470 Q42,478 35,490 Q28,505 32,518 Q38,530 52,538 Q62,544 68,540 Q72,535 65,522 Q58,510 55,498 Q52,488 58,478 Q65,468 75,458 Q85,448 90,435 Q95,420 92,408 Q88,398 80,392 Q72,388 65,382 Q58,375 55,365 Q52,352 58,338 Q65,322 72,308 Q78,295 80,280 Q82,268 78,258 Q72,250 65,245 Q58,240 52,232 Q48,222 55,212 Q62,202 72,195 Q82,188 88,178 Q92,168 90,158 Q88,148 82,140 Q75,132 68,128 Q58,124 55,118 Q52,110 58,100 Q65,90 75,82 Q85,76 92,72 Q98,68 100,62 Q102,55 98,48 Q95,42 88,38 Q80,35 72,38 Q65,42 60,48 Q55,55 52,65 Q48,78 52,88 Q55,95 62,100 Q70,105 78,105 Q85,105 92,100 Q98,95 102,88 Q105,80 108,72 Q112,62 118,55 Q125,48 132,48 Q140,48 148,55 Q155,62 158,72 Q160,82 158,92 Q155,100 152,105 Q148,108 145,108 Q140,108 138,105 Q135,100 135,95 Q135,88 138,80 Q140,72 145,65 Q150,58 158,52 Q165,45 172,38 Q178,30 175,28Z"
 
 /* ─── Helpers ─── */
 function cityById(id) { return CITIES.find(c => c.id === id) }
@@ -259,7 +259,7 @@ function TypingText({ text, speed = 28, className, style }) {
   )
 }
 
-function AiCard({ state, isDone }) {
+export function AiCard({ state, isDone }) {
   return (
     <motion.div className="rounded-2xl border px-4 py-3 md:px-5 md:py-3.5"
       style={{ backgroundColor: 'rgba(255,255,255,0.95)', borderColor: 'rgba(249,115,22,0.12)', boxShadow: '0 12px 32px rgba(0,0,0,0.05)', transformStyle: 'preserve-3d' }}
@@ -287,7 +287,7 @@ function AiCard({ state, isDone }) {
 }
 
 /* ─── Price Bubble ─── */
-function PriceBubble({ bubble }) {
+export function PriceBubble({ bubble }) {
   return (
     <motion.div className="absolute pointer-events-none"
       initial={{ opacity: 0, scale: 0.88, y: 4 }}
@@ -309,7 +309,7 @@ function PriceBubble({ bubble }) {
 }
 
 /* ─── Suggestion Card ─── */
-function SuggestionCard({ show, onComplete, tilt }) {
+export function SuggestionCard({ show, onComplete, tilt }) {
   const rotateX = tilt.y * -2.2
   const rotateY = tilt.x * 2.2
   return (
@@ -390,7 +390,7 @@ function SuggestionCard({ show, onComplete, tilt }) {
 }
 
 /* ─── Countdown ─── */
-function CountdownPill({ visible, seconds, onSkip }) {
+export function CountdownPill({ visible, seconds, onSkip }) {
   const pct = ((8 - seconds) / 8) * 100
   const r = 10; const circ = 2 * Math.PI * r; const dash = (pct / 100) * circ
   return (

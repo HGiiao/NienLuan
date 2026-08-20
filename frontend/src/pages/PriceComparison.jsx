@@ -48,7 +48,7 @@ const TrendTooltip = ({ active, payload, label }) => {
 
 function LiveIndicator({ connected = true, lastUpdated, isConnecting, reconnectError, nextUpdateIn }) {
   const timeText = lastUpdated
-    ? `Cập nhật: ${lastUpdated.toLocaleTimeString('vi-VN')}`
+    ? `Cập nhật: ${lastUpdated.toLocaleTimeString('vi-VN', { hour12: false })}`
     : ''
 
   return (
@@ -148,21 +148,23 @@ function CompareSection({
   const cheapestT = trainList.length ? trainList.reduce((a, b) => a.price < b.price ? a : b) : null
   const cheapestB = busList.length ? busList.reduce((a, b) => a.price < b.price ? a : b) : null
 
-  const goToFlight = (f) => {
-    const params = new URLSearchParams({ from: searchParams?.from || f.departureLocation, to: searchParams?.to || f.arrivalLocation, date: searchParams?.date || '', tripType: searchParams?.tripType || 'one-way' })
+  // Compare API coi ngày rỗng là "hôm nay". Truyền đúng ngày để trang đích
+  // lọc cùng ngày và chứa đúng vé đã click; kèm highlight=id để cuộn tới vé đó.
+  const today = new Date().toISOString().substring(0, 10)
+  const buildParams = (item, path) => {
+    const params = new URLSearchParams({
+      from: searchParams?.from || item.departureLocation,
+      to: searchParams?.to || item.arrivalLocation,
+      date: searchParams?.date || today,
+      tripType: searchParams?.tripType || 'one-way',
+    })
     if (searchParams?.returnDate) params.set('returnDate', searchParams.returnDate)
-    navigate(`/flights?${params.toString()}`)
+    params.set('highlight', item.id)
+    navigate(`${path}?${params.toString()}`)
   }
-  const goToTrain = (t) => {
-    const params = new URLSearchParams({ from: searchParams?.from || t.departureLocation, to: searchParams?.to || t.arrivalLocation, date: searchParams?.date || '', tripType: searchParams?.tripType || 'one-way' })
-    if (searchParams?.returnDate) params.set('returnDate', searchParams.returnDate)
-    navigate(`/trains?${params.toString()}`)
-  }
-  const goToBus = (b) => {
-    const params = new URLSearchParams({ from: searchParams?.from || b.departureLocation, to: searchParams?.to || b.arrivalLocation, date: searchParams?.date || '', tripType: searchParams?.tripType || 'one-way' })
-    if (searchParams?.returnDate) params.set('returnDate', searchParams.returnDate)
-    navigate(`/buses?${params.toString()}`)
-  }
+  const goToFlight = (f) => buildParams(f, '/flights')
+  const goToTrain = (t) => buildParams(t, '/trains')
+  const goToBus = (b) => buildParams(b, '/buses')
 
   return (
     <div className="mb-6">
@@ -260,7 +262,7 @@ function CompareSection({
                           {f.departureLocation} &rarr; {f.arrivalLocation}
                         </span>
                         <span className="text-[10px] text-[var(--color-text-tertiary)]">
-                          {new Date(f.departureTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - {new Date(f.arrivalTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          {new Date(f.departureTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })} - {new Date(f.arrivalTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}
                         </span>
                       </div>
                     </div>
@@ -297,7 +299,7 @@ function CompareSection({
                           {b.departureLocation} &rarr; {b.arrivalLocation}
                         </span>
                         <span className="text-[10px] text-[var(--color-text-tertiary)]">
-                          {new Date(b.departureTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - {new Date(b.arrivalTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          {new Date(b.departureTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })} - {new Date(b.arrivalTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}
                         </span>
                       </div>
                     </div>
@@ -334,7 +336,7 @@ function CompareSection({
                           {t.departureLocation} &rarr; {t.arrivalLocation}
                         </span>
                         <span className="text-[10px] text-[var(--color-text-tertiary)]">
-                          {new Date(t.departureTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - {new Date(t.arrivalTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          {new Date(t.departureTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })} - {new Date(t.arrivalTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}
                         </span>
                       </div>
                     </div>

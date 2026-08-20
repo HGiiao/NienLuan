@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>Slide 2 - Mục lục</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #fff; }
+  .slide { width: 1280px; height: 720px; position: relative; overflow: hidden; }
+  .slide-title { font-size: 32px; font-weight: 700; color: #0F172A; padding: 30px 50px 0; }
+  .slide-title::after { content: ''; display: block; width: 80px; height: 4px; background: #2563EB; margin-top: 8px; }
+  .toc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 40px 50px; }
+  .toc-item { display: flex; align-items: center; gap: 14px; padding: 14px 18px; background: #F1F5F9; border-radius: 10px; border-left: 4px solid #2563EB; transition: all 0.2s; }
+  .toc-num { font-size: 22px; font-weight: 800; color: #2563EB; min-width: 36px; }
+  .toc-text { font-size: 15px; font-weight: 600; color: #0F172A; }
+  .toc-item:nth-child(even) { border-left-color: #F59E0B; }
+  .toc-item:nth-child(even) .toc-num { color: #F59E0B; }
+  .footer { position: absolute; bottom: 20px; right: 40px; font-size: 13px; color: #94A3B8; }
+</style>
+</head>
+<body>
+<div class="slide">
+  <div class="slide-title">MỤC LỤC</div>
+  <div class="toc-grid">
+    <div class="toc-item"><span class="toc-num">01</span><span class="toc-text">Bài toán & Ý tưởng</span></div>
+    <div class="toc-item"><span class="toc-num">02</span><span class="toc-text">Mục tiêu đề tài</span></div>
+    <div class="toc-item"><span class="toc-num">03</span><span class="toc-text">Kiến trúc hệ thống</span></div>
+    <div class="toc-item"><span class="toc-num">04</span><span class="toc-text">Công nghệ sử dụng</span></div>
+    <div class="toc-item"><span class="toc-num">05</span><span class="toc-text">Cơ sở dữ liệu</span></div>
+    <div class="toc-item"><span class="toc-num">06</span><span class="toc-text">Tính năng chính — Tìm kiếm & Đặt vé</span></div>
+    <div class="toc-item"><span class="toc-num">07</span><span class="toc-text">Tính năng chính — So sánh & Dự đoán giá</span></div>
+    <div class="toc-item"><span class="toc-num">08</span><span class="toc-text">Tính năng chính — Lộ trình tối ưu</span></div>
+    <div class="toc-item"><span class="toc-num">09</span><span class="toc-text">Tính năng chính — Giá realtime (SignalR)</span></div>
+    <div class="toc-item"><span class="toc-num">10</span><span class="toc-text">Tính năng chính — Thanh toán online</span></div>
+    <div class="toc-item"><span class="toc-num">11</span><span class="toc-text">Tính năng phụ & Admin</span></div>
+    <div class="toc-item"><span class="toc-num">12</span><span class="toc-text">Chất lượng & Kiểm thử</span></div>
+    <div class="toc-item"><span class="toc-num">13</span><span class="toc-text">Triển khai & Kết quả</span></div>
+    <div class="toc-item"><span class="toc-num">14</span><span class="toc-text">Hướng phát triển & Kết luận</span></div>
+  </div>
+  <div class="footer">Slide 2 / 23</div>
+</div>
+</body>
+</html>

@@ -19,6 +19,7 @@ const PAGE_SIZE = 20
 export default function SearchTrains() {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
+  const highlightId = searchParams.get('highlight')
   const [query, setQuery] = useState({
     from: searchParams.get('from') || '',
     to: searchParams.get('to') || '',
@@ -106,6 +107,14 @@ export default function SearchTrains() {
     if (query.from || query.to) setHasSearched(true)
     initialLoad.current = false
   }, [])
+
+  // Cuộn tới vé được chỉ định từ trang so sánh (highlight=id) khi danh sách đã có
+  useEffect(() => {
+    if (!highlightId) return
+    const el = document.getElementById(`train-card-${highlightId}`)
+    if (!el) return
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [items, outboundItems, returnItems, highlightId])
 
   useEffect(() => {
     if (initialLoad.current) return
@@ -327,7 +336,7 @@ export default function SearchTrains() {
           {!loading && (
             <motion.div {...stagger} className="space-y-3">
               {outboundItems.map(t => (
-                <motion.div key={t.id} variants={cardVariant}>
+                <motion.div key={t.id} id={highlightId ? `train-card-${t.id}` : undefined} variants={cardVariant} className={highlightId === String(t.id) ? 'ring-2 ring-primary-500 rounded-2xl' : ''}>
                   <TrainCard train={t} onBook={(train) => setBookingItem(train)} onDetail={(train) => setDetailItem(train)} onWatch={handleWatch} watched={watchedIds.has(t.id)}  prediction={null} />
                 </motion.div>
               ))}
@@ -350,7 +359,7 @@ export default function SearchTrains() {
           {!loading && (
             <motion.div {...stagger} className="space-y-3">
               {returnItems.map(t => (
-                <motion.div key={t.id} variants={cardVariant}>
+                <motion.div key={t.id} id={highlightId ? `train-card-${t.id}` : undefined} variants={cardVariant} className={highlightId === String(t.id) ? 'ring-2 ring-primary-500 rounded-2xl' : ''}>
                   <TrainCard train={t} onBook={(train) => setBookingItem(train)} onDetail={(train) => setDetailItem(train)} onWatch={handleWatch} watched={watchedIds.has(t.id)}  prediction={null} />
                 </motion.div>
               ))}
@@ -369,7 +378,7 @@ export default function SearchTrains() {
         <>
           <motion.div {...stagger} className="space-y-3">
             {filteredItems.map(t => (
-              <motion.div key={t.id} variants={cardVariant}>
+              <motion.div key={t.id} id={highlightId ? `train-card-${t.id}` : undefined} variants={cardVariant} className={highlightId === String(t.id) ? 'ring-2 ring-primary-500 rounded-2xl' : ''}>
                 <TrainCard train={t} onBook={(train) => setBookingItem(train)} onDetail={(train) => setDetailItem(train)} onWatch={handleWatch} watched={watchedIds.has(t.id)}  prediction={prediction} />
               </motion.div>
             ))}

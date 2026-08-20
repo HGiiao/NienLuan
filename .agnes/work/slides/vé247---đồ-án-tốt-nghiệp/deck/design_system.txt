@@ -1,0 +1,44 @@
+# Design System — Vé247 PPTX
+
+## Colors
+- Primary Blue: #2563EB
+- Dark Blue (navy): #0F172A
+- White: #FFFFFF
+- Light Gray: #F1F5F9
+- Accent Yellow: #F59E0B
+- Gradient: #2563EB → #1D4ED8
+- Table Header: #2563EB white text
+- Table Rows: alternating white / #F1F5F9
+- Text Primary: #0F172A
+- Text Secondary: #64748B
+- Text Light (on dark bg): #FFFFFF
+- Border: #E2E8F0
+
+## Typography
+- Title font: Arial Black / Inter Bold
+- Body font: Inter / Arial
+- Slide title: 32px bold
+- Body: 14px
+- Table: 11px
+- Small captions: 10px
+
+## Layout Rules
+- Slide size: 1280x720 (16:9)
+- Each slide must have: title (top-left, with accent underline), content filling most of the slide
+- NO empty slides — every slide must be information-dense
+- Use tables, columns, bullet points, diagrams to fill space
+- Footer: slide number
+
+## Slide Types
+1. **Cover** (slides 1, 22, 23): dark bg #0F172A, white text, centered
+2. **Content** (rest): white bg, left-aligned title with accent underline
+3. **Diagram**: include local image from source
+4. **Table**: 2-3 columns, header blue, alternating rows
+5. **Grid of cards**: for feature highlights
+6. **Flow/Process**: horizontal steps with arrows
+
+## Visual Elements
+- Arrows: CHEVRON shapes
+- Boxes: rounded rectangles
+- Icons: use Unicode/emoji where appropriate
+- Tables: full-width with clear headers

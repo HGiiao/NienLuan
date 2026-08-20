@@ -57,7 +57,7 @@ export default function LocationInput({ value, onChange, placeholder, variant = 
         className={baseInput}
       />
       {open && filtered.length > 0 && (
-        <div className={`absolute top-full left-0 right-0 mt-1 z-50 rounded-lg border overflow-hidden shadow-xl ${
+        <div className={`absolute top-full left-0 right-0 mt-1 z-50 max-h-32 overflow-y-auto rounded-lg border shadow-xl scrollbar-thin ${
           variant === 'hero' ? 'bg-black/70 backdrop-blur-xl border-white/10 shadow-xl' : 'bg-[var(--color-bg-card)] border-[var(--color-border)]'
         }`}>
           {filtered.map((loc, i) => (

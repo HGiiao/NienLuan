@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Bell, BellRing, CheckCheck, Trash2, X, AlertCircle, Clock, DollarSign, CloudSun, Plane, ExternalLink } from 'lucide-react'
+import { Bell, BellRing, CheckCheck, Trash2, X, AlertCircle, Clock, DollarSign, CloudSun, Plane } from 'lucide-react'
 import { getNotifications, getUnreadCount, markNotificationRead, markAllNotificationsRead, deleteNotification } from '../services/api'
 import { formatDistanceToNow } from '../utils/formatters'
 
@@ -11,12 +12,24 @@ const typeIcons = {
   visa: [Plane, '#F59E0B'],
 }
 
+// Điều hướng mặc định theo loại thông báo khi bấm vào
+const typeRoutes = {
+  promo: '/flights',
+  price_drop: '/compare',
+  low_seats: '/flights',
+  announcement: '/',
+  maintenance: '/',
+  weather: '/',
+  visa: '/',
+}
+
 export default function NotificationBell() {
   const [open, setOpen] = useState(false)
   const [notifications, setNotifications] = useState([])
   const [unread, setUnread] = useState(0)
   const [loading, setLoading] = useState(false)
   const ref = useRef(null)
+  const navigate = useNavigate()
 
   const user = JSON.parse(sessionStorage.getItem('user') || 'null')
   const email = user?.email
@@ -71,6 +84,13 @@ export default function NotificationBell() {
     try { await deleteNotification(id); setNotifications(p => p.filter(n => n.id !== id)) } catch {}
   }
 
+  const handleOpen = async (n) => {
+    handleMarkRead(n.id)
+    setOpen(false)
+    if (n.link) { navigate(n.link); return }
+    navigate(typeRoutes[n.type] || '/')
+  }
+
   return (
     <div ref={ref} className="relative">
       <button onClick={() => setOpen(!open)} className="relative p-2 rounded-xl hover:bg-[var(--color-border)]/30 transition-colors">
@@ -114,7 +134,8 @@ export default function NotificationBell() {
                   const color = typeIcons[n.type]?.[1] || '#64748B'
                   return (
                     <motion.div key={n.id} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.02 }}
-                      className={`flex gap-3 px-4 py-3 border-b border-[var(--color-border)] last:border-b-0 hover:bg-[var(--color-surface-50)] transition-colors ${!n.isRead ? 'bg-accent-500/5' : ''}`}>
+                      onClick={() => handleOpen(n)}
+                      className={`flex gap-3 px-4 py-3 border-b border-[var(--color-border)] last:border-b-0 hover:bg-[var(--color-surface-50)] transition-colors cursor-pointer ${!n.isRead ? 'bg-accent-500/5' : ''}`}>
                       <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0" style={{ background: `${color}15` }}>
                         <Icon className="w-4.5 h-4.5" style={{ color }} />
                       </div>
@@ -129,15 +150,10 @@ export default function NotificationBell() {
                             {formatDistanceToNow(n.createdAt)}
                           </span>
                           <div className="flex items-center gap-1">
-                            {n.link && (
-                              <a href={n.link} className="p-1 text-[var(--color-text-tertiary)] hover:text-accent-500">
-                                <ExternalLink className="w-3 h-3" />
-                              </a>
-                            )}
-                            <button onClick={() => handleMarkRead(n.id)} className={`p-1 ${n.isRead ? 'text-[var(--color-text-tertiary)]' : 'text-accent-500'} hover:text-accent-600`}>
+                            <button onClick={(e) => { e.stopPropagation(); handleMarkRead(n.id) }} className={`p-1 ${n.isRead ? 'text-[var(--color-text-tertiary)]' : 'text-accent-500'} hover:text-accent-600`}>
                               <CheckCheck className="w-3 h-3" />
                             </button>
-                            <button onClick={() => handleDelete(n.id)} className="p-1 text-[var(--color-text-tertiary)] hover:text-red-500">
+                            <button onClick={(e) => { e.stopPropagation(); handleDelete(n.id) }} className="p-1 text-[var(--color-text-tertiary)] hover:text-red-500">
                               <Trash2 className="w-3 h-3" />
                             </button>
                           </div>

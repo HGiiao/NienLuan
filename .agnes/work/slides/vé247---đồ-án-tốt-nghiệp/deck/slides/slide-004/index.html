@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>Slide 4 - Mục tiêu</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #fff; }
+  .slide { width: 1280px; height: 720px; position: relative; overflow: hidden; }
+  .slide-title { font-size: 32px; font-weight: 700; color: #0F172A; padding: 30px 50px 0; }
+  .slide-title::after { content: ''; display: block; width: 80px; height: 4px; background: #2563EB; margin-top: 8px; }
+  .cards { display: flex; flex-wrap: wrap; gap: 16px; padding: 35px 50px; }
+  .card { flex: 1 1 calc(33% - 16px); min-width: 280px; background: #F8FAFC; border-radius: 12px; padding: 20px; border: 1px solid #E2E8F0; position: relative; overflow: hidden; }
+  .card::before { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 4px; }
+  .card:nth-child(1)::before { background: #2563EB; }
+  .card:nth-child(2)::before { background: #F59E0B; }
+  .card:nth-child(3)::before { background: #10B981; }
+  .card:nth-child(4)::before { background: #8B5CF6; }
+  .card:nth-child(5)::before { background: #EC4899; }
+  .card:nth-child(6)::before { background: #06B6D4; }
+  .card-icon { font-size: 28px; margin-bottom: 10px; }
+  .card-title { font-size: 15px; font-weight: 700; color: #0F172A; margin-bottom: 8px; }
+  .card-desc { font-size: 12px; color: #64748B; line-height: 1.5; }
+  .footer { position: absolute; bottom: 20px; right: 40px; font-size: 13px; color: #94A3B8; }
+</style>
+</head>
+<body>
+<div class="slide">
+  <div class="slide-title">MỤC TIÊU ĐỀ TÀI</div>
+  <div class="cards">
+    <div class="card"><div class="card-icon">🔍</div><div class="card-title">Tìm kiếm tổng hợp</div><div class="card-desc">Tìm vé máy bay, tàu hỏa, xe khách theo tuyến/ngày trên 1 giao diện duy nhất</div></div>
+    <div class="card"><div class="card-icon">📊</div><div class="card-title">So sánh & dự đoán giá</div><div class="card-desc">So sánh giá giữa các hãng, biểu đồ lịch sử 30 ngày, dự báo xu hướng giá</div></div>
+    <div class="card"><div class="card-icon">🛤️</div><div class="card-title">Lộ trình tối ưu</div><div class="card-desc">Gợi ý chuỗi di chuyển kết hợp đa phương tiện: rẻ nhất / nhanh nhất / ít trung chuyển</div></div>
+    <div class="card"><div class="card-icon">💳</div><div class="card-title">Đặt vé + thanh toán</div><div class="card-desc">Đặt vé nhiều hành khách, chọn bảo hiểm, thanh toán qua 5 cổng VN</div></div>
+    <div class="card"><div class="card-icon">📡</div><div class="card-title">Giá realtime</div><div class="card-desc">WebSocket SignalR đẩy giá mới mỗi 30s, tự reconnect + fallback polling</div></div>
+    <div class="card"><div class="card-icon">🛡️</div><div class="card-title">Admin dashboard</div><div class="card-desc">Quản lý toàn diện: users, bookings, chuyến bay, promo, thống kê doanh thu</div></div>
+  </div>
+  <div class="footer">Slide 4 / 23</div>
+</div>
+</body>
+</html>

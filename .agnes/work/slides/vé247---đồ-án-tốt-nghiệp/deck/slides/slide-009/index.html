@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>Slide 9 - Tìm kiếm & Đặt vé</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #fff; }
+  .slide { width: 1280px; height: 720px; position: relative; overflow: hidden; }
+  .slide-title { font-size: 32px; font-weight: 700; color: #0F172A; padding: 30px 50px 0; }
+  .slide-title::after { content: ''; display: block; width: 80px; height: 4px; background: #2563EB; margin-top: 8px; }
+  .flow { display: flex; align-items: stretch; gap: 8px; padding: 30px 50px; }
+  .step { flex: 1; background: #F8FAFC; border-radius: 12px; padding: 16px; text-align: center; border: 1px solid #E2E8F0; position: relative; }
+  .step-num { width: 32px; height: 32px; background: #2563EB; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; margin: 0 auto 10px; }
+  .step h4 { font-size: 13px; color: #0F172A; margin-bottom: 6px; }
+  .step p { font-size: 11px; color: #64748B; line-height: 1.4; }
+  .step-arrow { display: flex; align-items: center; font-size: 22px; color: #94A3B8; padding: 0 2px; }
+  .highlights { padding: 0 50px 20px; display: flex; gap: 12px; flex-wrap: wrap; }
+  .hl { background: linear-gradient(135deg, #EFF6FF, #DBEAFE); border: 1px solid #BFDBFE; border-radius: 8px; padding: 8px 14px; font-size: 12px; color: #1D4ED8; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+  .footer { position: absolute; bottom: 20px; right: 40px; font-size: 13px; color: #94A3B8; }
+</style>
+</head>
+<body>
+<div class="slide">
+  <div class="slide-title">TÍNH NĂNG CHÍNH — TÌM KIẾM & ĐẶT VÉ</div>
+  <div class="flow">
+    <div class="step"><div class="step-num">1</div><h4>Tìm kiếm</h4><p>Nhập tuyến (đi → đến), ngày đi, số hành khách · Lọc theo hạng ghế, khoảng giá, thời gian</p></div>
+    <div class="step-arrow">→</div>
+    <div class="step"><div class="step-num">2</div><h4>Chọn chuyến</h4><p>Xem chi tiết: hãng, giờ bay, giá, số chỗ trống · So sánh nhiều chuyến trên 1 màn hình</p></div>
+    <div class="step-arrow">→</div>
+    <div class="step"><div class="step-num">3</div><h4>Chọn hành khách</h4><p>1–9 hành khách · Nhập tên, ngày sinh, CCCD, liên hệ khẩn cấp</p></div>
+    <div class="step-arrow">→</div>
+    <div class="step"><div class="step-num">4</div><h4>Thanh toán</h4><p>Chọn cổng (VNPay/MoMo/ZaloPay/PayOS/VietQR) · Redirect sang cổng sandbox</p></div>
+    <div class="step-arrow">→</div>
+    <div class="step"><div class="step-num">5</div><h4>Xác nhận</h4><p>IPN webhook xác nhận tiền → Booking status = Confirmed · Gửi email xác nhận</p></div>
+  </div>
+  <div class="highlights">
+    <div class="hl">✈️ 3 phương tiện: Máy bay · Tàu hỏa · Xe khách</div>
+    <div class="hl">👥 1–9 hành khách / đơn đặt</div>
+    <div class="hl">🛡️ Bảo hiểm chuyến đi (3 gói: Cơ Bản / Cao Cấp / Toàn Diện)</div>
+    <div class="hl">🔀 Đặt vé nhiều chặng (BookingSegments)</div>
+    <div class="hl">📧 Email xác nhận qua SMTP Gmail</div>
+  </div>
+  <div class="footer">Slide 9 / 23</div>
+</div>
+</body>
+</html>

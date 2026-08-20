@@ -157,7 +157,7 @@ function AdminShell() {
             <div className="hidden md:flex items-center gap-1.5 px-3 h-9 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)]">
               <Clock className="w-3.5 h-3.5 text-[var(--color-text-tertiary)]" />
               <span className="text-xs text-[var(--color-text-secondary)] font-medium">
-                {time.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+                {time.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false })}
               </span>
             </div>
 

@@ -89,7 +89,7 @@ export default function HeroSearch() {
         }
       `}</style>
 
-      <section className="relative min-h-[88vh] flex items-center overflow-hidden">
+      <section className="relative z-20 min-h-[88vh] flex items-center">
         {/* Background image */}
         <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: "url('/images/NENBANNER.jpg')" }} />
         {/* Gradient overlay */}

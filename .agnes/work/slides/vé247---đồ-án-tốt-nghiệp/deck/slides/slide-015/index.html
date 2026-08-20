@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>Slide 15 - Xác thực</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #fff; }
+  .slide { width: 1280px; height: 720px; position: relative; overflow: hidden; }
+  .slide-title { font-size: 32px; font-weight: 700; color: #0F172A; padding: 30px 50px 0; }
+  .slide-title::after { content: ''; display: block; width: 80px; height: 4px; background: #2563EB; margin-top: 8px; }
+  .content { padding: 30px 50px; display: flex; flex-direction: column; gap: 16px; }
+  .auth-row { display: flex; gap: 16px; }
+  .auth-card { flex: 1; background: #F8FAFC; border-radius: 12px; padding: 18px; border: 1px solid #E2E8F0; }
+  .auth-card h3 { font-size: 15px; color: #1D4ED8; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+  .auth-card p { font-size: 12px; color: #475569; line-height: 1.5; }
+  .auth-card .tag { display: inline-block; background: #EFF6FF; color: #2563EB; padding: 2px 8px; border-radius: 6px; font-size: 10px; font-weight: 600; margin-top: 6px; }
+  .login-table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+  .login-table th { background: #0F172A; color: white; padding: 8px 12px; text-align: left; font-size: 11px; }
+  .login-table td { padding: 7px 12px; font-size: 11px; border-bottom: 1px solid #E2E8F0; color: #334155; }
+  .login-table tr:nth-child(even) td { background: #F1F5F9; }
+  .footer { position: absolute; bottom: 20px; right: 40px; font-size: 13px; color: #94A3B8; }
+</style>
+</head>
+<body>
+<div class="slide">
+  <div class="slide-title">TÍNH NĂNG — XÁC THỰC & TÀI KHOẢN</div>
+  <div class="content">
+    <div class="auth-row">
+      <div class="auth-card">
+        <h3>🔑 Đăng nhập OAuth (Clerk)</h3>
+        <p>
+          Hỗ trợ Google, Facebook, Email đăng ký/đăng nhập chuẩn.<br>
+          Clerk quản lý session, token, SSO — không cần tự xây hệ thống auth.<br>
+          Mỗi lần đăng nhập thành công → <strong>clerk-sync</strong> tự động tạo/đồng bộ tài khoản trong DB Users.
+        </p>
+        <span class="tag">Clerk React SDK v5 · OAuth 2.0 · SSO</span>
+      </div>
+      <div class="auth-card">
+        <h3>🔐 Đăng ký nội bộ</h3>
+        <p>
+          Người dùng có thể đăng ký tài khoản truyền thống: Email + Mật khẩu.<br>
+          Mật khẩu được <strong>hash bằng BCrypt</strong> (cost factor 12) trước khi lưu DB.<br>
+          Xác thực email qua <strong>SMTP Gmail</strong>: gửi mã 6 chữ số → người dùng nhập để xác nhận.
+        </p>
+        <span class="tag">BCrypt.Net-Next · SMTP Gmail · 6-digit code</span>
+      </div>
+    </div>
+    <div class="auth-card" style="flex:none;">
+      <h3>📊 Luồng xác thực kết hợp</h3>
+      <div style="display:flex; gap:16px; align-items:center; flex-wrap:wrap; margin-top:10px;">
+        <div style="background:#EFF6FF; padding:10px 16px; border-radius:8px; font-size:12px; color:#1D4ED8; font-weight:600;">Bước 1: Chọn đăng nhập bằng Google / Facebook / Email</div>
+        <span style="font-size:20px; color:#94A3B8;">→</span>
+        <div style="background:#EFF6FF; padding:10px 16px; border-radius:8px; font-size:12px; color:#1D4ED8; font-weight:600;">Bước 2: OAuth callback → Clerk gửi user info</div>
+        <span style="font-size:20px; color:#94A3B8;">→</span>
+        <div style="background:#EFF6FF; padding:10px 16px; border-radius:8px; font-size:12px; color:#1D4ED8; font-weight:600;">Bước 3: clerk-sync tạo/tìm User trong DB</div>
+        <span style="font-size:20px; color:#94A3B8;">→</span>
+        <div style="background:#DCFCE7; padding:10px 16px; border-radius:8px; font-size:12px; color:#16A34A; font-weight:600;">Bước 4: Cấp JWT token → Lưu vào localStorage</div>
+      </div>
+    </div>
+    <table class="login-table">
+      <thead><tr><th>Tài khoản</th><th>Email</th><th>Mật khẩu</th><th>Vai trò</th></tr></thead>
+      <tbody>
+        <tr><td>Admin</td><td>admin@ve247.vn</td><td>Admin123</td><td>Admin</td></tr>
+        <tr><td>User demo</td><td>user@example.com</td><td>123456</td><td>User</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="footer">Slide 15 / 23</div>
+</div>
+</body>
+</html>

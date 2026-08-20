@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>Slide 10 - So sánh & Dự đoán</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #fff; }
+  .slide { width: 1280px; height: 720px; position: relative; overflow: hidden; }
+  .slide-title { font-size: 32px; font-weight: 700; color: #0F172A; padding: 30px 50px 0; }
+  .slide-title::after { content: ''; display: block; width: 80px; height: 4px; background: #2563EB; margin-top: 8px; }
+  .content { padding: 25px 50px; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .block { background: #F8FAFC; border-radius: 12px; padding: 18px; border: 1px solid #E2E8F0; }
+  .block h3 { font-size: 15px; color: #1D4ED8; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+  .block ul { list-style: none; }
+  .block li { font-size: 12px; color: #334155; padding: 5px 0; border-bottom: 1px solid #F1F5F9; display: flex; gap: 8px; }
+  .block li::before { content: '▸'; color: #2563EB; font-weight: 700; }
+  .algo-box { background: #0F172A; color: white; border-radius: 10px; padding: 16px; font-size: 12px; }
+  .algo-box h4 { color: #60a5fa; margin-bottom: 8px; }
+  .algo-box code { background: #1E293B; padding: 2px 6px; border-radius: 4px; font-size: 11px; }
+  .algo-box p { color: #94A3B8; margin-top: 6px; line-height: 1.5; }
+  .rec-box { display: flex; flex-direction: column; gap: 8px; }
+  .rec-item { padding: 10px; border-radius: 8px; font-size: 12px; }
+  .rec-buy { background: #FEE2E2; color: #7F1D1D; }
+  .rec-wait { background: #DCFCE7; color: #14532D; }
+  .rec-neutral { background: #FEF3C7; color: #78350F; }
+  .rec-item strong { display: block; margin-bottom: 2px; }
+  .footer { position: absolute; bottom: 20px; right: 40px; font-size: 13px; color: #94A3B8; }
+</style>
+</head>
+<body>
+<div class="slide">
+  <div class="slide-title">TÍNH NĂNG CHÍNH — SO SÁNH & DỰ ĐOÁN GIÁ</div>
+  <div class="content">
+    <div class="block">
+      <h3>📊 So sánh giá giữa các hãng</h3>
+      <ul>
+        <li>So sánh giá máy bay các hãng trên cùng tuyến (VietJet, Vietnam Airlines, Bamboo...)</li>
+        <li>So sánh giá 3 phương tiện cùng lúc: máy bay vs tàu hỏa vs xe khách</li>
+        <li>Sắp xếp theo: giá tăng/giảm, thời gian, số chặng</li>
+        <li>Bộ lọc: khoảng giá, hạng ghế, khung giờ, hãng</li>
+        <li>Hiển thị carbon footprint (kg CO₂) cho mỗi phương án</li>
+      </ul>
+    </div>
+    <div class="block">
+      <h3>📈 Lịch sử & Dự đoán giá</h3>
+      <ul>
+        <li>Biểu đồ Recharts: giá trung bình 30 ngày qua theo ngày</li>
+        <li>Ứng với mỗi tuyến (RouteFrom → RouteTo)</li>
+        <li>Dự đoán giá 7 ngày tới bằng <strong>Hồi quy tuyến tính</strong></li>
+        <li>Giá tương lai = intercept + slope × ngày dự báo</li>
+        <li>Hệ số PriceConfigs theo tháng: cao điểm Tết, hè tăng giá</li>
+      </ul>
+    </div>
+    <div class="block" style="grid-column: 1 / -1;">
+      <h3>🧮 Thuật toán dự đoán — PricePredictionService</h3>
+      <div style="display:flex; gap:20px; align-items:flex-start;">
+        <div class="algo-box" style="flex:2;">
+          <h4>Công thức Hồi quy tuyến tính đơn giản</h4>
+          <p>
+            <code>slope = (n·Σxy − Σx·Σy) / (n·Σx² − (Σx)²)</code><br>
+            <code>intercept = (Σy − slope·Σx) / n</code><br>
+            Dự đoán ngày t+i: <code>predictedPrice = intercept + slope × (n+i)</code>
+          </p>
+          <p>R² (coefficient of determination) → đánh giá độ tin cậy dự báo</p>
+        </div>
+        <div class="rec-box" style="flex:1;">
+          <div class="rec-item rec-buy"><strong>🔴 MUA NGAY</strong>R² ≥ 0.3 & Xu hướng tăng → Tiềm ẩn giá cao hơn</div>
+          <div class="rec-item rec-wait"><strong>🔵 CHỜ ĐỢI</strong>R² ≥ 0.3 & Xu hướng giảm → Giá có thể xuống thấp hơn</div>
+          <div class="rec-item rec-neutral"><strong>⚪ TRUNG TÍNH</strong>R² &lt; 0.3 hoặc ổn định → Không đủ dữ liệu để dự báo</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="footer">Slide 10 / 23</div>
+</div>
+</body>
+</html>

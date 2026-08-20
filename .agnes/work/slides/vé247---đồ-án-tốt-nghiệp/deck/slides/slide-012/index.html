@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>Slide 12 - Giá realtime</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #fff; }
+  .slide { width: 1280px; height: 720px; position: relative; overflow: hidden; }
+  .slide-title { font-size: 32px; font-weight: 700; color: #0F172A; padding: 30px 50px 0; }
+  .slide-title::after { content: ''; display: block; width: 80px; height: 4px; background: #2563EB; margin-top: 8px; }
+  .content { padding: 30px 50px; display: flex; flex-direction: column; gap: 20px; }
+  .diagram { background: linear-gradient(135deg, #0F172A, #1e293b); border-radius: 14px; padding: 24px; color: white; }
+  .diagram h3 { font-size: 16px; color: #60a5fa; margin-bottom: 16px; }
+  .server-row { display: flex; align-items: center; gap: 16px; margin-bottom: 14px; }
+  .server-box { background: #1E293B; border: 2px solid #2563EB; border-radius: 10px; padding: 12px 18px; min-width: 200px; }
+  .server-box h4 { font-size: 13px; color: #FCD34D; margin-bottom: 4px; }
+  .server-box p { font-size: 11px; color: #94A3B8; }
+  .server-arrow { font-size: 24px; color: #2563EB; }
+  .client-box { background: #1E293B; border: 2px solid #10B981; border-radius: 10px; padding: 12px 18px; min-width: 200px; }
+  .client-box h4 { font-size: 13px; color: #34D399; margin-bottom: 4px; }
+  .client-box p { font-size: 11px; color: #94A3B8; }
+  .detail-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+  .detail-card { background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 10px; padding: 14px; }
+  .detail-card h4 { font-size: 13px; color: #1D4ED8; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+  .detail-card p { font-size: 11px; color: #475569; line-height: 1.5; }
+  .code-line { background: #1E293B; color: #9CDCFE; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-family: Consolas, monospace; }
+  .footer { position: absolute; bottom: 20px; right: 40px; font-size: 13px; color: #94A3B8; }
+</style>
+</head>
+<body>
+<div class="slide">
+  <div class="slide-title">TÍNH NĂNG CHÍNH — GIÁ REALTIME (SIGNALR)</div>
+  <div class="content">
+    <div class="diagram">
+      <h3>📡 Luồng dữ liệu realtime qua SignalR</h3>
+      <div class="server-row">
+        <div class="server-box">
+          <h4>⚙️ PriceStreamService (Background)</h4>
+          <p>Chạy nền mỗi ~30 giây, cập nhật giá mới trong DB<br>→ Broadcast qua Hub</p>
+        </div>
+        <div class="server-arrow">⟶</div>
+        <div class="server-box">
+          <h4>🔌 PriceHub (WebSocket)</h4>
+          <p>Server push giá mới đến tất cả client<br>đã Join theo tuyến cụ thể</p>
+        </div>
+        <div class="server-arrow">⟶</div>
+        <div class="client-box">
+          <h4>🖥️ Frontend — usePriceStream Hook</h4>
+          <p>Nhận giá mới → cập nhật UI realtime<br>Tự reconnect khi mất kết nối</p>
+        </div>
+      </div>
+      <div style="margin-top:10px; display:flex; gap:12px; flex-wrap:wrap;">
+        <span class="code-line">JoinRoute(from, to) — chỉ nhận giá tuyến đang xem</span>
+        <span class="code-line">OnClosed → tự reconnect sau 5s</span>
+        <span class="code-line">Fallback: Polling 30s khi WebSocket lỗi</span>
+      </div>
+    </div>
+    <div class="detail-grid">
+      <div class="detail-card">
+        <h4>⚙️ Server-side</h4>
+        <p>
+          <code class="code-line">PriceStreamService</code> là IHostedService — khởi động cùng app.<br>
+          Mỗi 30s: randomize ±5% giá các chuyến bay trong 7 ngày tới → cập nhật DB.<br>
+          Gửi event <code class="code-line">PriceUpdated</code> tới group theo tuyến.
+        </p>
+      </div>
+      <div class="detail-card">
+        <h4>🖥️ Client-side</h4>
+        <p>
+          Hook <code class="code-line">usePriceStream()</code> khởi tạo ConnectionOptions → gọi <code class="code-line">startStrategy()</code>.<br>
+          Khi user vào trang so sánh giá: gọi <code class="code-line">joinRoute(from, to)</code>.<br>
+          Sự kiện <code class="code-line">onPriceUpdate</code> cập nhật state → UI refresh.
+        </p>
+      </div>
+      <div class="detail-card">
+        <h4>🛡️ Dự phòng</h4>
+        <p>
+          Nếu SignalR disconnect → tự chuyển sang <strong>polling</strong> mỗi 30s.<br>
+          Khi kết nối lại → switch back sang WebSocket.<br>
+          Ngăn memory leak bằng cleanup khi unmount component.
+        </p>
+      </div>
+    </div>
+  </div>
+  <div class="footer">Slide 12 / 23</div>
+</div>
+</body>
+</html>

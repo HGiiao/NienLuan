@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>Slide 14 - Tính năng phụ</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #fff; }
+  .slide { width: 1280px; height: 720px; position: relative; overflow: hidden; }
+  .slide-title { font-size: 32px; font-weight: 700; color: #0F172A; padding: 30px 50px 0; }
+  .slide-title::after { content: ''; display: block; width: 80px; height: 4px; background: #2563EB; margin-top: 8px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; padding: 25px 50px; }
+  .feature-card { background: #F8FAFC; border-radius: 12px; padding: 18px; border: 1px solid #E2E8F0; display: flex; flex-direction: column; gap: 8px; }
+  .feature-card .icon { font-size: 28px; }
+  .feature-card h4 { font-size: 14px; color: #0F172A; font-weight: 700; }
+  .feature-card p { font-size: 11px; color: #64748B; line-height: 1.5; flex: 1; }
+  .feature-card .tech { font-size: 10px; color: #2563EB; font-weight: 600; background: #EFF6FF; padding: 3px 8px; border-radius: 6px; display: inline-block; }
+  .footer { position: absolute; bottom: 20px; right: 40px; font-size: 13px; color: #94A3B8; }
+</style>
+</head>
+<body>
+<div class="slide">
+  <div class="slide-title">TÍNH NĂNG PHỤ</div>
+  <div class="grid">
+    <div class="feature-card">
+      <div class="icon">🤖</div>
+      <h4>Chat Bot Gợi ý</h4>
+      <p>Nhận tin nhắn tiếng Việt tự nhiên: "Hà Nội → Đà Nẵng đi gì rẻ?" → parse intent → gợi ý 3 phương tiện với giá thấp nhất.</p>
+      <span class="tech">Rule-based · Regex · NLP light</span>
+    </div>
+    <div class="feature-card">
+      <div class="icon">🎡</div>
+      <h4>Vòng Quay May Mắn</h4>
+      <p>Mỗi ngày 1 lần quay → nhận mã giảm giá ngẫu nhiên. Tăng engagement và trải nghiệm người dùng.</p>
+      <span class="tech">LuckyWheelController · Random logic</span>
+    </div>
+    <div class="feature-card">
+      <div class="icon">🏷️</div>
+      <h4>Mã Giảm Giá</h4>
+      <p>WELCOME10 (10%), SUMMER25 (25%), VIP20 (20%) — validate tự động: %, giới hạn đơn tối thiểu, số lượt dùng còn lại.</p>
+      <span class="tech">PromoCodesController · PromoCode service</span>
+    </div>
+    <div class="feature-card">
+      <div class="icon">🔔</div>
+      <h4>Cảnh Báo Giá Email</h4>
+      <p>Người dùng đặt mục tiêu giá → hệ thống tự so sánh, khi giá xuống ≤ target → gửi email thông báo qua SMTP.</p>
+      <span class="tech">PriceAlertService · EmailService</span>
+    </div>
+    <div class="feature-card">
+      <div class="icon">👑</div>
+      <h4>Gói VIP / Subscription</h4>
+      <p>3 gói: Basic/Monthly/Yearly. Thanh toán như booking. Quyền lợi: cảnh báo sớm, so sánh nhiều hãng, ưu tiên hỗ trợ.</p>
+      <span class="tech">SubscriptionController · PlanResolver</span>
+    </div>
+    <div class="feature-card">
+      <div class="icon">⭐</div>
+      <h4>Đánh giá & Mẹo cộng đồng</h4>
+      <p>Viết review sao + bình luận cho chuyến bay. Cộng đồng chia sẻ mẹo đi đường. Hệ thống upvote/giảm vote.</p>
+      <span class="tech">ReviewsController · CommunityTipsController</span>
+    </div>
+  </div>
+  <div class="footer">Slide 14 / 23</div>
+</div>
+</body>
+</html>

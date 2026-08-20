@@ -13,12 +13,13 @@ const coachClassConfig = {
 const defaultSeatCfg = { label: 'Ghế ngồi', icon: null, badge: 'bg-primary-500/10 text-primary-500 border-primary-500/20' }
 
 export default function BusCard({ bus, onBook, onWatch, onDetail, badge, index = 0, prediction, rating, watched = false }) {
-  const fmt = (d) => new Date(d).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  const fmt = (d) => new Date(d).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
   const dur = new Date(bus.arrivalTime) - new Date(bus.departureTime)
   const h = Math.floor(dur / 3600000)
   const m = Math.floor((dur % 3600000) / 60000)
   const seatsLeft = bus.seats
   const isLowStock = seatsLeft <= 5
+  const hasDeparted = new Date(bus.departureTime) <= new Date()
   const { avgPrice, vsAverage, trend } = useMemo(() => {
     const seed = (bus.id * 9301 + 49297) % 233280
     const r = seed / 233280
@@ -145,10 +146,13 @@ export default function BusCard({ bus, onBook, onWatch, onDetail, badge, index =
                 onClick={() => onDetail?.(bus)}
                 className="shrink-0 whitespace-nowrap py-2.5 px-3 rounded-xl text-xs font-bold transition-all border border-primary-500/30 text-primary-500 hover:bg-primary-500/5"
               >Xem chi tiết</motion.button>
-              <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
-                onClick={() => onBook?.(bus)}
-                className="bg-gradient-to-r from-primary-500 to-primary-600 text-white py-2.5 px-5 rounded-xl text-sm font-bold hover:shadow-lg hover:shadow-primary-500/20 transition-all shadow-md active:shadow-sm"
-              >Đặt vé</motion.button>
+              <motion.button whileHover={hasDeparted ? undefined : { scale: 1.03 }} whileTap={hasDeparted ? undefined : { scale: 0.97 }}
+                disabled={hasDeparted}
+                onClick={() => { if (hasDeparted) return; onBook?.(bus) }}
+                className={hasDeparted
+                  ? 'shrink-0 whitespace-nowrap py-2.5 px-5 rounded-xl text-sm font-bold bg-[var(--color-border)]/30 text-[var(--color-text-tertiary)] cursor-not-allowed'
+                  : 'bg-gradient-to-r from-primary-500 to-primary-600 text-white py-2.5 px-5 rounded-xl text-sm font-bold hover:shadow-lg hover:shadow-primary-500/20 transition-all shadow-md active:shadow-sm'}
+              >{hasDeparted ? 'Đã khởi hành' : 'Đặt vé'}</motion.button>
             </div>
           </div>
         </div>
@@ -186,7 +190,7 @@ export default function BusCard({ bus, onBook, onWatch, onDetail, badge, index =
                 <button onClick={() => onWatch?.(bus)} className={`px-3 py-2 rounded-xl text-xs font-bold transition-all ${watched ? 'bg-accent-500/10 text-accent-500 border border-accent-500/30' : 'border border-primary-500/30 text-primary-500 hover:bg-primary-500/5'}`}>{watched ? <BellOff className="w-3.5 h-3.5" /> : <Bell className="w-3.5 h-3.5" />}</button>
               )}
               <button onClick={() => onDetail?.(bus)} className="px-3 py-2 rounded-xl text-xs font-bold transition-all border border-primary-500/30 text-primary-500 hover:bg-primary-500/5">Chi tiết</button>
-              <button onClick={() => onBook?.(bus)} className="bg-gradient-to-r from-primary-500 to-primary-600 text-white px-5 py-2 rounded-xl text-sm font-bold shadow-md active:scale-[0.97]">Đặt vé</button>
+              <button disabled={hasDeparted} onClick={() => { if (hasDeparted) return; onBook?.(bus) }} className={hasDeparted ? 'px-5 py-2 rounded-xl text-sm font-bold bg-[var(--color-border)]/30 text-[var(--color-text-tertiary)] cursor-not-allowed' : 'bg-gradient-to-r from-primary-500 to-primary-600 text-white px-5 py-2 rounded-xl text-sm font-bold shadow-md active:scale-[0.97]'}>{hasDeparted ? 'Đã khởi hành' : 'Đặt vé'}</button>
             </div>
           </div>
           <div className="flex items-center justify-between text-[11px] text-[var(--color-text-tertiary)] pt-1 border-t border-[var(--color-border)]">

@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>Slide 8 - CSDL</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #fff; }
+  .slide { width: 1280px; height: 720px; position: relative; overflow: hidden; }
+  .slide-title { font-size: 32px; font-weight: 700; color: #0F172A; padding: 30px 50px 0; }
+  .slide-title::after { content: ''; display: block; width: 80px; height: 4px; background: #2563EB; margin-top: 8px; }
+  .content { padding: 25px 50px; display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .group { background: #F8FAFC; border-radius: 12px; padding: 16px 18px; border: 1px solid #E2E8F0; }
+  .group h3 { font-size: 14px; font-weight: 700; color: #1D4ED8; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+  .group-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .group-table th { background: #2563EB; color: white; padding: 6px 10px; text-align: left; font-size: 11px; }
+  .group-table td { padding: 5px 10px; border-bottom: 1px solid #E2E8F0; color: #334155; }
+  .group-table tr:nth-child(even) td { background: #F1F5F9; }
+  .note { grid-column: 1 / -1; background: #FFFBEB; border: 1px solid #FDE68A; border-radius: 10px; padding: 12px 18px; font-size: 12px; color: #92400E; display: flex; gap: 10px; align-items: flex-start; }
+  .footer { position: absolute; bottom: 20px; right: 40px; font-size: 13px; color: #94A3B8; }
+</style>
+</head>
+<body>
+<div class="slide">
+  <div class="slide-title">CƠ SỞ DỮ LIỆU</div>
+  <div class="content">
+    <div class="group">
+      <h3>✈️ Danh mục vé</h3>
+      <table class="group-table">
+        <tr><th>Bảng</th><th>Trường chính</th></tr>
+        <tr><td>Flights</td><td>AirlineCode, Route, Date, Price, Seats</td></tr>
+        <tr><td>Trains</td><td>TrainCode, Route, Date, Price, Coach</td></tr>
+        <tr><td>Buses</td><td>BusCode, Route, Date, Price, Seats</td></tr>
+      </table>
+    </div>
+    <div class="group">
+      <h3>👤 Tài khoản</h3>
+      <table class="group-table">
+        <tr><th>Bảng</th><th>Trường chính</th></tr>
+        <tr><td>Users</td><td>Email, FullName, PasswordHash, Role</td></tr>
+        <tr><td>Notifications</td><td>UserId, Message, IsRead</td></tr>
+      </table>
+    </div>
+    <div class="group">
+      <h3>📋 Đặt vé</h3>
+      <table class="group-table">
+        <tr><th>Bảng</th><th>Trường chính</th></tr>
+        <tr><td>Bookings</td><td>UserId, FlightId/TrainId, Status, TotalPrice</td></tr>
+        <tr><td>BookingPassengers</td><td>BookingId, FullName, DOB, CCCD</td></tr>
+        <tr><td>BookingSegments</td><td>BookingId, Type, Code, Route, Time</td></tr>
+        <tr><td>BookingInsurances</td><td>BookingId, PackageId, Price</td></tr>
+      </table>
+    </div>
+    <div class="group">
+      <h3>⚡ Tính năng</h3>
+      <table class="group-table">
+        <tr><th>Bảng</th><th>Trường chính</th></tr>
+        <tr><td>PriceAlerts</td><td>Email, RouteFrom/To, TargetPrice</td></tr>
+        <tr><td>PriceHistory</td><td>Route, Date, AvgPrice</td></tr>
+        <tr><td>PromoCodes</td><td>Code, Discount%, MinOrder, UsageLimit</td></tr>
+        <tr><td>Reviews, LuckyWheelSpins, SubscriptionPlans...</td><td>—</td></tr>
+      </table>
+    </div>
+    <div class="note">
+      <span style="font-size:20px">💡</span>
+      <div><strong>DatabaseInitializerService</strong> tự tạo bảng khi app khởi động (idempotent — không xóa dữ liệu cũ). Nếu bảng rỗng → SeedDataService sinh ~600 chuyến bay/ngày cho 30 ngày tới với giá mô phỏng thực tế.</div>
+    </div>
+  </div>
+  <div class="footer">Slide 8 / 23</div>
+</div>
+</body>
+</html>

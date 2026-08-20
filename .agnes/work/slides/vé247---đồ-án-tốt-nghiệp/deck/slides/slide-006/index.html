@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>Slide 6 - Frontend Tech</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #fff; }
+  .slide { width: 1280px; height: 720px; position: relative; overflow: hidden; }
+  .slide-title { font-size: 32px; font-weight: 700; color: #0F172A; padding: 30px 50px 0; }
+  .slide-title::after { content: ''; display: block; width: 80px; height: 4px; background: #2563EB; margin-top: 8px; }
+  table { width: 100%; border-collapse: collapse; padding: 0 50px 20px; }
+  th { background: #2563EB; color: white; padding: 12px 16px; text-align: left; font-size: 13px; }
+  td { padding: 10px 16px; font-size: 13px; border-bottom: 1px solid #E2E8F0; color: #334155; }
+  tr:nth-child(even) td { background: #F8FAFC; }
+  tr:hover td { background: #EFF6FF; }
+  .lib-name { font-weight: 700; color: #1D4ED8; }
+  .lib-badge { display: inline-block; background: #EFF6FF; color: #2563EB; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+  .note { padding: 0 50px; font-size: 12px; color: #64748B; margin-top: 8px; }
+  .footer { position: absolute; bottom: 20px; right: 40px; font-size: 13px; color: #94A3B8; }
+</style>
+</head>
+<body>
+<div class="slide">
+  <div class="slide-title">CÔNG NGHỆ — FRONTEND</div>
+  <table>
+    <thead><tr><th>Thư viện / Công nghệ</th><th>Vers</th><th>Vai trò</th><th>Ghi chú</th></tr></thead>
+    <tbody>
+      <tr><td class="lib-name">React</td><td>19.2</td><td>Xây dựng SPA — component-based UI</td><td><span class="lib-badge">Core</span></td></tr>
+      <tr><td class="lib-name">Vite</td><td>8.1</td><td>Build tool — nhanh, HMR, output tĩnh</td><td>Deploy Vercel</td></tr>
+      <tr><td class="lib-name">Tailwind CSS</td><td>4.3</td><td>Utility-first styling — viết style inline JSX</td><td>Không cần file CSS riêng</td></tr>
+      <tr><td class="lib-name">React Router</td><td>7.18</td><td>Điều hướng ~25 trang (flights, booking, payment, admin...)</td><td>Client-side routing</td></tr>
+      <tr><td class="lib-name">Axios</td><td>1.18</td><td>Gọi REST API — interceptor log lỗi tập trung</td><td>baseURL = VITE_API_URL</td></tr>
+      <tr><td class="lib-name">Clerk</td><td>5.61</td><td>Đăng nhập OAuth (Google/Facebook/Email) — không tự xây auth</td><td>SSO chuẩn</td></tr>
+      <tr><td class="lib-name">@microsoft/signalr</td><td>10.0</td><td>WebSocket nhận giá realtime từ server</td><td>Tự reconnect + fallback</td></tr>
+      <tr><td class="lib-name">Recharts</td><td>3.9</td><td>Vẽ biểu đồ lịch sử giá 30 ngày</td><td>Line chart + area chart</td></tr>
+      <tr><td class="lib-name">Three.js + React Three Fiber</td><td>0.185</td><td>Intro animation 3D đầu trang — hiệu ứng ấn tượng</td><td>Custom scene</td></tr>
+      <tr><td class="lib-name">Framer Motion</td><td>12.4</td><td>Animation mượt mà: fade-in, slide, hover effects</td><td>UX polish</td></tr>
+      <tr><td class="lib-name">Lucide React</td><td>1.24</td><td>Bộ icon vector cho UI components</td><td>Thousands of icons</td></tr>
+      <tr><td class="lib-name">Vercel</td><td>—</td><td>Hosting tĩnh + CI/CD từ GitHub push</td><td>Domain thật: .vercel.app</td></tr>
+    </tbody>
+  </table>
+  <div class="note">📌 Frontend là SPA tĩnh, mọi dữ liệu đều lấy từ backend. Deploy tự động khi push main branch.</div>
+  <div class="footer">Slide 6 / 23</div>
+</div>
+</body>
+</html>

@@ -1,0 +1,202 @@
+@startuml
+title Sơ đồ thực thể - quan hệ cơ sở dữ liệu
+hide circle
+skinparam linetype ortho
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 11
+skinparam classAttributeIconSize 0
+
+entity "Users" as U {
+  * Id : BIGINT (PK)
+  --
+  Email : NVARCHAR(255) UNIQUE
+  FullName : NVARCHAR(255)
+  Phone : NVARCHAR(20)
+  PasswordHash : NVARCHAR(255)
+  Role : NVARCHAR(20)
+  IsEmailVerified : BIT
+}
+
+entity "Flights" as FL {
+  * Id : BIGINT (PK)
+  --
+  AirlineCode : NVARCHAR(10)
+  AirlineName : NVARCHAR(100)
+  DepartureLocation : NVARCHAR(50)
+  ArrivalLocation : NVARCHAR(50)
+  DepartureTime : DATETIME2
+  ArrivalTime : DATETIME2
+  Price : DECIMAL(18,2)
+  Seats : INT
+  SeatClass : NVARCHAR(50)
+  FlightDate : DATE
+}
+
+entity "Trains" as TR {
+  * Id : BIGINT (PK)
+  --
+  TrainCode : NVARCHAR(10)
+  TrainName : NVARCHAR(100)
+  DepartureLocation : NVARCHAR(50)
+  ArrivalLocation : NVARCHAR(50)
+  DepartureTime : DATETIME2
+  ArrivalTime : DATETIME2
+  Price : DECIMAL(18,2)
+  Seats : INT
+  CoachClass : NVARCHAR(50)
+  TrainDate : DATE
+}
+
+entity "Buses" as BU {
+  * Id : BIGINT (PK)
+  --
+  BusCode : NVARCHAR(20)
+  BusCompany : NVARCHAR(100)
+  DepartureLocation : NVARCHAR(50)
+  ArrivalLocation : NVARCHAR(50)
+  DepartureTime : DATETIME2
+  ArrivalTime : DATETIME2
+  Price : DECIMAL(18,2)
+  Seats : INT
+  CoachClass : NVARCHAR(50)
+  BusDate : DATE
+}
+
+entity "Bookings" as B {
+  * Id : BIGINT (PK)
+  --
+  UserId : BIGINT (FK)
+  FlightId : BIGINT (FK)
+  TrainId : BIGINT (FK)
+  BusId : BIGINT (FK)
+  Status : NVARCHAR(50)
+  TotalPrice : DECIMAL(18,2)
+  Passengers : INT
+  PaymentMethod : NVARCHAR(50)
+  TransactionId : NVARCHAR(100)
+  PromoCode : NVARCHAR(50)
+}
+
+entity "BookingSegments" as BS {
+  * Id : BIGINT (PK)
+  --
+  BookingId : BIGINT (FK)
+  Mode : NVARCHAR(20)
+  ItemId : BIGINT
+  Code : NVARCHAR(50)
+  DepartureLocation : NVARCHAR(50)
+  ArrivalLocation : NVARCHAR(50)
+  DepartureTime : DATETIME2
+  ArrivalTime : DATETIME2
+  Price : DECIMAL(18,2)
+}
+
+entity "PriceHistories" as PH {
+  * Id : BIGINT (PK)
+  --
+  FlightId : BIGINT (FK)
+  TrainId : BIGINT (FK)
+  BusId : BIGINT (FK)
+  Mode : NVARCHAR(20)
+  RouteFrom : NVARCHAR(50)
+  RouteTo : NVARCHAR(50)
+  Price : DECIMAL(18,2)
+  RecordedDate : DATE
+}
+
+entity "PriceAlerts" as PA {
+  * Id : BIGINT (PK)
+  --
+  Email : NVARCHAR(255)
+  RouteFrom : NVARCHAR(50)
+  RouteTo : NVARCHAR(50)
+  TargetPrice : DECIMAL(18,2)
+  CurrentPrice : DECIMAL(18,2)
+  IsActive : BIT
+}
+
+entity "PromoCodes" as PC {
+  * Id : BIGINT (PK)
+  --
+  Code : NVARCHAR(50) UNIQUE
+  DiscountPercent : DECIMAL(5,2)
+  MaxDiscount : DECIMAL(18,2)
+  MinOrderValue : DECIMAL(18,2)
+  UsageLimit : INT
+  ValidFrom : DATE
+  ValidTo : DATE
+}
+
+entity "Reviews" as R {
+  * Id : BIGINT (PK)
+  --
+  FlightId : BIGINT (FK)
+  TrainId : BIGINT (FK)
+  BusId : BIGINT (FK)
+  Email : NVARCHAR(255)
+  AuthorName : NVARCHAR(255)
+  Rating : INT
+  Comment : NVARCHAR(2000)
+}
+
+entity "Notifications" as N {
+  * Id : BIGINT (PK)
+  --
+  Email : NVARCHAR(255)
+  Type : NVARCHAR(50)
+  Title : NVARCHAR(500)
+  Message : NVARCHAR(2000)
+  IsRead : BIT
+}
+
+entity "SubscriptionPlans" as SP {
+  * Id : BIGINT (PK)
+  --
+  Name : NVARCHAR(100)
+  MonthlyPrice : DECIMAL(18,2)
+  YearlyPrice : DECIMAL(18,2)
+  MaxAlertsPerDay : INT
+}
+
+entity "UserSubscriptions" as US {
+  * Id : BIGINT (PK)
+  --
+  UserId : BIGINT (FK)
+  PlanId : BIGINT (FK)
+  BillingCycle : NVARCHAR(20)
+  Status : NVARCHAR(20)
+}
+
+entity "InsurancePackages" as IP {
+  * Id : BIGINT (PK)
+  --
+  Name : NVARCHAR(255)
+  Provider : NVARCHAR(100)
+  Price : DECIMAL(18,2)
+  Coverage : NVARCHAR(500)
+}
+
+entity "BookingInsurances" as BI {
+  * Id : BIGINT (PK)
+  --
+  BookingId : BIGINT (FK)
+  PackageId : BIGINT (FK)
+  Price : DECIMAL(18,2)
+}
+
+U ||--o{ B : "đặt"
+FL ||--o{ B : "thuộc"
+TR ||--o{ B : "thuộc"
+BU ||--o{ B : "thuộc"
+B ||--o{ BS : "gồm"
+FL ||--o{ PH : "ghi lịch sử"
+TR ||--o{ PH : "ghi lịch sử"
+BU ||--o{ PH : "ghi lịch sử"
+FL ||--o{ R : "đánh giá"
+TR ||--o{ R : "đánh giá"
+BU ||--o{ R : "đánh giá"
+U ||--o{ US : "sở hữu"
+SP ||--o{ US : "đăng ký"
+B ||--o{ BI : "mua"
+IP ||--o{ BI : "thuộc"
+@enduml

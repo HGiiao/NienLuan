@@ -194,7 +194,7 @@ export default function BookingPage() {
     ? formatDurationMs(new Date(item.arrivalTime) - new Date(item.departureTime))
     : null
 
-  const fmtTime = (d) => new Date(d).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  const fmtTime = (d) => new Date(d).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
   const fmtDate = (d) => new Date(d).toLocaleDateString('vi-VN', { weekday: 'short', day: 'numeric', month: 'numeric' })
 
   const handleSelectPayment = (id) => {
@@ -720,17 +720,21 @@ export default function BookingPage() {
             </div>
           </details>
 
-          <div className="h-px bg-[var(--color-border)]" />
+          {(isFlight || isMultiLeg) && (
+            <>
+              <div className="h-px bg-[var(--color-border)]" />
 
-          {/* Insurance Section */}
-          <div>
-            <div className="flex items-center gap-2 mb-3">
-              <Shield className="w-4 h-4 text-accent-500" />
-              <span className="text-sm font-bold text-[var(--color-text-primary)]">Bảo hiểm chuyến đi</span>
-              <span className="text-[10px] bg-accent-500/10 text-accent-500 px-2 py-0.5 rounded-full font-semibold">Đề xuất</span>
-            </div>
-            <InsuranceCard bookingId={null} onInsuranceChange={(pkg) => setForm(prev => ({ ...prev, insurance: pkg?.price || 0, insurancePackageId: pkg?.id || null }))} />
-          </div>
+              {/* Insurance Section — chỉ áp dụng cho máy bay và lộ trình kết hợp */}
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <Shield className="w-4 h-4 text-accent-500" />
+                  <span className="text-sm font-bold text-[var(--color-text-primary)]">Bảo hiểm chuyến đi</span>
+                  <span className="text-[10px] bg-accent-500/10 text-accent-500 px-2 py-0.5 rounded-full font-semibold">Đề xuất</span>
+                </div>
+                <InsuranceCard bookingId={null} onInsuranceChange={(pkg) => setForm(prev => ({ ...prev, insurance: pkg?.price || 0, insurancePackageId: pkg?.id || null }))} />
+              </div>
+            </>
+          )}
 
           <div className="h-px bg-[var(--color-border)]" />
 

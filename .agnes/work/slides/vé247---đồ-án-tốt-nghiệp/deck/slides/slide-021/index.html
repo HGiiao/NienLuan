@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>Slide 21 - Hướng phát triển</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #fff; }
+  .slide { width: 1280px; height: 720px; position: relative; overflow: hidden; }
+  .slide-title { font-size: 32px; font-weight: 700; color: #0F172A; padding: 30px 50px 0; }
+  .slide-title::after { content: ''; display: block; width: 80px; height: 4px; background: #2563EB; margin-top: 8px; }
+  .content { padding: 30px 50px; }
+  .timeline { display: flex; flex-direction: column; gap: 16px; }
+  .timeline-item { display: flex; gap: 16px; align-items: flex-start; }
+  .timeline-dot { width: 40px; height: 40px; background: linear-gradient(135deg, #2563EB, #1D4ED8); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+  .timeline-content { background: #F8FAFC; border-radius: 12px; padding: 14px 18px; border: 1px solid #E2E8F0; flex: 1; }
+  .timeline-content h4 { font-size: 14px; color: #0F172A; margin-bottom: 4px; }
+  .timeline-content p { font-size: 12px; color: #64748B; line-height: 1.4; }
+  .footer { position: absolute; bottom: 20px; right: 40px; font-size: 13px; color: #94A3B8; }
+</style>
+</head>
+<body>
+<div class="slide">
+  <div class="slide-title">HƯỚNG PHÁT TRIỂN</div>
+  <div class="content">
+    <div class="timeline">
+      <div class="timeline-item">
+        <div class="timeline-dot">🔌</div>
+        <div class="timeline-content">
+          <h4>Kết nối API thật của hãng hàng không</h4>
+          <p>Thay vì dữ liệu mô phỏng, tích hợp GDS (Amadeus, Sabre) hoặc API trực tiếp từ Vietnam Airlines, VietJet để có dữ liệu chuyến bay thực tế, giá real-time từ hãng.</p>
+        </div>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-dot">☁️</div>
+        <div class="timeline-content">
+          <h4>Azure SignalR Service + Key Vault</h4>
+          <p>Nâng cấp SignalR lên Azure SignalR Service để hỗ trợ scale nhiều instance. Dùng Azure Key Vault để lưu secret (connection strings, API keys) thay vì App Settings.</p>
+        </div>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-dot">📱</div>
+        <div class="timeline-content">
+          <h4>Mobile App / PWA</h4>
+          <p>Phát triển ứng dụng mobile native (React Native) hoặc Progressive Web App (PWA) để người dùng có thể đặt vé mọi lúc mọi nơi, push notification, offline support.</p>
+        </div>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-dot">🤖</div>
+        <div class="timeline-content">
+          <h4>AI nâng cấp Chat Bot</h4>
+          <p>Nâng cấp từ rule-based sang AI-based: tích hợp LLM (GPT, Claude) để chat bot hiểu ngôn ngữ tự nhiên tốt hơn, gợi ý thông minh, hỗ trợ đa ngôn ngữ.</p>
+        </div>
+      </div>
+      <div class="timeline-item">
+        <div class="timeline-dot">💳</div>
+        <div class="timeline-content">
+          <h4>Thanh toán QR thật</h4>
+          <p>Hoàn thiện tích hợp thanh toán QR thật (không phải sandbox) qua PayOS/MoMo/ZaloPay để xử lý giao dịch thực tế, phục vụ thương mại.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="footer">Slide 21 / 23</div>
+</div>
+</body>
+</html>

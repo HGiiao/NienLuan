@@ -42,9 +42,9 @@ function AirlineLogo({ code, gradient }) {
 }
 
 function formatDuration(dep, arr) { return formatDurationMs(new Date(arr) - new Date(dep)) }
-function fmtTime(d) { return new Date(d).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }
+function fmtTime(d) { return new Date(d).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) }
 
-export default function FlightCard({ flight, onBook, onWatch, onDetail, badge, index = 0, prediction, rating, watched = false }) {
+export default function FlightCard({ flight, onBook, onWatch, onDetail, badge, index = 0, prediction, rating, watched = false, id, highlight = false }) {
   const cfg = airlineConfig[flight.airlineCode] || airlineConfig.VN
   const seatCfg = seatClassConfig[flight.seatClass] || seatClassConfig.Economy
   const showBadge = badge || (index === 0 ? 'Rẻ nhất' : null)
@@ -53,6 +53,7 @@ export default function FlightCard({ flight, onBook, onWatch, onDetail, badge, i
   const cityTo = cityNames[flight.arrivalLocation] || flight.arrivalLocation
   const seatsLeft = flight.seats
   const isLowStock = seatsLeft <= 5
+  const hasDeparted = new Date(flight.departureTime) <= new Date()
   const { avgPrice, vsAverage, trend } = useMemo(() => {
     const seed = (flight.id * 9301 + 49297) % 233280
     const r = seed / 233280
@@ -63,8 +64,8 @@ export default function FlightCard({ flight, onBook, onWatch, onDetail, badge, i
   const pred = prediction
 
   return (
-    <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0, transition: { duration: 0.35, delay: index * 0.04 } }} whileHover={{ y: -2 }}
-      className="group bg-[var(--color-bg-card)] rounded-2xl border border-[var(--color-border)] shadow-sm hover:shadow-lg hover:border-[var(--color-border-hover)] transition-all duration-300 overflow-hidden"
+    <motion.div id={id} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0, transition: { duration: 0.35, delay: index * 0.04 } }} whileHover={{ y: -2 }}
+      className={`group bg-[var(--color-bg-card)] rounded-2xl border border-[var(--color-border)] shadow-sm hover:shadow-lg hover:border-[var(--color-border-hover)] transition-all duration-300 overflow-hidden ${highlight ? 'ring-2 ring-primary-500' : ''}`}
     >
       <div className="relative p-5 flex flex-col gap-4">
         {/* Desktop */}
@@ -167,7 +168,7 @@ export default function FlightCard({ flight, onBook, onWatch, onDetail, badge, i
             </div>
             <div className="flex items-center gap-2 shrink-0 ml-auto">
               <span className="text-[10px] text-[var(--color-text-tertiary)] flex items-center gap-1">
-                <Clock className="w-3 h-3" />{new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+                <Clock className="w-3 h-3" />{new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false })}
               </span>
               {onWatch && (
                 <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
@@ -182,10 +183,13 @@ export default function FlightCard({ flight, onBook, onWatch, onDetail, badge, i
                 onClick={e => { e.stopPropagation(); onDetail?.(flight) }}
                 className="shrink-0 whitespace-nowrap py-2.5 px-3 rounded-xl text-xs font-bold transition-all border border-accent-500/30 text-accent-500 hover:bg-accent-500/5"
               >Xem chi tiết</motion.button>
-              <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
-                onClick={e => { e.stopPropagation(); onBook?.(flight) }}
-                className={`bg-gradient-to-r ${seatCfg.gradient} text-white py-2.5 px-5 rounded-xl text-sm font-bold hover:shadow-lg transition-all shadow-md active:shadow-sm`}
-              >Đặt vé</motion.button>
+              <motion.button whileHover={hasDeparted ? undefined : { scale: 1.03 }} whileTap={hasDeparted ? undefined : { scale: 0.97 }}
+                disabled={hasDeparted}
+                onClick={e => { if (hasDeparted) return; e.stopPropagation(); onBook?.(flight) }}
+                className={hasDeparted
+                  ? 'shrink-0 whitespace-nowrap py-2.5 px-5 rounded-xl text-sm font-bold bg-[var(--color-border)]/30 text-[var(--color-text-tertiary)] cursor-not-allowed'
+                  : `bg-gradient-to-r ${seatCfg.gradient} text-white py-2.5 px-5 rounded-xl text-sm font-bold hover:shadow-lg transition-all shadow-md active:shadow-sm`}
+              >{hasDeparted ? 'Đã khởi hành' : 'Đặt vé'}</motion.button>
             </div>
           </div>
         </div>
@@ -265,9 +269,9 @@ export default function FlightCard({ flight, onBook, onWatch, onDetail, badge, i
               <button onClick={e => { e.stopPropagation(); onDetail?.(flight) }}
                 className="px-3 py-2 rounded-xl text-xs font-bold border border-accent-500/30 text-accent-500 hover:bg-accent-500/5 transition-all"
               >Chi tiết</button>
-              <button onClick={e => { e.stopPropagation(); onBook?.(flight) }}
-                className={`bg-gradient-to-r ${seatCfg.gradient} text-white px-5 py-2 rounded-xl text-sm font-bold shadow-md active:scale-[0.97]`}
-              >Đặt vé</button>
+              <button disabled={hasDeparted} onClick={e => { if (hasDeparted) return; e.stopPropagation(); onBook?.(flight) }}
+                className={hasDeparted ? 'px-5 py-2 rounded-xl text-sm font-bold bg-[var(--color-border)]/30 text-[var(--color-text-tertiary)] cursor-not-allowed' : `bg-gradient-to-r ${seatCfg.gradient} text-white px-5 py-2 rounded-xl text-sm font-bold shadow-md active:scale-[0.97]`}
+              >{hasDeparted ? 'Đã khởi hành' : 'Đặt vé'}</button>
             </div>
           </div>
 
@@ -284,7 +288,7 @@ export default function FlightCard({ flight, onBook, onWatch, onDetail, badge, i
               {trend === 'down' ? '↓' : trend === 'up' ? '↑' : '→'} {Math.abs(vsAverage).toFixed(0)}% so với TB
             </span>
             <span className="flex items-center gap-1">
-              <Clock className="w-3 h-3" />{new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+              <Clock className="w-3 h-3" />{new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false })}
             </span>
           </div>
         </div>

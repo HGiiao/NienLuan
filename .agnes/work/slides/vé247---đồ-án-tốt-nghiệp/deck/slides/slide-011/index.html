@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>Slide 11 - Lộ trình tối ưu</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #fff; }
+  .slide { width: 1280px; height: 720px; position: relative; overflow: hidden; }
+  .slide-title { font-size: 32px; font-weight: 700; color: #0F172A; padding: 30px 50px 0; }
+  .slide-title::after { content: ''; display: block; width: 80px; height: 4px; background: #2563EB; margin-top: 8px; }
+  .content { padding: 25px 50px; }
+  .algo-card { background: linear-gradient(135deg, #0F172A, #1e293b); color: white; border-radius: 14px; padding: 22px 26px; margin-bottom: 18px; }
+  .algo-card h3 { font-size: 17px; color: #60a5fa; margin-bottom: 12px; }
+  .algo-card .desc { font-size: 12px; color: #94A3B8; line-height: 1.6; }
+  .algo-card code { background: #334155; padding: 2px 7px; border-radius: 4px; font-size: 11px; color: #FCD34D; }
+  .route-example { background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 12px; padding: 18px; }
+  .route-example h4 { font-size: 14px; color: #1D4ED8; margin-bottom: 10px; }
+  .route-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .route-item { background: white; border-radius: 8px; padding: 12px; border: 1px solid #E2E8F0; }
+  .route-item .label { font-size: 11px; color: #64748B; margin-bottom: 4px; }
+  .route-item .value { font-size: 14px; font-weight: 700; color: #0F172A; }
+  .route-item.best .value { color: #16A34A; }
+  .route-item.best { border-color: #16A34A; background: #F0FDF4; }
+  .footer { position: absolute; bottom: 20px; right: 40px; font-size: 13px; color: #94A3B8; }
+</style>
+</head>
+<body>
+<div class="slide">
+  <div class="slide-title">TÍNH NĂNG CHÍNH — LỘ TRÌNH TỐI ƯU</div>
+  <div class="content">
+    <div class="algo-card">
+      <h3>🧠 RouteOptimizerService — Thuật toán tổ hợp đa phương tiện</h3>
+      <div class="desc">
+        Tìm kiếm <strong>tất cả lộ trình có thể</strong> từ A → B, bao gồm: chặng trực tiếp (1 leg), chặng qua 1 hub trung gian (2 legs), chặng qua 2 hubs (3 legs).<br>
+        Mỗi leg có thể là <code>flight</code> / <code>train</code> / <code>bus</code> — tổng cộng <strong>3³ = 27 tổ hợp</strong> cho mỗi cặp hub trung gian.<br>
+        <strong>Ràng buộc chuyển接:</strong> thời gian chờ giữa các chặng phải từ <code>1h</code> đến <code>6h</code> (tối ưu: 2–3h).<br>
+        Hỗ trợ các hub trung gian: HAN, SGN, DAD, CXR, PQC, HCM.
+      </div>
+    </div>
+    <div class="route-example">
+      <h4>📍 Ví dụ: Hà Nội → TP. Hồ Chí Minh (HAN → HCM)</h4>
+      <div class="route-grid">
+        <div class="route-item best">
+          <div class="label">🏆 Phương án tốt nhất</div>
+          <div class="value">Bay trực tiếp — 1.2tr VNĐ</div>
+          <div style="font-size:11px; color:#64748B; margin-top:4px;">Bay 1h50m · VietJet · Trùng khớp thời gian</div>
+        </div>
+        <div class="route-item">
+          <div class="label">Tàu hỏa</div>
+          <div class="value">3.5tr VNĐ</div>
+          <div style="font-size:11px; color:#64748B; margin-top:4px;">SE1 · 30h · GA · Giường nằm</div>
+        </div>
+        <div class="route-item">
+          <div class="label">Xe khách</div>
+          <div class="value">800k VNĐ</div>
+          <div style="font-size:11px; color:#64748B; margin-top:4px;">Funtastic · 36h · Giường nằm</div>
+        </div>
+        <div class="route-item">
+          <div class="label">Bay → Tàu (qua DAD)</div>
+          <div class="value">1.8tr VNĐ</div>
+          <div style="font-size:11px; color:#64748B; margin-top:4px;">HAN→DAD 1h30 + DAD→HCM 2h</div>
+        </div>
+        <div class="route-item">
+          <div class="label">Tàu → Xe (qua HCM)</div>
+          <div class="value">2.9tr VNĐ</div>
+          <div style="font-size:11px; color:#64748B; margin-top:4px;">Chuyến tối + xe đêm đến sáng</div>
+        </div>
+        <div class="route-item">
+          <div class="label">Bay → Xe (qua CXR)</div>
+          <div class="value">1.5tr VNĐ</div>
+          <div style="font-size:11px; color:#64748B; margin-top:4px;">HAN→CXR + CXR→HCM</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="footer">Slide 11 / 23</div>
+</div>
+</body>
+</html>

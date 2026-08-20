@@ -1,0 +1,238 @@
+{
+  "deck_title": "Vé247 — Hệ thống đặt vé đa phương tiện thông minh",
+  "deck_goal": "Trình bày điểm mạnh đã làm được trong đồ án tốt nghiệp Vé247",
+  "language": "zh-CN",
+  "page_count": 23,
+  "slides": [
+    {
+      "slide_id": "slide-001",
+      "index": 1,
+      "title": "PHẦN MỞ ĐẦU",
+      "role": "opening",
+      "key_points": [
+        "Tên đề tài, mã SV, GVHD"
+      ],
+      "asset_needs": []
+    },
+    {
+      "slide_id": "slide-002",
+      "index": 2,
+      "title": "MỤC LỤC",
+      "role": "navigation",
+      "key_points": [
+        "Mục lục các phần"
+      ],
+      "asset_needs": []
+    },
+    {
+      "slide_id": "slide-003",
+      "index": 3,
+      "title": "BÀI TOÁN & Ý TƯỞNG",
+      "role": "problem",
+      "key_points": [
+        "Vấn đề: nhiều website riêng lẻ, khó so sánh, bất tiện"
+      ],
+      "asset_needs": []
+    },
+    {
+      "slide_id": "slide-004",
+      "index": 4,
+      "title": "MỤC TIÊU ĐỀ TÀI",
+      "role": "objectives",
+      "key_points": [
+        "Mục tiêu: tổng hợp, so sánh, dự đoán, đặt vé, thanh toán, realtime, admin"
+      ],
+      "asset_needs": []
+    },
+    {
+      "slide_id": "slide-005",
+      "index": 5,
+      "title": "KIẾN TRÚC HỆ THỐNG",
+      "role": "architecture",
+      "key_points": [
+        "3 phần: Vercel (React), Azure App Service (ASP.NET Core), Azure SQL"
+      ],
+      "asset_needs": []
+    },
+    {
+      "slide_id": "slide-006",
+      "index": 6,
+      "title": "CÔNG NGHỆ — FRONTEND",
+      "role": "tech-frontend",
+      "key_points": [
+        "React 19, Vite 8, Tailwind, SignalR, Recharts, Three.js, Clerk"
+      ],
+      "asset_needs": []
+    },
+    {
+      "slide_id": "slide-007",
+      "index": 7,
+      "title": "CÔNG NGHỆ — BACKEND & DATABASE",
+      "role": "tech-backend",
+      "key_points": [
+        "ASP.NET Core 10, EF Core 10, SignalR, BCrypt, xUnit"
+      ],
+      "asset_needs": []
+    },
+    {
+      "slide_id": "slide-008",
+      "index": 8,
+      "title": "CƠ SỞ DỮ LIỆU",
+      "role": "database",
+      "key_points": [
+        "~20 bảng: Flights, Trains, Buses, Bookings, Users, PriceAlerts, PromoCodes..."
+      ],
+      "asset_needs": []
+    },
+    {
+      "slide_id": "slide-009",
+      "index": 9,
+      "title": "TÍNH NĂNG — TÌM KIẾM & ĐẶT VÉ",
+      "role": "feature",
+      "key_points": [
+        "Tìm kiếm 3 PT, đặt vé linh hoạt, bảo hiểm, nhiều hành khách"
+      ],
+      "asset_needs": []
+    },
+    {
+      "slide_id": "slide-010",
+      "index": 10,
+      "title": "TÍNH NĂNG — SO SÁNH & DỰ ĐOÁN GIÁ",
+      "role": "feature",
+      "key_points": [
+        "So sánh giá, dự đoán giá, biểu đồ lịch sử"
+      ],
+      "asset_needs": []
+    },
+    {
+      "slide_id": "slide-011",
+      "index": 11,
+      "title": "TÍNH NĂNG — LỘ TRÌNH TỐI ƯU",
+      "role": "feature",
+      "key_points": [
+        "RouteOptimizerService: kết hợp bay+tàu+xe, tối ưu chi phí/thời gian"
+      ],
+      "asset_needs": []
+    },
+    {
+      "slide_id": "slide-012",
+      "index": 12,
+      "title": "TÍNH NĂNG — GIÁ REALTIME (SIGNALR)",
+      "role": "feature",
+      "key_points": [
+        "SignalR realtime giá, fallback polling, join theo tuyến"
+      ],
+      "asset_needs": []
+    },
+    {
+      "slide_id": "slide-013",
+      "index": 13,
+      "title": "TÍNH NĂNG — THANH TOÁN ONLINE",
+      "role": "feature",
+      "key_points": [
+        "5 cổng thanh toán: VNPay, MoMo, ZaloPay, PayOS, VietQR"
+      ],
+      "asset_needs": []
+    },
+    {
+      "slide_id": "slide-014",
+      "index": 14,
+      "title": "TÍNH NĂNG PHỤ",
+      "role": "feature",
+      "key_points": [
+        "Chat bot, vòng quay may mắn, mã giảm giá, cảnh báo giá, VIP, review"
+      ],
+      "asset_needs": []
+    },
+    {
+      "slide_id": "slide-015",
+      "index": 15,
+      "title": "TÍNH NĂNG — XÁC THỰC & TÀI KHOẢN",
+      "role": "auth",
+      "key_points": [
+        "Clerk OAuth + BCrypt + SMTP xác thực email"
+      ],
+      "asset_needs": []
+    },
+    {
+      "slide_id": "slide-016",
+      "index": 16,
+      "title": "TRANG ADMIN",
+      "role": "admin",
+      "key_points": [
+        "Dashboard, quản lý users/booking/flight/train/bus/promo/subscription"
+      ],
+      "asset_needs": []
+    },
+    {
+      "slide_id": "slide-017",
+      "index": 17,
+      "title": "SEED DỮ LIỆU & DỮ LIỆU DEMO",
+      "role": "seed",
+      "key_points": [
+        "Seed tự động ~600 chuyến/ngày, giá mô phỏng thực tế, idempotent"
+      ],
+      "asset_needs": []
+    },
+    {
+      "slide_id": "slide-018",
+      "index": 18,
+      "title": "CHẤT LƯỢNG & KIỂM THỬ",
+      "role": "quality",
+      "key_points": [
+        "Unit tests xUnit, CI GitHub Actions, xử lý lỗi thực tế"
+      ],
+      "asset_needs": []
+    },
+    {
+      "slide_id": "slide-019",
+      "index": 19,
+      "title": "TRIỂN KHAI (DEPLOYMENT)",
+      "role": "deployment",
+      "key_points": [
+        "Deploy production thật: Vercel + Azure, domain riêng, CORS, Always On"
+      ],
+      "asset_needs": []
+    },
+    {
+      "slide_id": "slide-020",
+      "index": 20,
+      "title": "KẾT QUẢ ĐẠT ĐƯỢC",
+      "role": "results",
+      "key_points": [
+        "~25 trang, 19 controller, 19 service, ~20 bảng, 5 cổng thanh toán"
+      ],
+      "asset_needs": []
+    },
+    {
+      "slide_id": "slide-021",
+      "index": 21,
+      "title": "HƯỚNG PHÁT TRIỂN",
+      "role": "future",
+      "key_points": [
+        "API thật, Azure SignalR Service, mobile app, AI chat bot"
+      ],
+      "asset_needs": []
+    },
+    {
+      "slide_id": "slide-022",
+      "index": 22,
+      "title": "KẾT LUẬN",
+      "role": "closing",
+      "key_points": [
+        "3-4 câu tóm tắt giá trị"
+      ],
+      "asset_needs": []
+    },
+    {
+      "slide_id": "slide-023",
+      "index": 23,
+      "title": "Q&A",
+      "role": "qna",
+      "key_points": [
+        "Q&A / Cảm ơn"
+      ],
+      "asset_needs": []
+    }
+  ]
+}

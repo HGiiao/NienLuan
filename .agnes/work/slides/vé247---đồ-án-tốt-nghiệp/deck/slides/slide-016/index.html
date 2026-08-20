@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>Slide 16 - Admin</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #fff; }
+  .slide { width: 1280px; height: 720px; position: relative; overflow: hidden; }
+  .slide-title { font-size: 32px; font-weight: 700; color: #0F172A; padding: 30px 50px 0; }
+  .slide-title::after { content: ''; display: block; width: 80px; height: 4px; background: #2563EB; margin-top: 8px; }
+  .content { padding: 25px 50px; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .admin-card { background: #F8FAFC; border-radius: 12px; padding: 16px; border: 1px solid #E2E8F0; }
+  .admin-card h3 { font-size: 14px; color: #1D4ED8; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+  .admin-card ul { list-style: none; }
+  .admin-card li { font-size: 12px; color: #334155; padding: 4px 0; border-bottom: 1px solid #F1F5F9; display: flex; align-items: center; gap: 6px; }
+  .admin-card li::before { content: '✓'; color: #16A34A; font-weight: 700; }
+  .admin-card.wide { grid-column: 1 / -1; }
+  .requirement { background: #FEF2F2; border: 1px solid #FECACA; border-radius: 8px; padding: 10px 14px; font-size: 12px; color: #991B1B; display: flex; align-items: center; gap: 8px; }
+  .footer { position: absolute; bottom: 20px; right: 40px; font-size: 13px; color: #94A3B8; }
+</style>
+</head>
+<body>
+<div class="slide">
+  <div class="slide-title">TRANG ADMIN — QUẢN TRỊ HỆ THỐNG</div>
+  <div class="content">
+    <div class="admin-card">
+      <h3>📊 Dashboard Thống Kê</h3>
+      <ul>
+        <li>Tổng doanh thu (theo ngày/tháng/năm)</li>
+        <li>Số booking mới, số user mới</li>
+        <li>Biểu đồ doanh thu (Recharts)</li>
+        <li>Top 5 tuyến có nhiều booking nhất</li>
+        <li>Tỷ lệ booking thành công / hủy</li>
+        <li>Thống kê theo phương tiện</li>
+      </ul>
+    </div>
+    <div class="admin-card">
+      <h3>👥 Quản lý Người dùng</h3>
+      <ul>
+        <li>Danh sách users (bảng DataTable)</li>
+        <li>Xem chi tiết user, đổi vai trò Admin/User</li>
+        <li>Xóa user (xử lý cascade booking)</li>
+        <li>Tìm kiếm theo tên/email/số điện thoại</li>
+        <li>Phân trang + bộ lọc</li>
+      </ul>
+    </div>
+    <div class="admin-card">
+      <h3>✈️ Quản lý Chuyến bay / Tàu / Xe</h3>
+      <ul>
+        <li>CRUD: Thêm / Sửa / Xóa chuyến bay</li>
+        <li>CRUD: Thêm / Sửa / Xóa chuyến tàu</li>
+        <li>CRUD: Thêm / Sửa / Xóa chuyến xe khách</li>
+        <li>Nhập/xuất Excel (.xlsx) hàng loạt</li>
+        <li>Quản lý số chỗ, giờ bay, giá</li>
+      </ul>
+    </div>
+    <div class="admin-card">
+      <h3>🎫 Quản lý Booking & Promo</h3>
+      <ul>
+        <li>Xem tất cả booking, lọc theo trạng thái</li>
+        <li>Cập nhật trạng thái: Pending → Confirmed/Canceled</li>
+        <li>Xóa booking & xử lý hoàn tiền</li>
+        <li>Quản lý mã giảm giá (WELCOME10, SUMMER25...)</li>
+        <li>Quản lý gói VIP/Subscription</li>
+      </ul>
+    </div>
+    <div class="admin-card wide">
+      <h3>🔐 Phân quyền & Bảo mật</h3>
+      <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+        <div class="requirement">🔒 Chỉ admin mới truy cập được /admin/* routes</div>
+        <div class="requirement">🔒 RequireAdminAttribute — kiểm tra role trên mỗi controller action</div>
+        <div class="requirement">🔒 Password BCrypt, không lưu plain text</div>
+        <div class="requirement">🔒 JWT token xác thực API requests</div>
+      </div>
+    </div>
+  </div>
+  <div class="footer">Slide 16 / 23</div>
+</div>
+</body>
+</html>

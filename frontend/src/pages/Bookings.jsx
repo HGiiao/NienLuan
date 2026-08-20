@@ -191,7 +191,7 @@ export default function Bookings() {
   const depTime = (b) => {
     const d = bookingDep(b)
     if (!d) return null
-    return new Date(d).toLocaleString('vi-VN', { weekday: 'short', day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' })
+    return new Date(d).toLocaleString('vi-VN', { weekday: 'short', day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })
   }
 
   return (
