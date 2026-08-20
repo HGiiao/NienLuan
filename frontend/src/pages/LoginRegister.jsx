@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { useSignIn, useSignUp, useUser } from '@clerk/clerk-react'
+import { useSignIn, useSignUp, useUser, useClerk } from '@clerk/clerk-react'
 import {
   Plane, Train, Globe, Briefcase, Mail, Lock, Eye, EyeOff,
-  Phone, Check, AlertCircle, Loader, MailCheck, User,
+  Phone, Check, AlertCircle, Loader, MailCheck, User, LogOut,
 } from 'lucide-react'
 import { login, register, verifyEmail, forgotPassword, resetPassword } from '../services/api'
 
@@ -61,9 +61,13 @@ export default function LoginRegister() {
   const isContinueSignUp = params.get('mode') === 'continue-signup'
   const redirectTo = params.get('redirect') || (isContinueSignUp ? sessionStorage.getItem('ve247-auth-redirect') : null) || '/'
 
-  const { isSignedIn, isLoaded } = useUser()
+  const { isSignedIn, isLoaded, user } = useUser()
   const { signIn, setActive } = useSignIn()
   const { signUp, setActive: setActiveSignUp } = useSignUp()
+  const { signOut: clerkSignOut } = useClerk()
+
+  // Cổng chọn khi Clerk khôi phục phiên đăng nhập (tránh bị "hút" thẳng vào tài khoản)
+  const [signedInGate, setSignedInGate] = useState(false)
 
   // Trạng thái cho bước "hoàn tất đăng ký OAuth" (bổ sung SĐT + OTP)
   const [continueStep, setContinueStep] = useState('phone') // 'phone' | 'otp'
@@ -178,10 +182,31 @@ export default function LoginRegister() {
 
   useEffect(() => {
     if (isLoaded && isSignedIn && !sessionStorage.getItem('ve247-auth')) {
-      sessionStorage.setItem('ve247-auth', 'true')
-      navigate(redirectTo, { replace: true })
+      // Vừa quay về từ Google OAuth (?redirect=...) → vào ứng dụng luôn
+      if (location.search.includes('redirect=')) {
+        sessionStorage.setItem('ve247-auth', 'true')
+        sessionStorage.removeItem('ve247-auth-redirect')
+        navigate(redirectTo, { replace: true })
+      } else {
+        // Phiên Clerk được khôi phục khi bấm "Đăng nhập" → hiện cổng xác nhận, không tự nhảy
+        setSignedInGate(true)
+      }
     }
-  }, [isLoaded, isSignedIn])
+  }, [isLoaded, isSignedIn, location.search])
+
+  const handleContinueAsSignedIn = () => {
+    sessionStorage.setItem('ve247-auth', 'true')
+    sessionStorage.removeItem('ve247-auth-redirect')
+    navigate(redirectTo, { replace: true })
+  }
+
+  const handleSwitchAccount = async () => {
+    setSignedInGate(false)
+    sessionStorage.removeItem('ve247-auth')
+    sessionStorage.removeItem('user')
+    try { await clerkSignOut() } catch (e) { /* bỏ qua */ }
+    setTab('login')
+  }
 
   const update = (key, value) => setForm(prev => ({ ...prev, [key]: value }))
   const triggerShake = () => setShakeKey(k => k + 1)
@@ -557,6 +582,40 @@ export default function LoginRegister() {
                 </p>
               </div>
               )
+            ) : signedInGate ? (
+              <div className="p-6 space-y-4">
+                <div className="text-center mb-2">
+                  <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 flex items-center justify-center mx-auto mb-3">
+                    <User className="w-7 h-7 text-emerald-500" />
+                  </div>
+                  <h3 className="text-lg font-bold text-[var(--color-text-primary)]">Bạn đã đăng nhập</h3>
+                  <p className="text-sm text-[var(--color-text-secondary)] mt-1 break-all">
+                    Phiên đăng nhập đang hoạt động với tài khoản{' '}
+                    <span className="font-semibold text-[var(--color-text-primary)]">
+                      {user?.primaryEmailAddress?.emailAddress || user?.fullName || 'của bạn'}
+                    </span>
+                  </p>
+                </div>
+                <motion.button
+                  type="button"
+                  onClick={handleContinueAsSignedIn}
+                  whileHover={{ scale: 1.01 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="w-full bg-gradient-to-r from-primary-500 to-primary-600 text-white py-3.5 rounded-xl font-semibold shadow-lg shadow-primary-500/20"
+                >
+                  Vào ứng dụng ngay
+                </motion.button>
+                <button
+                  type="button"
+                  onClick={handleSwitchAccount}
+                  className="w-full flex items-center justify-center gap-2 border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] py-3 rounded-xl font-semibold transition-colors"
+                >
+                  <LogOut className="w-4 h-4" /> Đăng xuất &amp; đăng nhập tài khoản khác
+                </button>
+                <p className="text-xs text-[var(--color-text-tertiary)] text-center">
+                  Bấm "Đăng xuất" nếu bạn muốn dùng tài khoản Gmail khác
+                </p>
+              </div>
             ) : (
               <>
             <div className="relative bg-[var(--color-border)]/30 p-1.5 mx-5 mt-5 rounded-2xl">
