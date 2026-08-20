@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useSignIn, useSignUp, useUser, useClerk } from '@clerk/clerk-react'
@@ -214,20 +214,6 @@ export default function LoginRegister() {
     setCelebration(msg)
     window.setTimeout(() => navigate(redirectTo, { replace: true }), 2200)
   }
-
-  const confetti = useMemo(() => {
-    if (!celebration) return []
-    return Array.from({ length: 60 }, (_, i) => ({
-      id: i,
-      left: Math.random() * 100,
-      delay: Math.random() * 0.5,
-      duration: 1.8 + Math.random() * 1.4,
-      size: 6 + Math.random() * 9,
-      color: ['#F97316', '#FB923C', '#34D399', '#22D3EE', '#A78BFA', '#FBBF24', '#F87171'][i % 7],
-      drift: (Math.random() - 0.5) * 60,
-      rotate: Math.random() * 720,
-    }))
-  }, [celebration])
 
   const update = (key, value) => setForm(prev => ({ ...prev, [key]: value }))
   const triggerShake = () => setShakeKey(k => k + 1)
@@ -1072,79 +1058,16 @@ export default function LoginRegister() {
 
       {celebration && (
         <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[9999] flex items-center justify-center overflow-hidden"
-          style={{ background: 'rgba(6,12,24,0.85)', backdropFilter: 'blur(8px)' }}
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="fixed top-6 left-1/2 -translate-x-1/2 z-[9999]"
         >
-          <div className="absolute inset-0 pointer-events-none">
-            {confetti.map(p => (
-              <motion.span
-                key={p.id}
-                initial={{ top: '-10%', left: `${p.left}%`, opacity: 1, rotate: 0 }}
-                animate={{ top: '110%', left: `${p.left + p.drift / 3}%`, opacity: 0, rotate: p.rotate }}
-                transition={{ duration: p.duration, delay: p.delay, ease: 'easeIn' }}
-                className="absolute block rounded-[2px]"
-                style={{ width: p.size, height: p.size * 0.45, backgroundColor: p.color, boxShadow: `0 0 10px ${p.color}66` }}
-              />
-            ))}
+          <div className="flex items-center gap-2.5 bg-[var(--color-bg-card)] border border-emerald-500/40 text-[var(--color-text-primary)] rounded-xl px-4 py-3 shadow-xl">
+            <div className="w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center shrink-0">
+              <Check className="w-3.5 h-3.5 text-white" />
+            </div>
+            <p className="text-sm font-semibold">{celebration}</p>
           </div>
-
-          <motion.div
-            initial={{ scale: 0.5, opacity: 0, y: 30 }}
-            animate={{ scale: 1, opacity: 1, y: 0 }}
-            transition={{ type: 'spring', stiffness: 200, damping: 15 }}
-            className="relative flex flex-col items-center text-center px-8"
-          >
-            <motion.div
-              animate={{ rotate: [0, -8, 8, -4, 4, 0] }}
-              transition={{ duration: 0.7, delay: 0.3 }}
-              className="w-28 h-28 rounded-full flex items-center justify-center mb-6"
-              style={{ background: 'linear-gradient(135deg, #10B981, #34D399)', boxShadow: '0 0 80px rgba(52,211,153,0.55)' }}
-            >
-              <svg viewBox="0 0 52 52" className="w-14 h-14">
-                <motion.circle
-                  cx="26" cy="26" r="24"
-                  fill="none" stroke="rgba(255,255,255,0.35)" strokeWidth="2"
-                />
-                <motion.path
-                  d="M14 27l8 8 16-18"
-                  fill="none" stroke="#fff" strokeWidth="5"
-                  strokeLinecap="round" strokeLinejoin="round"
-                  initial={{ pathLength: 0 }}
-                  animate={{ pathLength: 1 }}
-                  transition={{ delay: 0.35, duration: 0.5, ease: 'easeOut' }}
-                />
-              </svg>
-            </motion.div>
-
-            <motion.h2
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.25 }}
-              className="text-3xl font-black text-white"
-            >
-              {celebration}
-            </motion.h2>
-            <motion.p
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.5 }}
-              className="text-white/70 mt-2 text-base font-medium"
-            >
-              Chào mừng đến với Vé247 — chúc bạn có những chuyến đi tuyệt vời!
-            </motion.p>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.7 }}
-              className="mt-6 flex items-center gap-2 text-sm font-semibold text-emerald-300"
-            >
-              <Loader className="w-4 h-4 animate-spin" />
-              Đang vào trang chủ...
-            </motion.div>
-          </motion.div>
         </motion.div>
       )}
     </section>
