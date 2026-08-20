@@ -1060,7 +1060,7 @@ export default function LoginRegister() {
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="fixed top-6 left-1/2 -translate-x-1/2 z-[9999]"
+          className="fixed top-6 right-6 z-[9999]"
         >
           <div className="flex items-center gap-2.5 bg-[var(--color-bg-card)] border border-emerald-500/40 text-[var(--color-text-primary)] rounded-xl px-4 py-3 shadow-xl">
             <div className="w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center shrink-0">
