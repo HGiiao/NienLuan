@@ -51,13 +51,20 @@ public class PriceAlertController : ControllerBase
         decimal? itemPrice = null;
         if (request.ItemId.HasValue && !string.IsNullOrWhiteSpace(request.Mode))
         {
+            DateTime? departureTime = null;
             itemPrice = request.Mode.ToLower() switch
             {
-                "flight" => (await _db.Flights.FindAsync(request.ItemId.Value))?.Price,
-                "train" => (await _db.Trains.FindAsync(request.ItemId.Value))?.Price,
-                "bus" => (await _db.Buses.FindAsync(request.ItemId.Value))?.Price,
+                "flight" => GetFlightInfo(request.ItemId.Value, out departureTime)?.Price,
+                "train" => GetTrainInfo(request.ItemId.Value, out departureTime)?.Price,
+                "bus" => GetBusInfo(request.ItemId.Value, out departureTime)?.Price,
                 _ => null,
             };
+
+            // Chuyến đã khởi hành → không cho phép theo dõi giá nữa
+            if (departureTime.HasValue && departureTime.Value <= DateTime.UtcNow)
+            {
+                return BadRequest(new { message = "Chuyến đã khởi hành — không thể theo dõi giá chuyến này" });
+            }
         }
 
         var alert = new PriceAlert
@@ -153,6 +160,27 @@ public class PriceAlertController : ControllerBase
         var result = await _priceAlerts.CheckAlertsAsync(_db, email);
 
         return Ok(new { triggered = result.Triggered, message = $"Kiểm tra {result.Count} cảnh báo, {result.Triggered.Count} cảnh báo kích hoạt" });
+    }
+
+    private Flight? GetFlightInfo(long id, out DateTime? departureTime)
+    {
+        var flight = _db.Flights.Find(id);
+        departureTime = flight?.DepartureTime;
+        return flight;
+    }
+
+    private Train? GetTrainInfo(long id, out DateTime? departureTime)
+    {
+        var train = _db.Trains.Find(id);
+        departureTime = train?.DepartureTime;
+        return train;
+    }
+
+    private Bus? GetBusInfo(long id, out DateTime? departureTime)
+    {
+        var bus = _db.Buses.Find(id);
+        departureTime = bus?.DepartureTime;
+        return bus;
     }
 }
 

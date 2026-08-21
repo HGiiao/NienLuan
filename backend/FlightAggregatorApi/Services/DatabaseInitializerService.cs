@@ -45,7 +45,7 @@ public class DatabaseInitializerService
         await ExecuteSqlAsync(conn, @"
 IF OBJECT_ID('Flights', 'U') IS NULL
 BEGIN
-CREATE TABLE Flights (Id BIGINT PRIMARY KEY IDENTITY(1,1), AirlineCode NVARCHAR(10) NOT NULL, AirlineName NVARCHAR(100) NOT NULL, DepartureLocation NVARCHAR(50) NOT NULL, ArrivalLocation NVARCHAR(50) NOT NULL, DepartureTime DATETIME2 NOT NULL, ArrivalTime DATETIME2 NOT NULL, Price DECIMAL(18,2) NOT NULL, Seats INT NOT NULL, SeatClass NVARCHAR(50) NOT NULL DEFAULT 'Economy', FlightDate DATE NOT NULL, RoundTripGroupId BIGINT NULL, CreatedAt DATETIME2 DEFAULT GETUTCDATE());
+CREATE TABLE Flights (Id BIGINT PRIMARY KEY IDENTITY(1,1), AirlineCode NVARCHAR(10) NOT NULL, AirlineName NVARCHAR(100) NOT NULL, FlightNumber NVARCHAR(10) NOT NULL DEFAULT '', DepartureLocation NVARCHAR(50) NOT NULL, ArrivalLocation NVARCHAR(50) NOT NULL, DepartureTime DATETIME2 NOT NULL, ArrivalTime DATETIME2 NOT NULL, Price DECIMAL(18,2) NOT NULL, Seats INT NOT NULL, SeatClass NVARCHAR(50) NOT NULL DEFAULT 'Economy', FlightDate DATE NOT NULL, RoundTripGroupId BIGINT NULL, CreatedAt DATETIME2 DEFAULT GETUTCDATE());
 CREATE INDEX IX_Flights_Route_Date ON Flights (DepartureLocation, ArrivalLocation, FlightDate);
 CREATE INDEX IX_Flights_Price ON Flights (Price);
 END
@@ -139,6 +139,9 @@ IF COL_LENGTH('Users', 'IsEmailVerified') IS NULL ALTER TABLE Users ADD IsEmailV
 IF COL_LENGTH('Users', 'Address') IS NULL ALTER TABLE Users ADD Address NVARCHAR(500) NULL;
 IF COL_LENGTH('Users', 'PaymentMethod') IS NULL ALTER TABLE Users ADD PaymentMethod NVARCHAR(50) NULL;
 IF COL_LENGTH('Flights', 'RoundTripGroupId') IS NULL ALTER TABLE Flights ADD RoundTripGroupId BIGINT NULL;IF COL_LENGTH('Flights', 'ShareCount') IS NULL ALTER TABLE Flights ADD ShareCount INT NOT NULL DEFAULT 0;
+-- Mã chuyến bay thật (VD: VJ175) — sinh cho các bản ghi cũ theo đúng công thức frontend từng dùng
+IF COL_LENGTH('Flights', 'FlightNumber') IS NULL ALTER TABLE Flights ADD FlightNumber NVARCHAR(10) NOT NULL DEFAULT '';
+UPDATE Flights SET FlightNumber = AirlineCode + CAST((Id % 900) + 100 AS NVARCHAR(10)) WHERE FlightNumber = '';
 IF COL_LENGTH('Flights', 'SeatClass') IS NULL ALTER TABLE Flights ADD SeatClass NVARCHAR(50) NOT NULL DEFAULT 'Economy';
 IF COL_LENGTH('Trains', 'ShareCount') IS NULL ALTER TABLE Trains ADD ShareCount INT NOT NULL DEFAULT 0;
 IF COL_LENGTH('Buses', 'ShareCount') IS NULL ALTER TABLE Buses ADD ShareCount INT NOT NULL DEFAULT 0;

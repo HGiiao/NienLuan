@@ -120,7 +120,7 @@ export default function TicketDetailModal({ item, type, onClose }) {
   const accentText = isBus ? 'text-primary-500' : 'text-primary-500'
   const typeIcon = isFlight ? <Plane className="w-5 h-5" /> : isBus ? <Bus className="w-5 h-5" /> : <Train className="w-5 h-5" />
   const typeName = isFlight ? item.airlineName : isBus ? item.busCompany : (item.trainName || item.trainCode)
-  const typeCode = isFlight ? `${item.airlineCode}${(item.id % 900) + 100}` : isBus ? item.busCode : item.trainCode
+  const typeCode = isFlight ? (item.flightNumber || `${item.airlineCode}${(item.id % 900) + 100}`) : isBus ? item.busCode : item.trainCode
   const routeLabel = isBus ? 'Đi thẳng' : isFlight ? 'Bay thẳng' : (trainClass?.label || 'Trực tiếp')
 
   return (

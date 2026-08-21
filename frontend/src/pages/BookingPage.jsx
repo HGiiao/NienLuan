@@ -193,7 +193,7 @@ export default function BookingPage() {
   const isBus = type === 'bus'
   const itemCode = item
     ? (isFlight
-        ? `${item.airlineCode || item.code}${(item.id % 900) + 100}`
+        ? (item.flightNumber || `${item.airlineCode || item.code}${(item.id % 900) + 100}`)
         : isBus
           ? (item.busCode || item.code)
           : (item.trainCode || item.code))

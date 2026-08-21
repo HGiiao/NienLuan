@@ -75,7 +75,7 @@ export default function BookingConfirmation() {
   const routeCode = isMulti
     ? segments.map(s => s.code).filter(Boolean).join(' + ')
     : type === 'flight'
-      ? `${item?.airlineCode}${item?.id}`
+      ? (item?.flightNumber || `${item?.airlineCode}${item?.id}`)
       : item?.trainCode || item?.busCode || '—'
   const routeName = isMulti
     ? 'Lộ trình kết hợp'

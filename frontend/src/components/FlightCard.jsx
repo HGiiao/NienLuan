@@ -48,7 +48,7 @@ export default function FlightCard({ flight, onBook, onWatch, onDetail, badge, i
   const cfg = airlineConfig[flight.airlineCode] || airlineConfig.VN
   const seatCfg = seatClassConfig[flight.seatClass] || seatClassConfig.Economy
   const showBadge = badge || (index === 0 ? 'Rẻ nhất' : null)
-  const flightNumber = `${flight.airlineCode}${(flight.id % 900) + 100}`
+  const flightNumber = flight.flightNumber || `${flight.airlineCode}${(flight.id % 900) + 100}`
   const cityFrom = cityNames[flight.departureLocation] || flight.departureLocation
   const cityTo = cityNames[flight.arrivalLocation] || flight.arrivalLocation
   const seatsLeft = flight.seats
@@ -75,12 +75,12 @@ export default function FlightCard({ flight, onBook, onWatch, onDetail, badge, i
               <AirlineLogo code={flight.airlineCode} gradient={seatCfg.gradient} />
               <div>
                 <div className="flex items-center gap-2">
-                  <div className="text-sm font-bold text-[var(--color-text-primary)] leading-tight">{cfg.name}</div>
+                  <div className="text-sm font-bold text-[var(--color-text-primary)] leading-tight">{flightNumber}</div>
                   <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border ${seatCfg.badge}`}>
                     {seatCfg.icon && <seatCfg.icon className="w-3 h-3" />}{seatCfg.label}
                   </span>
                 </div>
-                <div className="text-[11px] text-[var(--color-text-tertiary)] font-medium">{flightNumber}</div>
+                <div className="text-[11px] text-[var(--color-text-tertiary)] font-medium">{cfg.name}</div>
               </div>
             </div>
             <div className="text-right">
@@ -171,9 +171,13 @@ export default function FlightCard({ flight, onBook, onWatch, onDetail, badge, i
                 <Clock className="w-3 h-3" />{new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false })}
               </span>
               {onWatch && (
-                <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
-                  onClick={e => { e.stopPropagation(); onWatch?.(flight) }}
-                  className={`shrink-0 whitespace-nowrap py-2.5 px-3 rounded-xl text-xs font-bold transition-all ${watched ? 'bg-accent-500/10 text-accent-500 border border-accent-500/30' : 'border border-accent-500/30 text-accent-500 hover:bg-accent-500/5'}`}
+                <motion.button whileHover={hasDeparted ? undefined : { scale: 1.03 }} whileTap={hasDeparted ? undefined : { scale: 0.97 }}
+                  disabled={hasDeparted}
+                  title={hasDeparted ? 'Chuyến đã khởi hành — không thể theo dõi giá' : undefined}
+                  onClick={e => { if (hasDeparted) return; e.stopPropagation(); onWatch?.(flight) }}
+                  className={hasDeparted
+                    ? 'shrink-0 whitespace-nowrap py-2.5 px-3 rounded-xl text-xs font-bold bg-[var(--color-border)]/30 text-[var(--color-text-tertiary)] cursor-not-allowed'
+                    : `shrink-0 whitespace-nowrap py-2.5 px-3 rounded-xl text-xs font-bold transition-all ${watched ? 'bg-accent-500/10 text-accent-500 border border-accent-500/30' : 'border border-accent-500/30 text-accent-500 hover:bg-accent-500/5'}`}
                 >
                   {watched ? <BellOff className="w-3.5 h-3.5 inline mr-1" /> : <Bell className="w-3.5 h-3.5 inline mr-1" />}
                   {watched ? 'Đang theo dõi' : 'Theo dõi giá'}
@@ -201,12 +205,12 @@ export default function FlightCard({ flight, onBook, onWatch, onDetail, badge, i
               <AirlineLogo code={flight.airlineCode} gradient={seatCfg.gradient} />
               <div>
                 <div className="flex items-center gap-1.5">
-                  <div className="text-sm font-bold text-[var(--color-text-primary)]">{cfg.name}</div>
+                  <div className="text-sm font-bold text-[var(--color-text-primary)]">{flightNumber}</div>
                   <span className={`inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${seatCfg.badge}`}>
                     {seatCfg.icon && <seatCfg.icon className="w-2.5 h-2.5" />}{seatCfg.label}
                   </span>
                 </div>
-                <div className="text-[11px] text-[var(--color-text-tertiary)]">{flightNumber}</div>
+                <div className="text-[11px] text-[var(--color-text-tertiary)]">{cfg.name}</div>
               </div>
             </div>
             <div className="text-right">
@@ -262,8 +266,11 @@ export default function FlightCard({ flight, onBook, onWatch, onDetail, badge, i
             </div>
             <div className="ml-auto flex items-center gap-1.5">
               {onWatch && (
-                <button onClick={e => { e.stopPropagation(); onWatch?.(flight) }}
-                  className={`px-3 py-2 rounded-xl text-xs font-bold transition-all ${watched ? 'bg-accent-500/10 text-accent-500 border border-accent-500/30' : 'border border-accent-500/30 text-accent-500 hover:bg-accent-500/5'}`}
+                <button disabled={hasDeparted} title={hasDeparted ? 'Chuyến đã khởi hành — không thể theo dõi giá' : undefined}
+                  onClick={e => { if (hasDeparted) return; e.stopPropagation(); onWatch?.(flight) }}
+                  className={hasDeparted
+                    ? 'px-3 py-2 rounded-xl text-xs font-bold bg-[var(--color-border)]/30 text-[var(--color-text-tertiary)] cursor-not-allowed'
+                    : `px-3 py-2 rounded-xl text-xs font-bold transition-all ${watched ? 'bg-accent-500/10 text-accent-500 border border-accent-500/30' : 'border border-accent-500/30 text-accent-500 hover:bg-accent-500/5'}`}
                 >{watched ? <BellOff className="w-3.5 h-3.5" /> : <Bell className="w-3.5 h-3.5" />}</button>
               )}
               <button onClick={e => { e.stopPropagation(); onDetail?.(flight) }}

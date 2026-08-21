@@ -1,8 +1,8 @@
 import { useState, useEffect, useMemo } from 'react'
 import { motion } from 'framer-motion'
 import {
-  Users, Ticket, Plane, Train, DollarSign, TrendingUp,
-  ArrowRight, Activity, MapPin, Building2,
+  Users, Ticket, Plane, Train, Bus, DollarSign, TrendingUp,
+  ArrowRight, Activity, Clock, CalendarClock,
 } from 'lucide-react'
 import { getAdminDashboard, getAdminStats } from '../../services/api'
 import StatCard from '../StatCard'
@@ -17,6 +17,11 @@ const item = {
 }
 
 const STATUS_LABEL = { Confirmed: 'Đã xác nhận', Pending: 'Chờ xử lý', Cancelled: 'Đã huỷ' }
+const MODE_META = {
+  flight: { icon: Plane, label: 'Chuyến bay' },
+  train: { icon: Train, label: 'Tàu hỏa' },
+  bus: { icon: Bus, label: 'Xe khách' },
+}
 
 // Định dạng tiền dễ đọc: 6.232.228 → "6,2tr", 994.000 → "994k", 80.000 → "80k"
 const formatVndShort = (v) => {
@@ -25,6 +30,12 @@ const formatVndShort = (v) => {
   return String(v)
 }
 const formatVndFull = (v) => v.toLocaleString('vi-VN') + ' ₫'
+
+// "2026-08-21 04:10" → "04:10 · 21/08"
+const formatDeparture = (s) => {
+  if (!s || s.length < 16) return s || '—'
+  return s.slice(11, 16) + ' · ' + s.slice(8, 10) + '/' + s.slice(5, 7)
+}
 
 export default function Overview({ onNavigate }) {
   const [dashboard, setDashboard] = useState(null)
@@ -54,39 +65,6 @@ export default function Overview({ onNavigate }) {
     return { day: best.date.slice(8) + '/' + best.date.slice(5, 7), value: best.revenue }
   }, [s])
 
-  // Phân bố trạng thái đặt chỗ — màu + % để vẽ thanh ngang
-  const statusDist = useMemo(() => {
-    const rows = s.bookingStatusDistribution || []
-    const total = rows.reduce((sum, r) => sum + r.count, 0) || 1
-    const colors = {
-      Confirmed: 'bg-[var(--color-success)]',
-      Pending: 'bg-primary-500',
-      Cancelled: 'bg-[var(--color-danger)]',
-    }
-    return rows.map(r => ({
-      status: r.status,
-      label: STATUS_LABEL[r.status] || r.status,
-      count: r.count,
-      pct: Math.round((r.count / total) * 100),
-      color: colors[r.status] || 'bg-[var(--color-border)]',
-    }))
-  }, [s])
-  const totalBookings = s.bookingStatusDistribution?.reduce((sum, r) => sum + r.count, 0) ?? 0
-
-  // Top tuyến bay thật (backend trả { route, count })
-  const topFlightRoutes = useMemo(() => {
-    const rows = s.topFlightRoutes || []
-    const max = Math.max(...rows.map(r => r.count), 1)
-    return rows.map(r => ({ route: r.route, count: r.count, pct: Math.round((r.count / max) * 100) }))
-  }, [s])
-
-  // Hãng bay thật
-  const topAirlines = useMemo(() => {
-    const rows = s.airlineMarketShare || []
-    const max = Math.max(...rows.map(r => r.count), 1)
-    return rows.map(r => ({ name: r.airline, count: r.count, pct: Math.round((r.count / max) * 100) }))
-  }, [s])
-
   // Giao dịch gần đây thật
   const recentTx = (s.recentTransactions || []).slice(0, 6).map(t => ({
     id: `BK${t.id}`,
@@ -95,6 +73,9 @@ export default function Overview({ onNavigate }) {
     amount: t.amount.toLocaleString('vi-VN') + ' ₫',
     type: t.type,
   }))
+
+  // Hoạt động hôm nay + chuyến sắp khởi hành (từ /api/admin/dashboard)
+  const upcoming = d.upcomingDepartures || []
 
   const conv = d.totalBookings ? ((d.confirmedBookings ?? 0) / d.totalBookings * 100).toFixed(0) : '0'
   const revChange = s.revenueComparison?.change ?? 0
@@ -111,6 +92,11 @@ export default function Overview({ onNavigate }) {
       <div className="space-y-6 animate-pulse">
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="h-24 bg-[var(--color-border)] rounded-xl" />
+          ))}
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="h-24 bg-[var(--color-border)] rounded-xl" />
           ))}
         </div>
@@ -134,7 +120,25 @@ export default function Overview({ onNavigate }) {
         <StatCard icon={TrendingUp} label="Tỉ lệ xác nhận" value={`${conv}%`} change={null} color="violet" />
       </motion.div>
 
-      {/* Row 2: Doanh thu thật + Hoạt động */}
+      {/* Row 2: Hôm nay — hoạt động trong ngày, việc cần xử lý */}
+      <motion.div variants={item}>
+        <div className="flex items-center gap-2 mb-3">
+          <Clock className="w-4 h-4 text-[var(--color-text-tertiary)]" />
+          <h3 className="text-sm font-semibold text-[var(--color-text-primary)]">Hôm nay</h3>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <TodayTile icon={Ticket} label="Đặt chỗ hôm nay" value={d.bookingsToday ?? 0} hint="Tổng đơn tạo trong ngày" />
+          <TodayTile icon={DollarSign} label="Doanh thu hôm nay" value={formatVndFull(d.revenueToday ?? 0)} hint="Chỉ tính đơn đã xác nhận" />
+          <TodayTile
+            icon={Activity} label="Chờ xử lý" value={d.pendingBookings ?? 0}
+            hint={(d.pendingBookings ?? 0) > 0 ? 'Cần duyệt trong Quản lý đặt chỗ' : 'Không có đơn chờ'}
+            onClick={() => onNavigate('bookings')}
+          />
+          <TodayTile icon={CalendarClock} label="Khởi hành 24h tới" value={upcoming.length} hint="Chuyến sắp đi" />
+        </div>
+      </motion.div>
+
+      {/* Row 3: Doanh thu 30 ngày + Giao dịch gần đây */}
       <motion.div variants={item} className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Revenue Chart — thiết kế dễ hiểu cho người không rành CNTT */}
         <div className="lg:col-span-2 bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl p-5">
@@ -181,40 +185,6 @@ export default function Overview({ onNavigate }) {
               </p>
             </div>
           </div>
-
-          {/* Phân bố trạng thái đặt chỗ — kèm chú giải */}
-          <div className="mt-5 pt-5 border-t border-[var(--color-border)]">
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-xs font-semibold text-[var(--color-text-primary)]">Tình trạng đặt chỗ (toàn bộ thời gian)</p>
-              <span className="text-[10px] text-[var(--color-text-tertiary)]">Tổng {totalBookings} đặt chỗ</span>
-            </div>
-            {statusDist.length === 0 ? (
-              <p className="text-xs text-[var(--color-text-tertiary)] py-3 text-center">Chưa có đặt chỗ nào</p>
-            ) : (
-              <>
-                <div className="flex h-3 rounded-full overflow-hidden bg-[var(--color-border)]/50">
-                  {statusDist.map((s, i) => s.pct > 0 && (
-                    <motion.div
-                      key={i}
-                      initial={{ width: 0 }}
-                      animate={{ width: `${s.pct}%` }}
-                      transition={{ duration: 0.6, delay: 0.2 + i * 0.1 }}
-                      className={s.color}
-                      title={`${s.label}: ${s.count}`}
-                    />
-                  ))}
-                </div>
-                <div className="flex flex-wrap gap-x-5 gap-y-1.5 mt-2.5">
-                  {statusDist.map((s, i) => (
-                    <span key={i} className="flex items-center gap-1.5 text-[11px] text-[var(--color-text-secondary)]">
-                      <span className={`w-2.5 h-2.5 rounded-sm ${s.color}`} />
-                      {s.label}: <b className="text-[var(--color-text-primary)]">{s.count}</b>
-                    </span>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
         </div>
 
         {/* Recent Activity — từ recentTransactions thật */}
@@ -224,7 +194,9 @@ export default function Overview({ onNavigate }) {
               <Activity className="w-4 h-4 text-[var(--color-text-tertiary)]" />
               Giao dịch gần đây
             </h3>
-            <span className="w-2 h-2 rounded-full bg-primary-400" />
+            <button onClick={() => onNavigate('bookings')} className="text-[11px] font-medium text-primary-500 hover:text-primary-600 transition-colors flex items-center gap-0.5">
+              Xem tất cả <ArrowRight className="w-3 h-3" />
+            </button>
           </div>
           {recentTx.length === 0 ? (
             <p className="text-sm text-[var(--color-text-tertiary)] py-8 text-center">Chưa có giao dịch</p>
@@ -253,107 +225,66 @@ export default function Overview({ onNavigate }) {
         </div>
       </motion.div>
 
-      {/* Row 3: Top Routes + Airlines + Bookings gần đây — dữ liệu thật */}
-      <motion.div variants={item} className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Top Routes thật */}
-        <div className="bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold text-[var(--color-text-primary)] flex items-center gap-2">
-              <MapPin className="w-4 h-4 text-[var(--color-text-tertiary)]" />
-              Top tuyến bay
-            </h3>
-            <button onClick={() => onNavigate('flights')} className="text-[11px] font-medium text-primary-500 hover:text-primary-600 transition-colors flex items-center gap-0.5">
-              Xem tất cả <ArrowRight className="w-3 h-3" />
-            </button>
-          </div>
-          {topFlightRoutes.length === 0 ? (
-            <p className="text-sm text-[var(--color-text-tertiary)] py-8 text-center">Chưa có dữ liệu tuyến bay</p>
-          ) : (
-            <div className="space-y-2.5">
-              {topFlightRoutes.map((r, i) => (
-                <div key={i} className="flex items-center gap-3">
-                  <span className="text-xs font-medium text-[var(--color-text-secondary)] w-24">{r.route}</span>
-                  <div className="flex-1 h-1.5 rounded-full bg-[var(--color-border)] overflow-hidden">
-                    <motion.div
-                      initial={{ width: 0 }}
-                      animate={{ width: `${r.pct}%` }}
-                      transition={{ duration: 0.6, delay: i * 0.08, ease: [0.25, 0.46, 0.45, 0.94] }}
-                      className="h-full rounded-full bg-primary-400"
-                    />
-                  </div>
-                  <span className="text-[11px] font-semibold text-[var(--color-text-secondary)] w-8 text-right">{r.count}</span>
-                </div>
-              ))}
-            </div>
-          )}
+      {/* Row 4: Chuyến sắp khởi hành trong 24h — gộp 3 loại phương tiện */}
+      <motion.div variants={item} className="bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl p-5">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-sm font-semibold text-[var(--color-text-primary)] flex items-center gap-2">
+            <CalendarClock className="w-4 h-4 text-[var(--color-text-tertiary)]" />
+            Chuyến sắp khởi hành (24h tới)
+          </h3>
+          <span className="text-xs text-[var(--color-text-tertiary)]">{upcoming.length} chuyến</span>
         </div>
-
-        {/* Popular Airlines thật */}
-        <div className="bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold text-[var(--color-text-primary)] flex items-center gap-2">
-              <Building2 className="w-4 h-4 text-[var(--color-text-tertiary)]" />
-              Hãng bay phổ biến
-            </h3>
-          </div>
-          {topAirlines.length === 0 ? (
-            <p className="text-sm text-[var(--color-text-tertiary)] py-8 text-center">Chưa có dữ liệu hãng bay</p>
-          ) : (
-            <div className="space-y-2.5">
-              {topAirlines.map((a, i) => (
-                <div key={i} className="flex items-center gap-3">
-                  <span className="text-xs font-medium text-[var(--color-text-secondary)] flex-1">{a.name}</span>
-                  <div className="flex-1 h-1.5 rounded-full bg-[var(--color-border)] overflow-hidden">
-                    <motion.div
-                      initial={{ width: 0 }}
-                      animate={{ width: `${a.pct}%` }}
-                      transition={{ duration: 0.6, delay: i * 0.08, ease: [0.25, 0.46, 0.45, 0.94] }}
-                      className="h-full rounded-full bg-primary-400"
-                    />
+        {upcoming.length === 0 ? (
+          <p className="text-sm text-[var(--color-text-tertiary)] py-8 text-center">Không có chuyến nào khởi hành trong 24h tới</p>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-8">
+            {upcoming.map((u, i) => {
+              const meta = MODE_META[u.mode] || MODE_META.flight
+              const Icon = meta.icon
+              const lowSeats = u.seatsLeft <= 20
+              return (
+                <div key={`${u.mode}-${u.code}-${i}`} className="flex items-center gap-3 py-2.5 border-b border-[var(--color-border)]/50 last:border-0">
+                  <div className="w-8 h-8 rounded-lg bg-[var(--color-bg)] border border-[var(--color-border)] flex items-center justify-center shrink-0 text-primary-500" title={meta.label}>
+                    <Icon className="w-4 h-4" />
                   </div>
-                  <span className="text-[11px] font-semibold text-[var(--color-text-secondary)] w-8 text-right">{a.count}</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-bold text-[var(--color-text-primary)]">{u.code}</p>
+                    <p className="text-[10px] text-[var(--color-text-tertiary)] truncate">{u.route}</p>
+                  </div>
+                  <span className="text-[11px] font-medium text-[var(--color-text-secondary)] shrink-0">{formatDeparture(u.departureTime)}</span>
+                  <span className={`shrink-0 inline-flex px-1.5 py-0.5 rounded text-[10px] font-semibold border ${
+                    lowSeats
+                      ? 'bg-[var(--color-danger)]/10 text-[var(--color-danger)] border-[var(--color-danger)]/20'
+                      : 'bg-[var(--color-bg-hover)] text-[var(--color-text-secondary)] border-[var(--color-border)]'
+                  }`}>
+                    {u.seatsLeft} chỗ
+                  </span>
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Đặt chỗ gần đây — từ recentTransactions thật */}
-        <div className="bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold text-[var(--color-text-primary)]">Đặt chỗ gần đây</h3>
-            <button onClick={() => onNavigate('bookings')} className="text-[11px] font-medium text-primary-500 hover:text-primary-600 transition-colors flex items-center gap-0.5">
-              Xem tất cả <ArrowRight className="w-3 h-3" />
-            </button>
+              )
+            })}
           </div>
-          {recentTx.length === 0 ? (
-            <p className="text-sm text-[var(--color-text-tertiary)] py-8 text-center">Chưa có đặt chỗ</p>
-          ) : (
-            <div className="space-y-2.5">
-              {recentTx.map((b, i) => (
-                <div key={i} className="flex items-center justify-between py-1">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-7 h-7 rounded-lg bg-[var(--color-bg)] border border-[var(--color-border)] flex items-center justify-center shrink-0">
-                      <span className="text-[10px] font-bold text-[var(--color-text-tertiary)]">{b.id.slice(-3)}</span>
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-xs font-medium text-[var(--color-text-primary)] truncate">{b.name}</p>
-                      <span className="text-[10px] text-[var(--color-text-tertiary)]">{b.id}</span>
-                    </div>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <p className="text-xs font-semibold text-[var(--color-text-primary)]">{b.amount}</p>
-                    <span className={`text-[10px] font-medium ${
-                      b.status === 'Confirmed' ? 'text-[var(--color-success)]' :
-                      b.status === 'Pending' ? 'text-primary-600' : 'text-[var(--color-danger)]'
-                    }`}>{STATUS_LABEL[b.status] || b.status}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+        )}
       </motion.div>
     </motion.div>
+  )
+}
+
+function TodayTile({ icon: Icon, label, value, hint, onClick }) {
+  return (
+    <div
+      onClick={onClick}
+      className={`bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl p-4 transition-colors ${
+        onClick ? 'cursor-pointer hover:border-primary-300' : ''
+      }`}
+    >
+      <div className="flex items-center gap-2 mb-2">
+        <div className="w-7 h-7 rounded-lg flex items-center justify-center bg-primary-50 text-primary-500">
+          <Icon className="w-3.5 h-3.5" />
+        </div>
+        <p className="text-[11px] text-[var(--color-text-tertiary)]">{label}</p>
+      </div>
+      <p className="text-lg font-bold text-[var(--color-text-primary)] truncate">{value}</p>
+      {hint && <p className="text-[10px] text-[var(--color-text-tertiary)] mt-0.5">{hint}</p>}
+    </div>
   )
 }

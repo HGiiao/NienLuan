@@ -153,7 +153,7 @@ export default function GlobalSearch({ onNavigate }) {
                       <p className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-tertiary)] flex items-center gap-1"><Plane className="w-3 h-3" />Chuyến bay</p>
                       {results.flights.map(f => (
                         <button key={f.id} onClick={() => go('flights')} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-[var(--color-border)]/30 transition-colors text-left">
-                          <span className="text-sm font-bold text-[var(--color-text-primary)]">{f.airlineCode}</span>
+                          <span className="text-sm font-bold text-[var(--color-text-primary)]">{f.flightNumber || f.airlineCode}</span>
                           <span className="min-w-0 flex-1 truncate text-sm text-[var(--color-text-secondary)]">{f.departureLocation} → {f.arrivalLocation} • {f.departureTime?.split('T')[0]}</span>
                           <span className="text-xs font-semibold text-primary-600">{fmtMoney(f.price)} ₫</span>
                         </button>

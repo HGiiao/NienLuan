@@ -12,6 +12,9 @@ public class Flight
     [MaxLength(100)]
     public string AirlineName { get; set; } = string.Empty;
 
+    [MaxLength(10)]
+    public string FlightNumber { get; set; } = string.Empty;
+
     [MaxLength(50)]
     public string DepartureLocation { get; set; } = string.Empty;
 

@@ -134,9 +134,13 @@ export default function BusCard({ bus, onBook, onWatch, onDetail, badge, index =
             </div>
             <div className="flex items-center gap-2 shrink-0 ml-auto">
               {onWatch && (
-                <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
-                  onClick={() => onWatch?.(bus)}
-                  className={`shrink-0 whitespace-nowrap py-2.5 px-3 rounded-xl text-xs font-bold transition-all ${watched ? 'bg-accent-500/10 text-accent-500 border border-accent-500/30' : 'border border-primary-500/30 text-primary-500 hover:bg-primary-500/5'}`}
+                <motion.button whileHover={hasDeparted ? undefined : { scale: 1.03 }} whileTap={hasDeparted ? undefined : { scale: 0.97 }}
+                  disabled={hasDeparted}
+                  title={hasDeparted ? 'Chuyến đã khởi hành — không thể theo dõi giá' : undefined}
+                  onClick={() => { if (hasDeparted) return; onWatch?.(bus) }}
+                  className={hasDeparted
+                    ? 'shrink-0 whitespace-nowrap py-2.5 px-3 rounded-xl text-xs font-bold bg-[var(--color-border)]/30 text-[var(--color-text-tertiary)] cursor-not-allowed'
+                    : `shrink-0 whitespace-nowrap py-2.5 px-3 rounded-xl text-xs font-bold transition-all ${watched ? 'bg-accent-500/10 text-accent-500 border border-accent-500/30' : 'border border-primary-500/30 text-primary-500 hover:bg-primary-500/5'}`}
                 >
                   {watched ? <BellOff className="w-3.5 h-3.5 inline mr-1" /> : <Bell className="w-3.5 h-3.5 inline mr-1" />}
                   {watched ? 'Đang theo dõi' : 'Theo dõi giá'}
@@ -187,7 +191,12 @@ export default function BusCard({ bus, onBook, onWatch, onDetail, badge, index =
             </div>
             <div className="ml-auto flex items-center gap-1.5">
               {onWatch && (
-                <button onClick={() => onWatch?.(bus)} className={`px-3 py-2 rounded-xl text-xs font-bold transition-all ${watched ? 'bg-accent-500/10 text-accent-500 border border-accent-500/30' : 'border border-primary-500/30 text-primary-500 hover:bg-primary-500/5'}`}>{watched ? <BellOff className="w-3.5 h-3.5" /> : <Bell className="w-3.5 h-3.5" />}</button>
+                <button disabled={hasDeparted} title={hasDeparted ? 'Chuyến đã khởi hành — không thể theo dõi giá' : undefined}
+                  onClick={() => { if (hasDeparted) return; onWatch?.(bus) }}
+                  className={hasDeparted
+                    ? 'px-3 py-2 rounded-xl text-xs font-bold bg-[var(--color-border)]/30 text-[var(--color-text-tertiary)] cursor-not-allowed'
+                    : `px-3 py-2 rounded-xl text-xs font-bold transition-all ${watched ? 'bg-accent-500/10 text-accent-500 border border-accent-500/30' : 'border border-primary-500/30 text-primary-500 hover:bg-primary-500/5'}`}
+                >{watched ? <BellOff className="w-3.5 h-3.5" /> : <Bell className="w-3.5 h-3.5" />}</button>
               )}
               <button onClick={() => onDetail?.(bus)} className="px-3 py-2 rounded-xl text-xs font-bold transition-all border border-primary-500/30 text-primary-500 hover:bg-primary-500/5">Chi tiết</button>
               <button disabled={hasDeparted} onClick={() => { if (hasDeparted) return; onBook?.(bus) }} className={hasDeparted ? 'px-5 py-2 rounded-xl text-sm font-bold bg-[var(--color-border)]/30 text-[var(--color-text-tertiary)] cursor-not-allowed' : 'bg-gradient-to-r from-primary-500 to-primary-600 text-white px-5 py-2 rounded-xl text-sm font-bold shadow-md active:scale-[0.97]'}>{hasDeparted ? 'Đã khởi hành' : 'Đặt vé'}</button>

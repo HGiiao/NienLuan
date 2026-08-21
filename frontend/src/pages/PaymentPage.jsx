@@ -273,7 +273,7 @@ export default function PaymentPage() {
                     ) : (
                       <>
                         <p className="font-semibold text-[var(--color-text-primary)]">
-                          {isFlight ? `${item.airlineCode}${(item.id % 900) + 100}` : isBus ? item.busCode : item.trainCode}
+                          {isFlight ? (item.flightNumber || `${item.airlineCode}${(item.id % 900) + 100}`) : isBus ? item.busCode : item.trainCode}
                         </p>
                         <p className="text-sm text-[var(--color-text-secondary)]">
                           {item.departureLocation} <ArrowRight className="w-3 h-3 inline" /> {item.arrivalLocation}

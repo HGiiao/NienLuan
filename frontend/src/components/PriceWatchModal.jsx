@@ -13,7 +13,7 @@ export default function PriceWatchModal({ item, type, onClose, onConfirm }) {
   const isBus = type === 'bus'
   const typeIcon = isFlight ? <Plane className="w-5 h-5" /> : isBus ? <Bus className="w-5 h-5" /> : <Train className="w-5 h-5" />
   const code = isFlight
-    ? `${item.airlineCode}${(item.id % 900) + 100}`
+    ? (item.flightNumber || `${item.airlineCode}${(item.id % 900) + 100}`)
     : isBus ? item.busCode : item.trainCode
   const typeLabel = isFlight ? 'Máy bay' : isBus ? 'Xe khách' : 'Tàu hỏa'
 

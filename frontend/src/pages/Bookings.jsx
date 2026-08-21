@@ -115,7 +115,7 @@ export default function Bookings() {
     }
     const t = bookingType(b)
     const code = t === 'flight'
-      ? `${item.airlineCode}${(item.id % 900) + 100}`
+      ? (item.flightNumber || `${item.airlineCode}${(item.id % 900) + 100}`)
       : t === 'bus' ? item.busCode : item.trainCode
     const name = t === 'flight' ? item.airlineName : t === 'bus' ? item.busCompany : (item.trainName || item.trainCode)
     return (

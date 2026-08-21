@@ -34,6 +34,52 @@ public class AdminController : ControllerBase
             .Where(b => b.Status == "Confirmed")
             .SumAsync(b => b.TotalPrice);
 
+        // Hoạt động hôm nay (theo ngày UTC)
+        var today = DateTime.UtcNow.Date;
+        var bookingsToday = await _db.Bookings.CountAsync(b => b.BookingDate >= today);
+        var revenueToday = await _db.Bookings
+            .Where(b => b.Status == "Confirmed" && b.BookingDate >= today)
+            .SumAsync(b => (decimal?)b.TotalPrice) ?? 0;
+
+        // Chuyến sắp khởi hành trong 24h tới (gộp 3 loại phương tiện, sắp theo giờ đi)
+        var nowUtc = DateTime.UtcNow;
+        var horizon = nowUtc.AddHours(24);
+        var upcomingFlights = await _db.Flights
+            .AsNoTracking()
+            .Where(f => f.DepartureTime >= nowUtc && f.DepartureTime <= horizon)
+            .OrderBy(f => f.DepartureTime)
+            .Take(8)
+            .Select(f => new { f.DepartureTime, Mode = "flight", Code = f.FlightNumber, From = f.DepartureLocation, To = f.ArrivalLocation, SeatsLeft = f.Seats - f.ShareCount })
+            .ToListAsync();
+        var upcomingTrains = await _db.Trains
+            .AsNoTracking()
+            .Where(t => t.DepartureTime >= nowUtc && t.DepartureTime <= horizon)
+            .OrderBy(t => t.DepartureTime)
+            .Take(8)
+            .Select(t => new { t.DepartureTime, Mode = "train", Code = t.TrainCode, From = t.DepartureLocation, To = t.ArrivalLocation, SeatsLeft = t.Seats - t.ShareCount })
+            .ToListAsync();
+        var upcomingBuses = await _db.Buses
+            .AsNoTracking()
+            .Where(b => b.DepartureTime >= nowUtc && b.DepartureTime <= horizon)
+            .OrderBy(b => b.DepartureTime)
+            .Take(8)
+            .Select(b => new { b.DepartureTime, Mode = "bus", Code = b.BusCode, From = b.DepartureLocation, To = b.ArrivalLocation, SeatsLeft = b.Seats - b.ShareCount })
+            .ToListAsync();
+        var upcomingDepartures = upcomingFlights
+            .Concat(upcomingTrains)
+            .Concat(upcomingBuses)
+            .OrderBy(x => x.DepartureTime)
+            .Take(8)
+            .Select(x => new
+            {
+                mode = x.Mode,
+                code = x.Code,
+                route = x.From + " → " + x.To,
+                departureTime = x.DepartureTime.ToString("yyyy-MM-dd HH:mm"),
+                seatsLeft = x.SeatsLeft,
+            })
+            .ToList();
+
         return Ok(new
         {
             totalUsers,
@@ -44,6 +90,9 @@ public class AdminController : ControllerBase
             pendingBookings,
             cancelledBookings,
             totalRevenue,
+            bookingsToday,
+            revenueToday,
+            upcomingDepartures,
         });
     }
 
@@ -170,6 +219,7 @@ public class AdminController : ControllerBase
             query = query.Where(f =>
                 f.AirlineCode.Contains(search) ||
                 f.AirlineName.Contains(search) ||
+                f.FlightNumber.Contains(search) ||
                 f.DepartureLocation.Contains(search) ||
                 f.ArrivalLocation.Contains(search));
 
@@ -186,13 +236,18 @@ public class AdminController : ControllerBase
         if (string.IsNullOrWhiteSpace(request.AirlineCode) || string.IsNullOrWhiteSpace(request.DepartureLocation))
             return BadRequest(new { message = "Thông tin chuyến bay không hợp lệ" });
 
-        if (await _db.Flights.AnyAsync(f => f.AirlineCode.ToUpper() == request.AirlineCode.Trim().ToUpper()))
-            return Conflict(new { message = $"Mã chuyến bay \"{request.AirlineCode}\" đã tồn tại" });
+        var flightNumber = string.IsNullOrWhiteSpace(request.FlightNumber)
+            ? await GenerateFlightNumberAsync(request.AirlineCode)
+            : request.FlightNumber.Trim();
+
+        if (await _db.Flights.AnyAsync(f => f.FlightNumber.ToUpper() == flightNumber.ToUpper()))
+            return Conflict(new { message = $"Mã chuyến bay \"{flightNumber}\" đã tồn tại" });
 
         var flight = new Flight
         {
             AirlineCode = request.AirlineCode,
             AirlineName = request.AirlineName ?? request.AirlineCode,
+            FlightNumber = flightNumber,
             DepartureLocation = request.DepartureLocation,
             ArrivalLocation = request.ArrivalLocation,
             DepartureTime = request.DepartureTime,
@@ -215,11 +270,20 @@ public class AdminController : ControllerBase
         var flight = await _db.Flights.FindAsync(id);
         if (flight == null) return NotFound(new { message = "Chuyến bay không tồn tại" });
 
-        if (await _db.Flights.AnyAsync(f => f.Id != id && f.AirlineCode.ToUpper() == request.AirlineCode.Trim().ToUpper()))
-            return Conflict(new { message = $"Mã chuyến bay \"{request.AirlineCode}\" đã tồn tại" });
+        var newFlightNumber = string.IsNullOrWhiteSpace(request.FlightNumber)
+            ? null
+            : request.FlightNumber.Trim();
+
+        if (newFlightNumber != null &&
+            await _db.Flights.AnyAsync(f => f.Id != id && f.FlightNumber.ToUpper() == newFlightNumber.ToUpper()))
+            return Conflict(new { message = $"Mã chuyến bay \"{newFlightNumber}\" đã tồn tại" });
 
         flight.AirlineCode = request.AirlineCode;
         flight.AirlineName = request.AirlineName ?? request.AirlineCode;
+        if (newFlightNumber != null)
+            flight.FlightNumber = newFlightNumber;
+        else if (string.IsNullOrWhiteSpace(flight.FlightNumber) || !flight.FlightNumber.StartsWith(flight.AirlineCode, StringComparison.OrdinalIgnoreCase))
+            flight.FlightNumber = await GenerateFlightNumberAsync(request.AirlineCode);
         flight.DepartureLocation = request.DepartureLocation;
         flight.ArrivalLocation = request.ArrivalLocation;
         flight.DepartureTime = request.DepartureTime;
@@ -413,6 +477,28 @@ public class AdminController : ControllerBase
             .Select(x => new { route = x.dep + " → " + x.arr, count = x.count })
             .ToList();
 
+        // Top bus routes (via bookings)
+        var topBusRoutesRaw = await _db.Bookings
+            .AsNoTracking()
+            .Where(b => b.BusId != null)
+            .Include(b => b.Bus)
+            .GroupBy(b => new { b.Bus!.DepartureLocation, b.Bus.ArrivalLocation })
+            .Select(g => new { dep = g.Key.DepartureLocation, arr = g.Key.ArrivalLocation, count = g.Count() })
+            .OrderByDescending(x => x.count)
+            .Take(5)
+            .ToListAsync();
+        var topBusRoutes = topBusRoutesRaw
+            .Select(x => new { route = x.dep + " → " + x.arr, count = x.count })
+            .ToList();
+
+        // Doanh thu theo loại phương tiện (trong kỳ đã chọn)
+        var revenueByMode = await _db.Bookings
+            .AsNoTracking()
+            .Where(b => b.Status == "Confirmed" && b.BookingDate >= periodStart)
+            .GroupBy(b => b.FlightId != null ? "flight" : b.TrainId != null ? "train" : "bus")
+            .Select(g => new { mode = g.Key, revenue = g.Sum(b => b.TotalPrice), count = g.Count() })
+            .ToListAsync();
+
         // Airline market share (via flight bookings)
         var airlineMarketShare = await _db.Bookings
             .AsNoTracking()
@@ -484,6 +570,8 @@ public class AdminController : ControllerBase
             monthlyRevenue,
             topTrainRoutes,
             topFlightRoutes,
+            topBusRoutes,
+            revenueByMode,
             bookingsOverTime,
             airlineMarketShare,
             growthMetrics = new
@@ -508,19 +596,42 @@ public class AdminController : ControllerBase
         if (requests == null || requests.Count == 0)
             return BadRequest(new { message = "Danh sách chuyến bay rỗng" });
 
-        var flights = requests.Select(r => new Flight
+        var providedNumbers = requests
+            .Where(r => !string.IsNullOrWhiteSpace(r.FlightNumber))
+            .Select(r => r.FlightNumber.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (providedNumbers.Count > 0)
         {
-            AirlineCode = r.AirlineCode,
-            AirlineName = r.AirlineName ?? r.AirlineCode,
-            DepartureLocation = r.DepartureLocation,
-            ArrivalLocation = r.ArrivalLocation,
-            DepartureTime = r.DepartureTime,
-            ArrivalTime = r.ArrivalTime,
-            Price = r.Price,
-            Seats = r.Seats,
-            SeatClass = r.SeatClass ?? "Economy",
-            FlightDate = DateOnly.FromDateTime(r.DepartureTime),
-        }).ToList();
+            var existingNumbers = await _db.Flights
+                .Where(f => providedNumbers.Contains(f.FlightNumber))
+                .Select(f => f.FlightNumber)
+                .FirstOrDefaultAsync();
+            if (existingNumbers != null)
+                return Conflict(new { message = $"Mã chuyến bay \"{existingNumbers}\" đã tồn tại" });
+        }
+
+        var flights = new List<Flight>();
+        foreach (var r in requests)
+        {
+            flights.Add(new Flight
+            {
+                AirlineCode = r.AirlineCode,
+                AirlineName = r.AirlineName ?? r.AirlineCode,
+                FlightNumber = string.IsNullOrWhiteSpace(r.FlightNumber)
+                    ? await GenerateFlightNumberAsync(r.AirlineCode)
+                    : r.FlightNumber.Trim(),
+                DepartureLocation = r.DepartureLocation,
+                ArrivalLocation = r.ArrivalLocation,
+                DepartureTime = r.DepartureTime,
+                ArrivalTime = r.ArrivalTime,
+                Price = r.Price,
+                Seats = r.Seats,
+                SeatClass = r.SeatClass ?? "Economy",
+                FlightDate = DateOnly.FromDateTime(r.DepartureTime),
+            });
+        }
 
         _db.Flights.AddRange(flights);
         await _db.SaveChangesAsync();
@@ -538,10 +649,10 @@ public class AdminController : ControllerBase
 
         var flights = await query.OrderBy(f => f.DepartureTime).ToListAsync();
         var csv = new System.Text.StringBuilder();
-        csv.AppendLine("AirlineCode,AirlineName,DepartureLocation,ArrivalLocation,DepartureTime,ArrivalTime,Price,Seats,SeatClass,FlightDate");
-        foreach (var f in flights)
-            csv.AppendLine($"{f.AirlineCode},{EscapeCsv(f.AirlineName)},{f.DepartureLocation},{f.ArrivalLocation},{f.DepartureTime:O},{f.ArrivalTime:O},{f.Price},{f.Seats},{EscapeCsv(f.SeatClass)},{f.FlightDate:O}");
+        csv.AppendLine("AirlineCode,AirlineName,FlightNumber,DepartureLocation,ArrivalLocation,DepartureTime,ArrivalTime,Price,Seats,SeatClass,FlightDate");
 
+        foreach (var f in flights)
+            csv.AppendLine($"{f.AirlineCode},{EscapeCsv(f.AirlineName)},{f.FlightNumber},{f.DepartureLocation},{f.ArrivalLocation},{f.DepartureTime:O},{f.ArrivalTime:O},{f.Price},{f.Seats},{EscapeCsv(f.SeatClass)},{f.FlightDate:O}");
         return File(System.Text.Encoding.UTF8.GetBytes(csv.ToString()), "text/csv", $"flights_{DateTime.UtcNow:yyyyMMdd}.csv");
     }
 
@@ -867,6 +978,17 @@ public class AdminController : ControllerBase
     }
 
     private static string EscapeCsv(string value) => value.Contains(',') || value.Contains('"') || value.Contains('\n') ? $"\"{value.Replace("\"", "\"\"")}\"" : value;
+
+    private async Task<string> GenerateFlightNumberAsync(string airlineCode)
+    {
+        var prefix = airlineCode.Trim().ToUpper();
+        string candidate;
+        do
+        {
+            candidate = $"{prefix}{Random.Shared.Next(100, 1000)}";
+        } while (await _db.Flights.AnyAsync(f => f.FlightNumber == candidate));
+        return candidate;
+    }
 }
 
 public class CreateBusRequest
@@ -896,6 +1018,7 @@ public class CreateFlightRequest
 {
     public string AirlineCode { get; set; } = string.Empty;
     public string? AirlineName { get; set; }
+    public string? FlightNumber { get; set; }
     public string DepartureLocation { get; set; } = string.Empty;
     public string ArrivalLocation { get; set; } = string.Empty;
     public DateTime DepartureTime { get; set; }

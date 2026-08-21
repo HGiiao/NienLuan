@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { motion } from 'framer-motion'
 import {
   TrendingUp, DollarSign, Users, Ticket, MapPin, Building2,
-  ArrowUp, ArrowDown, Activity,
+  ArrowUp, ArrowDown, Activity, Plane, Bus,
 } from 'lucide-react'
 import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
@@ -36,6 +36,14 @@ function formatVnd(n) {
   if (n == null) return '0 ₫'
   return Number(n).toLocaleString('vi-VN') + ' ₫'
 }
+
+function formatVndShort(v) {
+  if (v >= 1_000_000) return (v / 1_000_000).toLocaleString('vi-VN', { maximumFractionDigits: 1 }) + 'tr'
+  if (v >= 1_000) return Math.round(v / 1_000) + 'k'
+  return String(v)
+}
+
+const MODE_LABELS = { flight: 'Chuyến bay', train: 'Tàu hỏa', bus: 'Xe khách' }
 
 export default function StatsPage() {
   const [period, setPeriod] = useState(30)
@@ -74,6 +82,10 @@ export default function StatsPage() {
   const growth = s.growthMetrics || {}
   const dist = s.bookingStatusDistribution || []
   const distTotal = dist.reduce((sum, d) => sum + d.count, 0)
+
+  // Doanh thu theo loại phương tiện (trong kỳ đã chọn)
+  const modeRev = (s.revenueByMode || []).map(m => ({ name: MODE_LABELS[m.mode] || m.mode, value: m.revenue, count: m.count }))
+  const modeTotal = modeRev.reduce((sum, m) => sum + m.value, 0)
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
@@ -233,39 +245,64 @@ export default function StatsPage() {
         </div>
       </motion.div>
 
-      {/* Row 3: Top Train Routes + Airline Market Share + Recent Transactions */}
+      {/* Row 3: Revenue by Mode + Top Flight Routes + Top Bus Routes */}
+      <motion.div variants={item} className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Doanh thu theo loại phương tiện */}
+        <div className="bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-semibold text-[var(--color-text-primary)]">Doanh thu theo loại phương tiện</h3>
+            <span className="text-xs text-[var(--color-text-tertiary)]">{PERIODS.find(p => p.key === period)?.label}</span>
+          </div>
+          {modeRev.length === 0 ? (
+            <p className="text-xs text-[var(--color-text-tertiary)] py-8 text-center">Chưa có dữ liệu</p>
+          ) : (
+            <div className="flex items-center gap-6">
+              <div className="h-48 w-48 shrink-0">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={modeRev}
+                      cx="50%" cy="50%" innerRadius={50} outerRadius={80}
+                      dataKey="value" nameKey="name"
+                      paddingAngle={3}
+                    >
+                      {modeRev.map((_, i) => <Cell key={i} fill={DONUT_COLORS[i % DONUT_COLORS.length]} />)}
+                    </Pie>
+                    <Tooltip
+                      formatter={val => [formatVnd(val), 'Doanh thu']}
+                      contentStyle={{ borderRadius: 12, border: '1px solid var(--color-border)', background: 'var(--color-bg-card)' }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="flex-1 space-y-3">
+                {modeRev.map((m, i) => (
+                  <div key={m.name} className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: DONUT_COLORS[i % DONUT_COLORS.length] }} />
+                      <span className="text-xs text-[var(--color-text-secondary)]">{m.name}</span>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs font-semibold text-[var(--color-text-primary)]">{formatVndShort(m.value)}</p>
+                      <p className="text-[10px] text-[var(--color-text-tertiary)]">
+                        {modeTotal > 0 ? Math.round(m.value / modeTotal * 100) : 0}% · {m.count} đơn
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <TopRoutesCard icon={Plane} title="Top tuyến bay" rows={s.topFlightRoutes} />
+        <TopRoutesCard icon={Bus} title="Top tuyến xe khách" rows={s.topBusRoutes} />
+      </motion.div>
+
+      {/* Row 4: Top Train Routes + Airline Market Share + Recent Transactions */}
       <motion.div variants={item} className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Top Train Routes */}
-        <div className="bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl p-5">
-          <h3 className="text-sm font-semibold text-[var(--color-text-primary)] flex items-center gap-2 mb-4">
-            <MapPin className="w-4 h-4 text-[var(--color-text-tertiary)]" />
-            Top tuyến tàu
-          </h3>
-          <div className="space-y-3">
-            {(s.topTrainRoutes || []).length === 0 ? (
-              <p className="text-xs text-[var(--color-text-tertiary)] py-8 text-center">Chưa có dữ liệu</p>
-            ) : (
-              (s.topTrainRoutes || []).map((r, i) => {
-                const max = Math.max(...(s.topTrainRoutes || []).map(x => x.count), 1)
-                return (
-                  <div key={i} className="flex items-center gap-3">
-                    <span className="text-[11px] font-semibold text-[var(--color-text-secondary)] w-3">{i + 1}</span>
-                    <span className="text-xs text-[var(--color-text-secondary)] flex-1 truncate">{r.route}</span>
-                    <div className="w-20 h-1.5 rounded-full bg-[var(--color-border)] overflow-hidden">
-                      <motion.div
-                        initial={{ width: 0 }}
-                        animate={{ width: `${(r.count / max) * 100}%` }}
-                        transition={{ duration: 0.6, delay: i * 0.08 }}
-                        className="h-full rounded-full bg-primary-400"
-                      />
-                    </div>
-                    <span className="text-[11px] font-semibold text-[var(--color-text-secondary)] w-6 text-right">{r.count}</span>
-                  </div>
-                )
-              })
-            )}
-          </div>
-        </div>
+        <TopRoutesCard icon={MapPin} title="Top tuyến tàu" rows={s.topTrainRoutes} />
 
         {/* Airline Market Share */}
         <div className="bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl p-5">
@@ -349,6 +386,41 @@ export default function StatsPage() {
         />
       </motion.div>
     </motion.div>
+  )
+}
+
+function TopRoutesCard({ icon: Icon = MapPin, title, rows }) {
+  const list = rows || []
+  const max = Math.max(...list.map(r => r.count), 1)
+
+  return (
+    <div className="bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl p-5">
+      <h3 className="text-sm font-semibold text-[var(--color-text-primary)] flex items-center gap-2 mb-4">
+        <Icon className="w-4 h-4 text-[var(--color-text-tertiary)]" />
+        {title}
+      </h3>
+      <div className="space-y-3">
+        {list.length === 0 ? (
+          <p className="text-xs text-[var(--color-text-tertiary)] py-8 text-center">Chưa có dữ liệu</p>
+        ) : (
+          list.map((r, i) => (
+            <div key={i} className="flex items-center gap-3">
+              <span className="text-[11px] font-semibold text-[var(--color-text-secondary)] w-3">{i + 1}</span>
+              <span className="text-xs text-[var(--color-text-secondary)] flex-1 truncate">{r.route}</span>
+              <div className="w-20 h-1.5 rounded-full bg-[var(--color-border)] overflow-hidden">
+                <motion.div
+                  initial={{ width: 0 }}
+                  animate={{ width: `${(r.count / max) * 100}%` }}
+                  transition={{ duration: 0.6, delay: i * 0.08 }}
+                  className="h-full rounded-full bg-primary-400"
+                />
+              </div>
+              <span className="text-[11px] font-semibold text-[var(--color-text-secondary)] w-6 text-right">{r.count}</span>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
   )
 }
 

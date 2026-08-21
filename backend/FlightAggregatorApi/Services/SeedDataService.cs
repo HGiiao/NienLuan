@@ -299,6 +299,7 @@ public class SeedDataService
         var flights = new List<Flight>();
         var trains = new List<Train>();
         var buses = new List<Bus>();
+        var usedFlightNumbers = new HashSet<string>();
         var usedTrainCodes = new HashSet<string>();
         var usedBusCodes = new HashSet<string>();
 
@@ -307,7 +308,7 @@ public class SeedDataService
             var isWeekend = date.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday;
             var weekendMultiplier = isWeekend ? 1.05 + Random.Shared.NextDouble() * 0.1 : 1.0;
 
-            GenerateFlightsForDate(date, weekendMultiplier, flights);
+            GenerateFlightsForDate(date, weekendMultiplier, flights, usedFlightNumbers);
             GenerateTrainsForDate(date, weekendMultiplier, trains, usedTrainCodes);
             GenerateBusesForDate(date, weekendMultiplier, buses, usedBusCodes);
         }
@@ -349,7 +350,7 @@ public class SeedDataService
         ("SGN", "PQC"), ("HAN", "CXR"),
     ];
 
-    private void GenerateFlightsForDate(DateOnly date, double weekendMultiplier, List<Flight> flights)
+    private void GenerateFlightsForDate(DateOnly date, double weekendMultiplier, List<Flight> flights, HashSet<string> usedFlightNumbers)
     {
         var today = DateOnly.FromDateTime(DateTime.Today);
         var daysUntilDeparture = date.DayNumber - today.DayNumber;
@@ -387,6 +388,7 @@ public class SeedDataService
             {
                 AirlineCode = rtAirline.Code,
                 AirlineName = rtAirline.Name,
+                FlightNumber = NextFlightNumber(rtAirline.Code, usedFlightNumbers),
                 DepartureLocation = from,
                 ArrivalLocation = to,
                 DepartureTime = outboundDeparture,
@@ -424,6 +426,7 @@ public class SeedDataService
             {
                 AirlineCode = rtAirline.Code,
                 AirlineName = rtAirline.Name,
+                FlightNumber = NextFlightNumber(rtAirline.Code, usedFlightNumbers),
                 DepartureLocation = to,
                 ArrivalLocation = from,
                 DepartureTime = returnDeparture,
@@ -471,6 +474,7 @@ public class SeedDataService
             {
                 AirlineCode = airline.Code,
                 AirlineName = airline.Name,
+                FlightNumber = NextFlightNumber(airline.Code, usedFlightNumbers),
                 DepartureLocation = from,
                 ArrivalLocation = to,
                 DepartureTime = departureTime,
@@ -482,6 +486,18 @@ public class SeedDataService
                 CreatedAt = DateTime.UtcNow,
             });
         }
+    }
+
+    private static string NextFlightNumber(string airlineCode, HashSet<string> usedNumbers)
+    {
+        var number = Random.Shared.Next(100, 1000);
+        var flightNumber = $"{airlineCode}{number}";
+        while (!usedNumbers.Add(flightNumber))
+        {
+            number = Random.Shared.Next(100, 1000);
+            flightNumber = $"{airlineCode}{number}";
+        }
+        return flightNumber;
     }
 
     private void GenerateTrainsForDate(DateOnly date, double weekendMultiplier, List<Train> trains, HashSet<string> usedCodes)

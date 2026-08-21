@@ -39,7 +39,7 @@ function buildDeepUrl(type, item) {
       from: from,
       to: to,
       date: date,
-      code: `${code}${(item.id % 900) + 100}`,
+      code: item.flightNumber || `${code}${(item.id % 900) + 100}`,
     })
     return `${base}?${params.toString()}`
   }
@@ -78,7 +78,7 @@ export default function BookingOptionsModal({ item, type, onClose, onBookAtVe247
   const fmt = (d) => new Date(d).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
   const fmtDate = (d) => new Date(d).toLocaleDateString('vi-VN', { weekday: 'short', day: 'numeric', month: 'numeric', year: 'numeric' })
   const typeIcon = isFlight ? <Plane className="w-5 h-5" /> : isBus ? <Bus className="w-5 h-5" /> : <Train className="w-5 h-5" />
-  const typeLabel = isFlight ? `${item.airlineCode}${(item.id % 900) + 100}` : isBus ? item.busCode : item.trainCode
+  const typeLabel = isFlight ? (item.flightNumber || `${item.airlineCode}${(item.id % 900) + 100}`) : isBus ? item.busCode : item.trainCode
 
   return (
     <AnimatePresence>

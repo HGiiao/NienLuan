@@ -23,10 +23,10 @@ const seatClassOptions = [
 
 const columns = [
   { key: 'id', label: 'ID', render: v => <span className="text-xs font-mono text-[var(--color-text-tertiary)]">#{v.id}</span> },
-  { key: 'airlineCode', label: 'Mã bay', render: v => (
+  { key: 'flightNumber', label: 'Mã bay', render: v => (
     <div className="flex items-center gap-2">
       <div className="w-7 h-7 rounded-lg bg-primary-50 flex items-center justify-center"><Plane className="w-3.5 h-3.5 text-primary-500" /></div>
-      <span className="text-sm font-semibold text-[var(--color-text-primary)]">{v.airlineCode}</span>
+      <span className="text-sm font-semibold text-[var(--color-text-primary)]">{v.flightNumber || v.airlineCode}</span>
     </div>
   )},
   { key: 'airlineName', label: 'Hãng' },
@@ -51,7 +51,7 @@ export default function FlightsPage() {
   const [saving, setSaving] = useState(false)
 
   const [form, setForm] = useState({
-    airlineCode: '', airlineName: '', departureLocation: '', arrivalLocation: '',
+    airlineCode: '', airlineName: '', flightNumber: '', departureLocation: '', arrivalLocation: '',
     departureTime: '', arrivalTime: '', price: '', seats: '', seatClass: 'Economy',
   })
 
@@ -80,7 +80,7 @@ export default function FlightsPage() {
 
   const openCreate = () => {
     setEditing(null)
-    setForm({ airlineCode: '', airlineName: '', departureLocation: '', arrivalLocation: '', departureTime: '', arrivalTime: '', price: '', seats: '', seatClass: 'Economy' })
+    setForm({ airlineCode: '', airlineName: '', flightNumber: '', departureLocation: '', arrivalLocation: '', departureTime: '', arrivalTime: '', price: '', seats: '', seatClass: 'Economy' })
     setModalOpen(true)
   }
 
@@ -89,6 +89,7 @@ export default function FlightsPage() {
     setForm({
       airlineCode: row.airlineCode || '',
       airlineName: row.airlineName || '',
+      flightNumber: row.flightNumber || '',
       departureLocation: row.departureLocation || '',
       arrivalLocation: row.arrivalLocation || '',
       departureTime: row.departureTime ? row.departureTime.slice(0, 16) : '',
@@ -114,15 +115,15 @@ export default function FlightsPage() {
     let code = ''
     for (let i = 0; i < 20; i++) {
       code = `${prefix}${Math.floor(100 + Math.random() * 900)}`
-      if (!data.some(r => r.id !== editing?.id && r.airlineCode === code)) break
+      if (!data.some(r => r.id !== editing?.id && (r.flightNumber || r.airlineCode) === code)) break
     }
-    setForm(p => ({ ...p, airlineCode: code }))
+    setForm(p => ({ ...p, flightNumber: code }))
   }
 
-  const codeDuplicate = !!form.airlineCode && data.some(r => r.id !== editing?.id && r.airlineCode === form.airlineCode.trim())
+  const codeDuplicate = !!form.flightNumber && data.some(r => r.id !== editing?.id && (r.flightNumber || r.airlineCode) === form.flightNumber.trim())
 
   const handleDelete = (row) => {
-    confirmAction('Xoá chuyến bay', `Bạn có chắc muốn xoá chuyến ${row.airlineCode}?`, async () => {
+    confirmAction('Xoá chuyến bay', `Bạn có chắc muốn xoá chuyến ${row.flightNumber || row.airlineCode}?`, async () => {
       try {
         await deleteAdminFlight(row.id)
         toast('Đã xoá chuyến bay', 'success')
@@ -133,8 +134,8 @@ export default function FlightsPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    const codeDuplicate = data.some(r => r.id !== editing?.id && r.airlineCode === form.airlineCode.trim())
-    if (codeDuplicate) { toast(`Mã chuyến bay "${form.airlineCode}" đã tồn tại`, 'error'); return }
+    const codeDuplicate = data.some(r => r.id !== editing?.id && (r.flightNumber || r.airlineCode) === form.flightNumber.trim())
+    if (codeDuplicate) { toast(`Mã chuyến bay "${form.flightNumber}" đã tồn tại`, 'error'); return }
     setSaving(true)
     try {
       const payload = { ...form, price: parseFloat(form.price), seats: parseInt(form.seats) }
@@ -246,7 +247,7 @@ export default function FlightsPage() {
           <div>
             <label className="block text-[11px] font-semibold text-[var(--color-text-tertiary)] uppercase mb-1.5">Mã chuyến bay</label>
             <div className="flex gap-2">
-              <input required value={form.airlineCode} onChange={e => setForm(p => ({ ...p, airlineCode: e.target.value }))} placeholder="VN123" className="flex-1 w-full px-3.5 py-2.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100 transition-all" />
+              <input value={form.flightNumber} onChange={e => setForm(p => ({ ...p, flightNumber: e.target.value }))} placeholder="VN123 (để trống để tự sinh)" className="flex-1 w-full px-3.5 py-2.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100 transition-all" />
               <button type="button" onClick={generateFlightCode} className="px-3 py-2.5 rounded-xl text-xs font-semibold text-primary-600 bg-primary-50 hover:bg-primary-100 transition-all whitespace-nowrap">Tự sinh</button>
             </div>
             {codeDuplicate && <p className="mt-1.5 text-[11px] font-medium text-[var(--color-danger)]">Mã này đã tồn tại, vui lòng đổi mã.</p>}
