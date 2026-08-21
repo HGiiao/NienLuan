@@ -103,6 +103,15 @@ export default function SearchBuses() {
     initialLoad.current = false
   }, [])
 
+  // Tải danh sách vé đang theo dõi từ server — giữ trạng thái watch khi quay lại trang
+  useEffect(() => {
+    const stored = (() => { try { return JSON.parse(sessionStorage.getItem('user')) } catch { return null } })()
+    if (!stored?.email) return
+    getPriceAlerts(stored.email)
+      .then(res => setWatchedIds(new Set(res.data.filter(a => a.mode === 'bus' && a.itemId).map(a => a.itemId))))
+      .catch(() => {})
+  }, [])
+
   // Cuộn tới vé được chỉ định từ trang so sánh (highlight=id) khi danh sách đã có
   useEffect(() => {
     if (!highlightId) return

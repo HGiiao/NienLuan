@@ -5,8 +5,9 @@ import {
   Mail, Phone, CalendarDays, ShieldCheck, Ticket,
   LogOut, Star, Bell, Clock,
   Search, TrendingUp, Pencil, X, Check, Loader, Shield, Wallet,
+  Plane, TrainFront, Bus, BellRing, RefreshCw, Target, Hash,
 } from 'lucide-react'
-import { getProfile, updateProfile, getPriceAlerts, deletePriceAlert, getBookings, getReviewSummary } from '../services/api'
+import { getProfile, updateProfile, getPriceAlerts, deletePriceAlert, getBookings, getReviewSummary, getFlight, getTrain, getBus, checkPriceAlerts } from '../services/api'
 import { formatCurrencyVnd } from '../utils/formatters'
 import { useUser } from '@clerk/clerk-react'
 import { Card, SkeletonCard, ErrorState, Badge, Button } from '../ui'
@@ -46,6 +47,8 @@ export default function Profile() {
   const [editForm, setEditForm] = useState({ fullName: '', phone: '' })
   const [alerts, setAlerts] = useState([])
   const [alertsLoading, setAlertsLoading] = useState(false)
+  const [livePrices, setLivePrices] = useState({})
+  const [checkingPrices, setCheckingPrices] = useState(false)
   const [bookingCount, setBookingCount] = useState(0)
   const [totalSpent, setTotalSpent] = useState(0)
   const [reviewCount, setReviewCount] = useState(0)
@@ -81,9 +84,28 @@ export default function Profile() {
       try {
         const res = await getPriceAlerts(email)
         setAlerts(res.data)
+        fetchLivePrices(res.data)
       } catch {} finally { setAlertsLoading(false) }
     }
     loadAlerts()
+
+    // Fetch giá LIVE của từng chuyến đang theo dõi — phản ánh ngay giá admin vừa chỉnh
+    async function fetchLivePrices(list) {
+      const entries = await Promise.all(
+        list.filter(a => a.itemId && a.mode).map(async a => {
+          try {
+            const fn = a.mode === 'flight' ? getFlight : a.mode === 'bus' ? getBus : getTrain
+            const r = await fn(a.itemId)
+            return [a.id, {
+              price: r.data.price,
+              code: r.data.flightNumber || r.data.trainCode || r.data.busCode || '',
+              departureTime: r.data.departureTime,
+            }]
+          } catch { return [a.id, null] }
+        })
+      )
+      setLivePrices(Object.fromEntries(entries))
+    }
 
     const loadStats = async (email) => {
       try {
@@ -174,6 +196,26 @@ export default function Profile() {
   ]
 
   const handleLogout = () => { sessionStorage.removeItem('user'); sessionStorage.removeItem('ve247-auth'); navigate('/auth') }
+
+  const handleCheckPrices = async () => {
+    if (!data.email) return
+    setCheckingPrices(true)
+    try {
+      await checkPriceAlerts(data.email)
+      const res = await getPriceAlerts(data.email)
+      setAlerts(res.data)
+      const entries = await Promise.all(
+        res.data.filter(a => a.itemId && a.mode).map(async a => {
+          try {
+            const fn = a.mode === 'flight' ? getFlight : a.mode === 'bus' ? getBus : getTrain
+            const r = await fn(a.itemId)
+            return [a.id, { price: r.data.price, code: r.data.flightNumber || r.data.trainCode || r.data.busCode || '', departureTime: r.data.departureTime }]
+          } catch { return [a.id, null] }
+        })
+      )
+      setLivePrices(Object.fromEntries(entries))
+    } catch {} finally { setCheckingPrices(false) }
+  }
 
   if (loading) {
     return (
@@ -349,31 +391,103 @@ export default function Profile() {
 
         {alerts.length > 0 && (
           <motion.div variants={item}>
-            <h2 className="text-sm font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wider mb-3">
-              <Bell className="w-4 h-4 inline mr-1.5 text-accent-500" />
-              Đang theo dõi ({alerts.length})
-            </h2>
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <h2 className="text-sm font-semibold text-[var(--color-text-tertiary)] uppercase tracking-wider">
+                <Bell className="w-4 h-4 inline mr-1.5 text-accent-500" />
+                Đang theo dõi ({alerts.length})
+              </h2>
+              <button onClick={handleCheckPrices} disabled={checkingPrices || alertsLoading}
+                className="flex items-center gap-1.5 text-xs font-semibold text-primary-500 border border-primary-500/30 px-3 py-1.5 rounded-lg hover:bg-primary-500/10 transition-all disabled:opacity-60">
+                {checkingPrices || alertsLoading ? <Loader className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                Kiểm tra giá ngay
+              </button>
+            </div>
             <div className="space-y-3">
-              {alerts.map(a => (
-                <Card key={a.id} variant="hover" padding="md">
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-accent-500/10 flex items-center justify-center text-accent-500">
-                        <Bell className="w-5 h-5" />
+              {alerts.map(a => {
+                const modeKey = a.mode?.toLowerCase()
+                const modeMeta = modeKey === 'flight' ? { icon: Plane, label: 'Máy bay' }
+                  : modeKey === 'train' ? { icon: TrainFront, label: 'Tàu hỏa' }
+                  : modeKey === 'bus' ? { icon: Bus, label: 'Xe khách' } : null
+                const ModeIcon = modeMeta?.icon || BellRing
+                const live = livePrices[a.id]
+                const currentPrice = live?.price ?? a.currentPrice
+                const delta = currentPrice != null && a.targetPrice > 0
+                  ? ((currentPrice - a.targetPrice) / a.targetPrice) * 100 : null
+                const reached = currentPrice != null && currentPrice <= a.targetPrice
+
+                return (
+                  <Card key={a.id} variant="hover" padding="md">
+                    <div className="flex flex-col md:flex-row md:items-center gap-4">
+                      <div className="flex items-start gap-3 flex-1 min-w-0">
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${reached ? 'bg-[var(--color-success)]/10 text-[var(--color-success)]' : 'bg-accent-500/10 text-accent-500'}`}>
+                          <ModeIcon className="w-5 h-5" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="text-sm font-semibold text-[var(--color-text-primary)]">{a.routeFrom} → {a.routeTo}</p>
+                            {modeMeta && (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-primary-500/10 text-primary-500">
+                                <ModeIcon className="w-3 h-3" />{modeMeta.label}
+                              </span>
+                            )}
+                            {a.itemId && (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded-full bg-[var(--color-border)]/40 text-[var(--color-text-tertiary)]">
+                                <Hash className="w-3 h-3" />{modeKey || 'item'}#{a.itemId}
+                              </span>
+                            )}
+                            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${a.isActive ? 'bg-[var(--color-success)]/10 text-[var(--color-success)]' : 'bg-[var(--color-border)]/40 text-[var(--color-text-tertiary)]'}`}>
+                              {a.isActive ? 'Đang bật' : 'Tạm tắt'}
+                            </span>
+                          </div>
+                          <p className="text-xs text-[var(--color-text-tertiary)] mt-1 flex items-center gap-3 flex-wrap">
+                            {live?.code && <span className="font-mono">Mã: {live.code}</span>}
+                            {live?.departureTime && (
+                              <span className="inline-flex items-center gap-1">
+                                <Clock className="w-3 h-3" />
+                                Khởi hành {new Date(live.departureTime).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' })}
+                              </span>
+                            )}
+                          </p>
+                          <p className="text-xs text-[var(--color-text-tertiary)] mt-0.5 flex items-center gap-3 flex-wrap">
+                            <span className="inline-flex items-center gap-1"><CalendarDays className="w-3 h-3" />Tạo lúc {new Date(a.createdAt).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })}</span>
+                            {a.notifiedAt && (
+                              <span className="inline-flex items-center gap-1 text-[var(--color-success)]">
+                                <BellRing className="w-3 h-3" />Đã báo giá đạt lúc {new Date(a.notifiedAt).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })}
+                              </span>
+                            )}
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-sm font-semibold text-[var(--color-text-primary)]">{a.routeFrom} → {a.routeTo}</p>
-                        <p className="text-xs text-[var(--color-text-tertiary)]">
-                          Mục tiêu: <span className="font-bold text-accent-500">{formatCurrencyVnd(a.targetPrice)}</span>
-                          {a.currentPrice != null && <> · Hiện tại: {formatCurrencyVnd(a.currentPrice)}</>}
-                        </p>
+
+                      <div className="grid grid-cols-3 gap-2 md:gap-3 shrink-0 md:w-auto">
+                        <div className="text-left md:text-right">
+                          <p className="text-[10px] uppercase font-semibold text-[var(--color-text-tertiary)] flex items-center gap-1 md:justify-end"><Target className="w-3 h-3" />Mục tiêu</p>
+                          <p className="text-sm font-bold text-accent-500">{formatCurrencyVnd(a.targetPrice)}</p>
+                        </div>
+                        <div className="text-left md:text-right">
+                          <p className="text-[10px] uppercase font-semibold text-[var(--color-text-tertiary)]">Giá hiện tại</p>
+                          {currentPrice != null ? (
+                            <p className={`text-sm font-bold ${reached ? 'text-[var(--color-success)]' : 'text-[var(--color-text-primary)]'}`}>{formatCurrencyVnd(currentPrice)}</p>
+                          ) : (
+                            <p className="text-sm text-[var(--color-text-tertiary)]">—</p>
+                          )}
+                        </div>
+                        <div className="text-left md:text-right">
+                          <p className="text-[10px] uppercase font-semibold text-[var(--color-text-tertiary)]">Chênh lệch</p>
+                          {delta != null ? (
+                            <p className={`text-sm font-bold ${reached ? 'text-[var(--color-success)]' : 'text-[var(--color-danger)]'}`}>
+                              {reached ? 'Đạt mục tiêu' : `+${delta.toFixed(1)}%`}
+                            </p>
+                          ) : <p className="text-sm text-[var(--color-text-tertiary)]">—</p>}
+                        </div>
                       </div>
+
+                      <button onClick={() => deletePriceAlert(a.id).then(() => setAlerts(as => as.filter(x => x.id !== a.id)))}
+                        className="text-xs text-[var(--color-danger)] hover:underline shrink-0 self-end md:self-center">Hủy</button>
                     </div>
-                    <button onClick={() => deletePriceAlert(a.id).then(() => setAlerts(as => as.filter(x => x.id !== a.id)))}
-                      className="text-xs text-[var(--color-danger)] hover:underline shrink-0">Hủy</button>
-                  </div>
-                </Card>
-              ))}
+                  </Card>
+                )
+              })}
             </div>
           </motion.div>
         )}

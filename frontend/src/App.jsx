@@ -175,10 +175,10 @@ function AppLayout() {
 
   return (
     <div className={`${isAdminRoute ? '' : 'min-h-screen flex flex-col bg-[var(--color-bg)] text-[var(--color-text-primary)] transition-colors duration-300'}`}>
-      {!introComplete && <ErrorBoundary><IntroAnimation3D onComplete={handleIntroComplete} /></ErrorBoundary>}
+      {!isAdminRoute && !introComplete && <ErrorBoundary><IntroAnimation3D onComplete={handleIntroComplete} /></ErrorBoundary>}
       {!isAdminRoute && <Navbar />}
       {!isAdminRoute && <ClerkSync />}
-      {!isAdminRoute && introComplete && <ChatBot />}
+      {!isAdminRoute && <ChatBot />}
       <main className={isAdminRoute ? '' : 'flex-1'}>
         <Routes>
           <Route path="/" element={<Home />} />

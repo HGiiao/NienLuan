@@ -1,0 +1,26 @@
+@startuml
+title Activity Diagram luồng thanh toán vé
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 12
+skinparam activityStartColor #333
+skinparam activityEndColor #333
+
+start
+:Có đặt chỗ ở trạng thái "Pending";
+:Mở trang Thanh toán;
+:Xem lại thông tin đặt chỗ & số tiền;
+repeat
+  :Chọn phương thức thanh toán\n(VNPay / MoMo / ZaloPay / PayOS);
+  :Hệ thống tạo yêu cầu thanh toán\n(kèm chữ ký bảo mật);
+  :Chuyển hướng đến cổng thanh toán;
+  :Thực hiện thanh toán tại cổng;
+  :Cổng chuyển hướng về trang return của Vé247;
+  :Hệ thống xác minh chữ ký & đối soát kết quả;
+backward :Hiển thị thông báo thất bại\ndặt chỗ vẫn giữ "Pending";
+repeat while (Thanh toán thành công?) is (Chưa) not (Rồi)
+:Cập nhật đặt chỗ "Đã thanh toán";
+:Gửi email xác nhận đặt chỗ;
+:Hiển thị trang xác nhận & vé trong "Vé của tôi";
+stop
+
+@enduml

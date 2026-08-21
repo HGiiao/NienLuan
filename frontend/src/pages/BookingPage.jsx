@@ -105,28 +105,31 @@ export default function BookingPage() {
   }, [authReady, isAuth, type, id, navigate])
 
   useEffect(() => {
-    if (isAuth && !item && !isMultiLeg) {
-      setFetching(true)
-      const fn = type === 'flight' ? getFlight : type === 'bus' ? getBus : getTrain
-      fn(id)
-        .then(r => setItem(r.data))
-        .catch(() => setError('Không thể tải thông tin vé'))
-        .finally(() => setFetching(false))
-    }
+    if (!isAuth || isMultiLeg) return
+    // Luôn fetch giá mới nhất từ server — location.state.item chỉ dùng hiển thị tạm,
+    // tránh hiện giá cũ khi admin vừa đổi giá.
+    const hasStaleItem = !!item
+    if (!hasStaleItem) setFetching(true)
+    const fn = type === 'flight' ? getFlight : type === 'bus' ? getBus : getTrain
+    fn(id)
+      .then(r => setItem(r.data))
+      .catch(() => { if (!hasStaleItem) setError('Không thể tải thông tin vé') })
+      .finally(() => { if (!hasStaleItem) setFetching(false) })
+  }, [isAuth, id, type])
 
-    if (isAuth) {
-      const stored = JSON.parse(sessionStorage.getItem('user') || '{}')
-      const email = stored.email || clerkUser?.primaryEmailAddress?.emailAddress || ''
-      const name = stored.fullName || clerkUser?.fullName || ''
-      const phone = stored.phone || clerkUser?.primaryPhoneNumber?.phoneNumber || ''
+  useEffect(() => {
+    if (!isAuth) return
+    const stored = JSON.parse(sessionStorage.getItem('user') || '{}')
+    const email = stored.email || clerkUser?.primaryEmailAddress?.emailAddress || ''
+    const name = stored.fullName || clerkUser?.fullName || ''
+    const phone = stored.phone || clerkUser?.primaryPhoneNumber?.phoneNumber || ''
 
-      setForm(prev => ({
-        ...prev,
-        email: prev.email || email,
-        fullName: prev.fullName || name,
-        phone: prev.phone || phone,
-      }))
-    }
+    setForm(prev => ({
+      ...prev,
+      email: prev.email || email,
+      fullName: prev.fullName || name,
+      phone: prev.phone || phone,
+    }))
   }, [isAuth])
 
   const userEmail = localUser?.email || clerkUser?.primaryEmailAddress?.emailAddress || ''

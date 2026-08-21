@@ -1,0 +1,36 @@
+@startuml
+title Sequence Diagram chức năng quản trị cập nhật giá chuyến bay
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 12
+
+actor "Quản trị viên" as A
+participant "Frontend\n(React Admin)" as FE
+participant "Backend\n(ASP.NET Core)" as BE
+database "Database\n(SQL Server)" as DB
+participant "PriceStreamService\n(bảng giá động)" as PS
+participant "PriceAlertService" as PA
+
+A -> FE : Sửa giá chuyến bay & bấm "Cập nhật"
+FE -> BE : PUT /api/admin/flights/{id}\n(header X-Admin-Email)
+activate BE
+BE -> BE : [RequireAdmin] kiểm tra quyền Admin
+BE -> DB : Kiểm tra trùng mã chuyến bay
+DB --> BE : không trùng
+BE -> DB : UPDATE Flights (giá mới)
+DB --> BE : ok
+BE -> PS : UpdateBasePrice(id, giá mới)\n(đồng bộ tâm dao động giá)
+BE -> PA : CheckAlertsAsync() — quét mọi cảnh báo giá
+PA -> DB : Đọc PriceAlerts đang theo dõi chuyến/tuyến
+alt Có alert đạt mục tiêu (giá ≤ mục tiêu)
+  PA -> DB : Ghi Notification + NotifiedAt
+  PA -> PA : Gửi email cảnh báo giá cho user
+end
+BE --> FE : 200 OK {flight}
+deactivate BE
+FE --> A : Danh sách hiển thị giá mới
+
+== Chu kỳ bảng giá động (mỗi 30 giây) ==
+PS -> DB : Dao động giá quanh base mới + ghi PriceHistories
+note right of DB : User tìm kiếm → thấy giá mới\ntheo đúng giá admin đã đặt
+
+@enduml

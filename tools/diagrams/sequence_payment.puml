@@ -1,0 +1,48 @@
+@startuml
+title Sequence Diagram chức năng thanh toán vé
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 12
+
+actor "Người dùng" as U
+participant "Frontend\n(React)" as FE
+participant "Backend\n(ASP.NET Core)" as BE
+database "Database\n(SQL Server)" as DB
+participant "Cổng thanh toán\n(VNPay/MoMo/ZaloPay/PayOS)" as GW
+
+U -> FE : Mở trang thanh toán (đặt chỗ "Pending")
+FE -> BE : GET /api/bookings/{id}
+activate BE
+BE -> DB : Truy vấn đặt chỗ
+DB --> BE : booking {Pending, totalPrice}
+BE --> FE : Thông tin đặt chỗ
+deactivate BE
+
+U -> FE : Chọn phương thức & bấm "Thanh toán"
+FE -> BE : POST /api/bookings/{id}/pay {phương thức}
+activate BE
+BE -> DB : Ghi giao dịch thanh toán
+BE -> BE : Tạo paymentUrl + chữ ký HMAC
+BE --> FE : {paymentUrl}
+deactivate BE
+FE --> U : Chuyển hướng đến cổng thanh toán
+U -> GW : Nhập thông tin thẻ/tài khoản & xác nhận
+GW --> FE : Redirect /payment/{provider}-return?params
+
+FE -> BE : GET xác minh (gửi toàn bộ query params)
+activate BE
+BE -> BE : Xác minh chữ ký & số tiền từ cổng
+alt Xác minh hợp lệ & thanh toán thành công
+  BE -> DB : UPDATE Bookings SET Status = "Confirmed"
+  BE -> DB : Cập nhật trạng thái giao dịch
+  DB --> BE : ok
+  BE -> BE : Gửi email xác nhận đặt chỗ
+  BE --> FE : Kết quả thành công
+  FE --> U : Hiển thị trang xác nhận đặt chỗ
+else Xác minh thất bại / thanh toán lỗi
+  BE -> DB : Giữ Bookings.Status = "Pending"
+  BE --> FE : Kết quả thất bại
+  FE --> U : Thông báo lỗi — cho phép thử lại
+end
+deactivate BE
+
+@enduml

@@ -1,0 +1,31 @@
+@startuml
+title Activity Diagram luồng quản trị dữ liệu chuyến đi
+skinparam defaultFontName "Arial"
+skinparam defaultFontSize 12
+skinparam activityStartColor #333
+skinparam activityEndColor #333
+
+start
+:Quản trị viên đăng nhập (role = Admin);
+:Vào Dashboard quản trị (/admin);
+:Chọn mục quản lý\n(Chuyến bay / Tàu hỏa / Xe khách);
+:Tìm chuyến cần thao tác;
+if (Loại thao tác?) then (Chỉnh sửa giá/thông tin)
+  :Bấm "Sửa" & nhập dữ liệu mới;
+  if (Dữ liệu hợp lệ & mã không trùng?) then (Có)
+    :Hệ thống lưu vào CSDL;
+    :Đồng bộ base price cho bảng giá động;
+    :Kiểm tra cảnh báo giá —\ngửi thông báo/email cho user đạt mục tiêu;
+    :Danh sách hiển thị giá mới;
+  else (Không)
+    :Hiển thị lỗi xác thực dữ liệu;
+    :Quản trị viên chỉnh sửa lại;
+  endif
+else (Thêm / Xoá / Import / Export)
+  :Thực hiện thêm mới, xoá,\nimport CSV/Excel hoặc export;
+  :Hệ thống kiểm tra trùng mã trước khi lưu;
+  :Cập nhật danh sách & số liệu thống kê;
+endif
+stop
+
+@enduml

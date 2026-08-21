@@ -5,6 +5,7 @@ import DataTable from '../DataTable'
 import ModalForm from '../ModalForm'
 import LocationSelect from '../LocationSelect'
 import { useAdmin } from '../AdminContext'
+import { parseImportFile } from '../parseImportFile'
 import { getAdminTrains, createAdminTrain, updateAdminTrain, deleteAdminTrain, importAdminTrains, exportAdminTrains } from '../../services/api'
 
 const coachClassOptions = [
@@ -153,13 +154,12 @@ export default function TrainsPage() {
           <p className="text-sm text-[var(--color-text-tertiary)] mt-0.5">{total.toLocaleString('vi-VN')} chuyến tàu</p>
         </div>
         <div className="flex items-center gap-2">
-          <input ref={fileInputRef} type="file" accept=".json" className="hidden" onChange={async (e) => {
+          <input ref={fileInputRef} type="file" accept=".csv,.json,.xlsx,.xls" className="hidden" onChange={async (e) => {
             const file = e.target.files?.[0]; if (!file) return
             setImporting(true)
             try {
-              const text = await file.text(); const data = JSON.parse(text)
-              const list = Array.isArray(data) ? data : data.items || data.trains || []
-              if (list.length === 0) { toast('File không có dữ liệu', 'error'); return }
+              const list = await parseImportFile(file)
+              if (!Array.isArray(list) || list.length === 0) { toast('File không có dữ liệu', 'error'); return }
               const res = await importAdminTrains(list)
               toast(res.data?.message || `Đã nhập ${list.length} chuyến tàu`, 'success')
               fetchData()

@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using FlightAggregatorApi.Data;
 using FlightAggregatorApi.Models;
 using FlightAggregatorApi.Helpers;
+using FlightAggregatorApi.Services;
 
 namespace FlightAggregatorApi.Controllers;
 
@@ -13,11 +14,32 @@ public class AdminController : ControllerBase
 {
     private readonly ApplicationDbContext _db;
     private readonly ILogger<AdminController> _logger;
+    private readonly PriceAlertService _priceAlerts;
 
-    public AdminController(ApplicationDbContext db, ILogger<AdminController> logger)
+    public AdminController(ApplicationDbContext db, ILogger<AdminController> logger, PriceAlertService priceAlerts)
     {
         _db = db;
         _logger = logger;
+        _priceAlerts = priceAlerts;
+    }
+
+    /// <summary>
+    /// Sau khi admin tạo/sửa giá chuyến, chạy kiểm tra cảnh báo giá cho TẤT CẢ user
+    /// (không giới hạn VIP như chu kỳ tự động) — ai đang theo dõi chuyến/tuyến này
+    /// mà giá đã đạt mục tiêu sẽ nhận thông báo + email NGAY, không phải chờ hay bấm tay.
+    /// </summary>
+    private async Task NotifyPriceAlertsAfterChange()
+    {
+        try
+        {
+            var result = await _priceAlerts.CheckAlertsAsync(_db);
+            if (result.Triggered.Count > 0)
+                _logger.LogInformation("Admin price change triggered {Count} price alert(s)", result.Triggered.Count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to check price alerts after admin change");
+        }
     }
 
     [HttpGet("dashboard")]
@@ -260,6 +282,8 @@ public class AdminController : ControllerBase
 
         _db.Flights.Add(flight);
         await _db.SaveChangesAsync();
+        Services.PriceStreamService.UpdateBasePrice(flight.Id, flight.Price);
+        await NotifyPriceAlertsAfterChange();
 
         return CreatedAtAction(nameof(GetFlights), new { id = flight.Id }, flight);
     }
@@ -294,6 +318,8 @@ public class AdminController : ControllerBase
         flight.FlightDate = DateOnly.FromDateTime(request.DepartureTime);
 
         await _db.SaveChangesAsync();
+        Services.PriceStreamService.UpdateBasePrice(id, flight.Price);
+        await NotifyPriceAlertsAfterChange();
         _logger.LogInformation("Admin updated flight #{FlightId}", id);
 
         return Ok(flight);
@@ -307,6 +333,7 @@ public class AdminController : ControllerBase
 
         _db.Flights.Remove(flight);
         await _db.SaveChangesAsync();
+        Services.PriceStreamService.UpdateBasePrice(id, null);
         _logger.LogInformation("Admin deleted flight #{FlightId}", id);
 
         return Ok(new { message = "Đã xoá chuyến bay" });
@@ -356,6 +383,7 @@ public class AdminController : ControllerBase
 
         _db.Trains.Add(train);
         await _db.SaveChangesAsync();
+        await NotifyPriceAlertsAfterChange();
 
         return CreatedAtAction(nameof(GetTrains), new { id = train.Id }, train);
     }
@@ -381,6 +409,7 @@ public class AdminController : ControllerBase
         train.TrainDate = DateOnly.FromDateTime(request.DepartureTime);
 
         await _db.SaveChangesAsync();
+        await NotifyPriceAlertsAfterChange();
         _logger.LogInformation("Admin updated train #{TrainId}", id);
 
         return Ok(train);
@@ -635,6 +664,9 @@ public class AdminController : ControllerBase
 
         _db.Flights.AddRange(flights);
         await _db.SaveChangesAsync();
+        foreach (var f in flights)
+            Services.PriceStreamService.UpdateBasePrice(f.Id, f.Price);
+        await NotifyPriceAlertsAfterChange();
         _logger.LogInformation("Admin imported {Count} flights", flights.Count);
 
         return Ok(new { message = $"Đã nhập {flights.Count} chuyến bay", count = flights.Count });
@@ -678,6 +710,7 @@ public class AdminController : ControllerBase
 
         _db.Trains.AddRange(trains);
         await _db.SaveChangesAsync();
+        await NotifyPriceAlertsAfterChange();
         _logger.LogInformation("Admin imported {Count} trains", trains.Count);
 
         return Ok(new { message = $"Đã nhập {trains.Count} chuyến tàu", count = trains.Count });
@@ -747,6 +780,7 @@ public class AdminController : ControllerBase
 
         _db.Buses.Add(bus);
         await _db.SaveChangesAsync();
+        await NotifyPriceAlertsAfterChange();
 
         return CreatedAtAction(nameof(GetBuses), new { id = bus.Id }, bus);
     }
@@ -774,6 +808,7 @@ public class AdminController : ControllerBase
         bus.BusDate = DateOnly.FromDateTime(request.DepartureTime);
 
         await _db.SaveChangesAsync();
+        await NotifyPriceAlertsAfterChange();
         _logger.LogInformation("Admin updated bus #{BusId}", id);
 
         return Ok(bus);
@@ -816,6 +851,7 @@ public class AdminController : ControllerBase
 
         _db.Buses.AddRange(buses);
         await _db.SaveChangesAsync();
+        await NotifyPriceAlertsAfterChange();
         _logger.LogInformation("Admin imported {Count} buses", buses.Count);
 
         return Ok(new { message = $"Đã nhập {buses.Count} chuyến xe", count = buses.Count });

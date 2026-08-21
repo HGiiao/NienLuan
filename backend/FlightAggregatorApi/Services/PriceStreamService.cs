@@ -29,6 +29,18 @@ public class PriceStreamService : BackgroundService
         _logger = logger;
     }
 
+    /// <summary>
+    /// Đồng bộ base price khi admin tạo/cập nhật giá chuyến bay. Nếu không gọi,
+    /// vòng dao động 30s sẽ ghi đè giá mới bằng base price cũ trong bộ nhớ
+    /// → giá admin vừa đặt bị "quay ngược" phía user.
+    /// Truyền null price để xoá khoá (dùng khi xoá chuyến bay).
+    /// </summary>
+    public static void UpdateBasePrice(long flightId, decimal? price)
+    {
+        if (price.HasValue) _basePrices[flightId] = price.Value;
+        else _basePrices.TryRemove(flightId, out _);
+    }
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         while (!stoppingToken.IsCancellationRequested)
