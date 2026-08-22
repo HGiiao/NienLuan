@@ -26,6 +26,12 @@ public class BookingPassenger
     [MaxLength(50)]
     public string? IdNumber { get; set; }
 
+    [MaxLength(255)]
+    public string? Email { get; set; }
+
+    [MaxLength(20)]
+    public string? Phone { get; set; }
+
     [ForeignKey(nameof(BookingId))]
     public Booking? Booking { get; set; }
 }

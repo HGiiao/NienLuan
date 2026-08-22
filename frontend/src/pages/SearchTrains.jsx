@@ -9,7 +9,7 @@ import BookingOptionsModal from '../components/BookingOptionsModal'
 import PriceWatchModal from '../components/PriceWatchModal'
 
 import LocationInput from '../components/LocationInput'
-import { getTrains, predictPrice, createPriceAlert } from '../services/api'
+import { getTrains, predictPrice, createPriceAlert, getPriceAlerts } from '../services/api'
 import { formatCurrencyVnd } from '../utils/formatters'
 import { PageHeader, SearchForm, SkeletonList, EmptyState, Pagination } from '../ui'
 import useRefetchOnTabVisible from '../hooks/useRefetchOnTabVisible'

@@ -224,6 +224,71 @@ export default function BookingPage() {
   const fmtTime = (d) => new Date(d).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
   const fmtDate = (d) => new Date(d).toLocaleDateString('vi-VN', { weekday: 'short', day: 'numeric', month: 'numeric' })
 
+  // ===== Validate thông tin hành khách =====
+  const nameRegex = /^[A-Za-zÀ-ỹà-ỹ\s]{2,}$/
+  const phoneRegex = /^(0[3|5|7|8|9])[0-9]{8}$/
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  const normEmail = v => (v || '').trim().toLowerCase()
+  const normPhone = v => (v || '').replace(/[\s.\-()]/g, '')
+  const normIdNum = v => (v || '').replace(/\s/g, '').toUpperCase()
+
+  // Trả về chuỗi lỗi nếu ngày sinh không hợp lệ, ngược lại rỗng
+  const validateDob = (v) => {
+    if (!v) return 'Vui lòng chọn ngày sinh'
+    const dob = new Date(v)
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    if (isNaN(dob.getTime())) return 'Ngày sinh không hợp lệ'
+    if (dob >= today) return 'Ngày sinh không thể ở tương lai'
+    const age = today.getFullYear() - dob.getFullYear()
+    const monthDiff = today.getMonth() - dob.getMonth()
+    const actualAge = monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate()) ? age - 1 : age
+    if (actualAge < 1) return 'Hành khách phải từ 1 tuổi trở lên'
+    if (actualAge > 120) return 'Tuổi không hợp lệ'
+    return ''
+  }
+
+  // Trả về chuỗi lỗi nếu CMND/CCCD/Hộ chiếu không hợp lệ, ngược lại rỗng
+  const validateIdNumber = (v) => {
+    if (!v || !v.trim()) return 'Vui lòng nhập số CMND/CCCD/Hộ chiếu'
+    const cleanId = v.replace(/\s/g, '').toUpperCase()
+    const cmnd = /^\d{9}$/
+    const cccd = /^\d{12}$/
+    const passport = /^[A-Z]{1,2}\d{6,8}$/
+    if (!cmnd.test(cleanId) && !cccd.test(cleanId) && !passport.test(cleanId)) {
+      return 'CMND (9 số), CCCD (12 số) hoặc Hộ chiếu (VD: AB1234567)'
+    }
+    return ''
+  }
+
+  // Kiểm tra TRÙNG email / SĐT / CCCD giữa các hành khách trong lúc điền (realtime).
+  // Hành khách 1 = người đặt vé (index 0), các hành khách phụ bắt đầu từ index 1.
+  const dupFields = [
+    { field: 'email', label: 'Email', norm: normEmail },
+    { field: 'phone', label: 'Số điện thoại', norm: normPhone },
+    { field: 'idNumber', label: 'CMND/CCCD/Hộ chiếu', norm: normIdNum },
+  ]
+  const computeDupErrors = () => {
+    const all = [{ ...form }, ...extraPassengers]
+    const errs = {}
+    for (const { field, label, norm } of dupFields) {
+      const seen = {}
+      all.forEach((p, i) => {
+        const key = norm(p[field])
+        if (!key) return
+        if (seen[key] !== undefined) {
+          errs[`${field}-${i}`] = `${label} trùng với ${seen[key] === 0 ? 'người đặt vé' : `hành khách ${seen[key] + 1}`}`
+          errs[`${field}-${seen[key]}`] = `${label} trùng với ${i === 0 ? 'người đặt vé' : `hành khách ${i + 1}`}`
+        } else {
+          seen[key] = i
+        }
+      })
+    }
+    return errs
+  }
+  const dupErrors = computeDupErrors()
+  const hasDuplicates = Object.keys(dupErrors).length > 0
+
   const handleSelectPayment = (id) => {
     setForm(prev => ({ ...prev, paymentMethod: id }))
     if (id !== 'e_wallet') setWalletProvider('')
@@ -251,11 +316,28 @@ export default function BookingPage() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
+
+    // Chặn trùng email/SĐT/CCCD giữa các hành khách trước khi cho đặt vé
+    if (hasDuplicates) {
+      const firstKey = Object.keys(dupErrors)[0]
+      setError(Object.values(dupErrors)[0])
+      const [field, idx] = firstKey.split('-')
+      const el = document.getElementById(idx === '0' ? `field-${field}` : `field-p${idx}-${field}`)
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      return
+    }
+
     const errors = {}
 
-    const nameRegex = /^[A-Za-zÀ-ỹà-ỹ\s]{2,}$/
+    // ===== Hành khách 1 (người đặt vé): tất cả các trường đều bắt buộc =====
     if (!nameRegex.test(form.fullName.trim())) {
       errors.fullName = 'Họ tên chỉ gồm chữ cái, tối thiểu 2 ký tự'
+    }
+
+    if (!form.email.trim()) {
+      errors.email = 'Vui lòng nhập email'
+    } else if (!emailRegex.test(form.email.trim())) {
+      errors.email = 'Email không hợp lệ (VD: email@example.com)'
     }
 
     if (!form.paymentMethod) {
@@ -266,41 +348,45 @@ export default function BookingPage() {
       errors.walletProvider = 'Vui lòng chọn ví thanh toán (VNPay hoặc PayOS)'
     }
 
-    const phoneRegex = /^(0[3|5|7|8|9])[0-9]{8}$/
     if (!phoneRegex.test(form.phone.replace(/\s/g, ''))) {
-      errors.phone = 'SĐT không hợp lệ (VD: 0901234567)'
+      errors.phone = form.phone.trim() ? 'SĐT không hợp lệ (VD: 0901234567)' : 'Vui lòng nhập số điện thoại'
     }
 
-    if (form.dateOfBirth) {
-      const dob = new Date(form.dateOfBirth)
-      const today = new Date()
-      today.setHours(0, 0, 0, 0)
-      if (isNaN(dob.getTime())) {
-        errors.dateOfBirth = 'Ngày sinh không hợp lệ'
-      } else if (dob >= today) {
-        errors.dateOfBirth = 'Ngày sinh không thể ở tương lai'
-      } else {
-        const age = today.getFullYear() - dob.getFullYear()
-        const monthDiff = today.getMonth() - dob.getMonth()
-        const actualAge = monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate()) ? age - 1 : age
-        if (actualAge < 1) errors.dateOfBirth = 'Hành khách phải từ 1 tuổi trở lên'
-        else if (actualAge > 120) errors.dateOfBirth = 'Tuổi không hợp lệ'
+    const dobError = validateDob(form.dateOfBirth)
+    if (dobError) errors.dateOfBirth = dobError
+
+    if (!form.gender) {
+      errors.gender = 'Vui lòng chọn giới tính'
+    }
+
+    if (!form.nationality.trim()) {
+      errors.nationality = 'Vui lòng nhập quốc tịch'
+    }
+
+    const idError = validateIdNumber(form.idNumber)
+    if (idError) errors.idNumber = idError
+
+    if (!form.address.trim()) {
+      errors.address = 'Vui lòng nhập địa chỉ'
+    }
+
+    // ===== Các hành khách phụ: từng trường đều bắt buộc, kiểm tra theo từng người =====
+    extraPassengers.forEach((p, i) => {
+      const setErr = (f, msg) => { errors[`p${i}-${f}`] = msg }
+      if (!p.fullName?.trim() || !nameRegex.test(p.fullName.trim())) {
+        setErr('fullName', p.fullName?.trim() ? 'Họ tên chỉ gồm chữ cái, tối thiểu 2 ký tự' : 'Vui lòng nhập họ tên')
       }
-    }
-
-    if (form.idNumber) {
-      const cleanId = form.idNumber.replace(/\s/g, '').toUpperCase()
-      const cmnd = /^\d{9}$/
-      const cccd = /^\d{12}$/
-      const passport = /^[A-Z]{1,2}\d{6,8}$/
-      if (!cmnd.test(cleanId) && !cccd.test(cleanId) && !passport.test(cleanId)) {
-        errors.idNumber = 'CMND (9 số), CCCD (12 số) hoặc Hộ chiếu (VD: AB1234567)'
-      }
-    }
-
-    if (extraPassengers.some(p => !p.fullName || !nameRegex.test(p.fullName.trim()))) {
-      errors.extraPassengers = 'Vui lòng nhập họ tên hợp lệ cho tất cả hành khách'
-    }
+      if (!p.email?.trim()) setErr('email', 'Vui lòng nhập email')
+      else if (!emailRegex.test(p.email.trim())) setErr('email', 'Email không hợp lệ')
+      if (!p.phone?.trim()) setErr('phone', 'Vui lòng nhập số điện thoại')
+      else if (!phoneRegex.test(p.phone.replace(/\s/g, ''))) setErr('phone', 'SĐT không hợp lệ (VD: 0901234567)')
+      const pDobError = validateDob(p.dateOfBirth)
+      if (pDobError) setErr('dateOfBirth', pDobError)
+      if (!p.gender) setErr('gender', 'Chọn giới tính')
+      if (!p.nationality?.trim()) setErr('nationality', 'Nhập quốc tịch')
+      const pIdError = validateIdNumber(p.idNumber)
+      if (pIdError) setErr('idNumber', pIdError)
+    })
 
     if (form.emergencyContactName && !form.emergencyContactPhone) {
       errors.emergencyContactPhone = 'Nhập SĐT liên hệ khẩn cấp'
@@ -348,6 +434,8 @@ export default function BookingPage() {
         passengerDetails: [
           {
             fullName: form.fullName,
+            email: form.email,
+            phone: form.phone,
             dateOfBirth: form.dateOfBirth ? new Date(form.dateOfBirth).toISOString() : null,
             gender: form.gender || null,
             nationality: form.nationality || null,
@@ -355,6 +443,8 @@ export default function BookingPage() {
           },
           ...extraPassengers.map(p => ({
             fullName: p.fullName,
+            email: p.email,
+            phone: p.phone,
             dateOfBirth: p.dateOfBirth ? new Date(p.dateOfBirth).toISOString() : null,
             gender: p.gender || null,
             nationality: p.nationality || null,
@@ -390,7 +480,7 @@ export default function BookingPage() {
     setPassengerCount(count)
     setExtraPassengers(prev => {
       const next = [...prev]
-      while (next.length < count - 1) next.push({ fullName: '', dateOfBirth: '', gender: '', nationality: '', idNumber: '' })
+      while (next.length < count - 1) next.push({ fullName: '', email: '', phone: '', dateOfBirth: '', gender: '', nationality: '', idNumber: '' })
       return next.slice(0, count - 1)
     })
   }
@@ -494,10 +584,16 @@ export default function BookingPage() {
             </div>
           </div>
           {fieldErrors.extraPassengers && <p className="text-xs text-[var(--color-danger)] mt-2">{fieldErrors.extraPassengers}</p>}
+          {hasDuplicates && (
+            <div className="flex items-center gap-2 mt-3 text-xs font-semibold text-[var(--color-danger)] bg-[var(--color-danger)]/10 border border-[var(--color-danger)]/20 rounded-xl px-3 py-2.5">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              Phát hiện thông tin trùng lặp giữa các hành khách — vui lòng kiểm tra các trường được tô đỏ bên dưới.
+            </div>
+          )}
 
           <div className="grid sm:grid-cols-2 gap-4">
             <div id="field-fullName">
-              <label className="block text-xs font-semibold text-[var(--color-text-primary)] mb-1.5">Họ và tên</label>
+              <label className="block text-xs font-semibold text-[var(--color-text-primary)] mb-1.5">Họ và tên <span className="text-[var(--color-danger)]">*</span></label>
               <div className="relative group">
                 <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-text-tertiary)] group-focus-within:text-primary-500 transition-colors" />
                 <input
@@ -510,21 +606,22 @@ export default function BookingPage() {
               </div>
               {fieldErrors.fullName && <p className="text-xs text-[var(--color-danger)] mt-1">{fieldErrors.fullName}</p>}
             </div>
-            <div>
-              <label className="block text-xs font-semibold text-[var(--color-text-primary)] mb-1.5">Email</label>
+            <div id="field-email">
+              <label className="block text-xs font-semibold text-[var(--color-text-primary)] mb-1.5">Email <span className="text-[var(--color-danger)]">*</span></label>
               <div className="relative group">
                 <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-text-tertiary)] group-focus-within:text-primary-500 transition-colors" />
                 <input
-                  className="w-full border border-[var(--color-border)] rounded-xl pl-10 pr-3.5 py-3 text-sm focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none bg-[var(--color-bg)] text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] transition-all"
+                  className={`w-full border rounded-xl pl-10 pr-3.5 py-3 text-sm focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none bg-[var(--color-bg)] text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] transition-all ${(fieldErrors.email || dupErrors['email-0']) ? 'border-[var(--color-danger)]' : 'border-[var(--color-border)]'}`}
                   type="email" placeholder="email@example.com"
                   value={form.email}
-                  onChange={e => setForm({ ...form, email: e.target.value })}
+                  onChange={e => { setForm({ ...form, email: e.target.value }); setFieldErrors(prev => ({ ...prev, email: undefined })) }}
                   required
                 />
               </div>
+              {(fieldErrors.email || dupErrors['email-0']) && <p className="text-xs text-[var(--color-danger)] mt-1">{fieldErrors.email || dupErrors['email-0']}</p>}
             </div>
             <div id="field-phone">
-              <label className="block text-xs font-semibold text-[var(--color-text-primary)] mb-1.5">Số điện thoại</label>
+              <label className="block text-xs font-semibold text-[var(--color-text-primary)] mb-1.5">Số điện thoại <span className="text-[var(--color-danger)]">*</span></label>
               <div className="relative group">
                 <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-text-tertiary)] group-focus-within:text-primary-500 transition-colors" />
                 <input
@@ -538,7 +635,7 @@ export default function BookingPage() {
               {fieldErrors.phone && <p className="text-xs text-[var(--color-danger)] mt-1">{fieldErrors.phone}</p>}
             </div>
             <div id="field-dateOfBirth">
-              <label className="block text-xs font-semibold text-[var(--color-text-primary)] mb-1.5">Ngày sinh</label>
+              <label className="block text-xs font-semibold text-[var(--color-text-primary)] mb-1.5">Ngày sinh <span className="text-[var(--color-danger)]">*</span></label>
               <div className="relative group">
                 <CalendarDays className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-text-tertiary)] group-focus-within:text-primary-500 transition-colors" />
                 <input
@@ -553,14 +650,14 @@ export default function BookingPage() {
           </div>
 
           <div className="grid sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-semibold text-[var(--color-text-primary)] mb-1.5">Giới tính</label>
+            <div id="field-gender">
+              <label className="block text-xs font-semibold text-[var(--color-text-primary)] mb-1.5">Giới tính <span className="text-[var(--color-danger)]">*</span></label>
               <div className="relative group">
                 <VenetianMask className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-text-tertiary)] group-focus-within:text-primary-500 transition-colors pointer-events-none" />
                 <select
-                  className="w-full border border-[var(--color-border)] rounded-xl pl-10 pr-3.5 py-3 text-sm focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none bg-[var(--color-bg)] text-[var(--color-text-primary)] transition-all appearance-none"
+                  className={`w-full border rounded-xl pl-10 pr-3.5 py-3 text-sm focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none bg-[var(--color-bg)] text-[var(--color-text-primary)] transition-all appearance-none ${fieldErrors.gender ? 'border-[var(--color-danger)]' : 'border-[var(--color-border)]'}`}
                   value={form.gender}
-                  onChange={e => setForm({ ...form, gender: e.target.value })}
+                  onChange={e => { setForm({ ...form, gender: e.target.value }); setFieldErrors(prev => ({ ...prev, gender: undefined })) }}
                 >
                   <option value="">Chọn giới tính</option>
                   <option value="Nam">Nam</option>
@@ -571,23 +668,25 @@ export default function BookingPage() {
                   <svg className="w-4 h-4 text-[var(--color-text-tertiary)]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
                 </div>
               </div>
+              {fieldErrors.gender && <p className="text-xs text-[var(--color-danger)] mt-1">{fieldErrors.gender}</p>}
             </div>
-            <div>
-              <label className="block text-xs font-semibold text-[var(--color-text-primary)] mb-1.5">Quốc tịch</label>
+            <div id="field-nationality">
+              <label className="block text-xs font-semibold text-[var(--color-text-primary)] mb-1.5">Quốc tịch <span className="text-[var(--color-danger)]">*</span></label>
               <div className="relative group">
                 <Globe className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-text-tertiary)] group-focus-within:text-primary-500 transition-colors" />
                 <input
-                  className="w-full border border-[var(--color-border)] rounded-xl pl-10 pr-3.5 py-3 text-sm focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none bg-[var(--color-bg)] text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] transition-all"
+                  className={`w-full border rounded-xl pl-10 pr-3.5 py-3 text-sm focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none bg-[var(--color-bg)] text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] transition-all ${fieldErrors.nationality ? 'border-[var(--color-danger)]' : 'border-[var(--color-border)]'}`}
                   placeholder="Việt Nam"
                   value={form.nationality}
-                  onChange={e => setForm({ ...form, nationality: e.target.value })}
+                  onChange={e => { setForm({ ...form, nationality: e.target.value }); setFieldErrors(prev => ({ ...prev, nationality: undefined })) }}
                 />
               </div>
+              {fieldErrors.nationality && <p className="text-xs text-[var(--color-danger)] mt-1">{fieldErrors.nationality}</p>}
             </div>
           </div>
 
           <div id="field-idNumber">
-            <label className="block text-xs font-semibold text-[var(--color-text-primary)] mb-1.5">Số CMND / CCCD / Hộ chiếu</label>
+            <label className="block text-xs font-semibold text-[var(--color-text-primary)] mb-1.5">Số CMND / CCCD / Hộ chiếu <span className="text-[var(--color-danger)]">*</span></label>
             <div className="relative group">
               <FileText className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-text-tertiary)] group-focus-within:text-primary-500 transition-colors" />
               <input
@@ -603,80 +702,118 @@ export default function BookingPage() {
           {extraPassengers.length > 0 && (
             <div className="space-y-4">
               <div className="h-px bg-[var(--color-border)]" />
-              {extraPassengers.map((p, idx) => (
+              {extraPassengers.map((p, idx) => {
+                // Lỗi của từng trường: lỗi khi submit hoặc trùng lặp realtime với hành khách khác
+                const paxErr = (f) => fieldErrors[`p${idx}-${f}`] || dupErrors[`${f}-${idx + 1}`]
+                return (
                 <div key={idx} className="rounded-xl border border-[var(--color-border)] p-4 space-y-3">
                   <div className="flex items-center gap-2">
                     <User className="w-4 h-4 text-primary-500" />
                     <span className="text-sm font-bold text-[var(--color-text-primary)]">Hành khách {idx + 2}</span>
                   </div>
                   <div className="grid sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-semibold text-[var(--color-text-primary)] mb-1.5">Họ và tên</label>
+                    <div id={`field-p${idx}-fullName`}>
+                      <label className="block text-xs font-semibold text-[var(--color-text-primary)] mb-1.5">Họ và tên <span className="text-[var(--color-danger)]">*</span></label>
                       <input
-                        className="w-full border border-[var(--color-border)] rounded-xl px-3.5 py-3 text-sm focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none bg-[var(--color-bg)] text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] transition-all"
+                        className={`w-full border rounded-xl px-3.5 py-3 text-sm focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none bg-[var(--color-bg)] text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] transition-all ${paxErr('fullName') ? 'border-[var(--color-danger)]' : 'border-[var(--color-border)]'}`}
                         placeholder="Nguyễn Văn B"
                         value={p.fullName}
-                        onChange={e => updateExtraPassenger(idx, 'fullName', e.target.value)}
+                        onChange={e => { updateExtraPassenger(idx, 'fullName', e.target.value); setFieldErrors(prev => ({ ...prev, [`p${idx}-fullName`]: undefined })) }}
                         required
                       />
+                      {paxErr('fullName') && <p className="text-xs text-[var(--color-danger)] mt-1">{paxErr('fullName')}</p>}
                     </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-[var(--color-text-primary)] mb-1.5">Ngày sinh</label>
+                    <div id={`field-p${idx}-dateOfBirth`}>
+                      <label className="block text-xs font-semibold text-[var(--color-text-primary)] mb-1.5">Ngày sinh <span className="text-[var(--color-danger)]">*</span></label>
                       <input
                         type="date"
-                        className="w-full border border-[var(--color-border)] rounded-xl px-3.5 py-3 text-sm focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none bg-[var(--color-bg)] text-[var(--color-text-primary)] transition-all"
+                        className={`w-full border rounded-xl px-3.5 py-3 text-sm focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none bg-[var(--color-bg)] text-[var(--color-text-primary)] transition-all ${paxErr('dateOfBirth') ? 'border-[var(--color-danger)]' : 'border-[var(--color-border)]'}`}
                         value={p.dateOfBirth}
-                        onChange={e => updateExtraPassenger(idx, 'dateOfBirth', e.target.value)}
+                        onChange={e => { updateExtraPassenger(idx, 'dateOfBirth', e.target.value); setFieldErrors(prev => ({ ...prev, [`p${idx}-dateOfBirth`]: undefined })) }}
+                        required
                       />
+                      {paxErr('dateOfBirth') && <p className="text-xs text-[var(--color-danger)] mt-1">{paxErr('dateOfBirth')}</p>}
                     </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-[var(--color-text-primary)] mb-1.5">Giới tính</label>
+                    <div id={`field-p${idx}-gender`}>
+                      <label className="block text-xs font-semibold text-[var(--color-text-primary)] mb-1.5">Giới tính <span className="text-[var(--color-danger)]">*</span></label>
                       <select
-                        className="w-full border border-[var(--color-border)] rounded-xl px-3.5 py-3 text-sm focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none bg-[var(--color-bg)] text-[var(--color-text-primary)] transition-all appearance-none"
+                        className={`w-full border rounded-xl px-3.5 py-3 text-sm focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none bg-[var(--color-bg)] text-[var(--color-text-primary)] transition-all appearance-none ${paxErr('gender') ? 'border-[var(--color-danger)]' : 'border-[var(--color-border)]'}`}
                         value={p.gender}
-                        onChange={e => updateExtraPassenger(idx, 'gender', e.target.value)}
+                        onChange={e => { updateExtraPassenger(idx, 'gender', e.target.value); setFieldErrors(prev => ({ ...prev, [`p${idx}-gender`]: undefined })) }}
+                        required
                       >
                         <option value="">Chọn giới tính</option>
                         <option value="Nam">Nam</option>
                         <option value="Nữ">Nữ</option>
                         <option value="Khác">Khác</option>
                       </select>
+                      {paxErr('gender') && <p className="text-xs text-[var(--color-danger)] mt-1">{paxErr('gender')}</p>}
                     </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-[var(--color-text-primary)] mb-1.5">Quốc tịch</label>
+                    <div id={`field-p${idx}-nationality`}>
+                      <label className="block text-xs font-semibold text-[var(--color-text-primary)] mb-1.5">Quốc tịch <span className="text-[var(--color-danger)]">*</span></label>
                       <input
-                        className="w-full border border-[var(--color-border)] rounded-xl px-3.5 py-3 text-sm focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none bg-[var(--color-bg)] text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] transition-all"
+                        className={`w-full border rounded-xl px-3.5 py-3 text-sm focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none bg-[var(--color-bg)] text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] transition-all ${paxErr('nationality') ? 'border-[var(--color-danger)]' : 'border-[var(--color-border)]'}`}
                         placeholder="Việt Nam"
                         value={p.nationality}
-                        onChange={e => updateExtraPassenger(idx, 'nationality', e.target.value)}
+                        onChange={e => { updateExtraPassenger(idx, 'nationality', e.target.value); setFieldErrors(prev => ({ ...prev, [`p${idx}-nationality`]: undefined })) }}
+                        required
                       />
+                      {paxErr('nationality') && <p className="text-xs text-[var(--color-danger)] mt-1">{paxErr('nationality')}</p>}
                     </div>
-                    <div className="sm:col-span-2">
-                      <label className="block text-xs font-semibold text-[var(--color-text-primary)] mb-1.5">Số CMND / CCCD / Hộ chiếu</label>
+                    <div id={`field-p${idx}-email`}>
+                      <label className="block text-xs font-semibold text-[var(--color-text-primary)] mb-1.5">Email <span className="text-[var(--color-danger)]">*</span></label>
                       <input
-                        className="w-full border border-[var(--color-border)] rounded-xl px-3.5 py-3 text-sm focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none bg-[var(--color-bg)] text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] transition-all"
+                        type="email"
+                        className={`w-full border rounded-xl px-3.5 py-3 text-sm focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none bg-[var(--color-bg)] text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] transition-all ${paxErr('email') ? 'border-[var(--color-danger)]' : 'border-[var(--color-border)]'}`}
+                        placeholder="email@example.com"
+                        value={p.email}
+                        onChange={e => { updateExtraPassenger(idx, 'email', e.target.value); setFieldErrors(prev => ({ ...prev, [`p${idx}-email`]: undefined })) }}
+                        required
+                      />
+                      {paxErr('email') && <p className="text-xs text-[var(--color-danger)] mt-1">{paxErr('email')}</p>}
+                    </div>
+                    <div id={`field-p${idx}-phone`}>
+                      <label className="block text-xs font-semibold text-[var(--color-text-primary)] mb-1.5">Số điện thoại <span className="text-[var(--color-danger)]">*</span></label>
+                      <input
+                        className={`w-full border rounded-xl px-3.5 py-3 text-sm focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none bg-[var(--color-bg)] text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] transition-all ${paxErr('phone') ? 'border-[var(--color-danger)]' : 'border-[var(--color-border)]'}`}
+                        placeholder="0901234567"
+                        value={p.phone}
+                        onChange={e => { updateExtraPassenger(idx, 'phone', e.target.value); setFieldErrors(prev => ({ ...prev, [`p${idx}-phone`]: undefined })) }}
+                        required
+                      />
+                      {paxErr('phone') && <p className="text-xs text-[var(--color-danger)] mt-1">{paxErr('phone')}</p>}
+                    </div>
+                    <div id={`field-p${idx}-idNumber`} className="sm:col-span-2">
+                      <label className="block text-xs font-semibold text-[var(--color-text-primary)] mb-1.5">Số CMND / CCCD / Hộ chiếu <span className="text-[var(--color-danger)]">*</span></label>
+                      <input
+                        className={`w-full border rounded-xl px-3.5 py-3 text-sm focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none bg-[var(--color-bg)] text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] transition-all ${paxErr('idNumber') ? 'border-[var(--color-danger)]' : 'border-[var(--color-border)]'}`}
                         placeholder="0123456789 hoặc AB1234567"
                         value={p.idNumber}
-                        onChange={e => updateExtraPassenger(idx, 'idNumber', e.target.value)}
+                        onChange={e => { updateExtraPassenger(idx, 'idNumber', e.target.value); setFieldErrors(prev => ({ ...prev, [`p${idx}-idNumber`]: undefined })) }}
+                        required
                       />
+                      {paxErr('idNumber') && <p className="text-xs text-[var(--color-danger)] mt-1">{paxErr('idNumber')}</p>}
                     </div>
                   </div>
                 </div>
-              ))}
+                )
+              })}
             </div>
           )}
 
-          <div>
-            <label className="block text-xs font-semibold text-[var(--color-text-primary)] mb-1.5">Địa chỉ</label>
+          <div id="field-address">
+            <label className="block text-xs font-semibold text-[var(--color-text-primary)] mb-1.5">Địa chỉ <span className="text-[var(--color-danger)]">*</span></label>
             <div className="relative group">
               <MapPin className="absolute left-3.5 top-3.5 w-4 h-4 text-[var(--color-text-tertiary)] group-focus-within:text-primary-500 transition-colors" />
               <textarea
-                className="w-full border border-[var(--color-border)] rounded-xl pl-10 pr-3.5 py-3 text-sm focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none bg-[var(--color-bg)] text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] transition-all resize-none"
+                className={`w-full border rounded-xl pl-10 pr-3.5 py-3 text-sm focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none bg-[var(--color-bg)] text-[var(--color-text-primary)] placeholder:text-[var(--color-text-tertiary)] transition-all resize-none ${fieldErrors.address ? 'border-[var(--color-danger)]' : 'border-[var(--color-border)]'}`}
                 rows={2} placeholder="Số nhà, đường, phường/xã, quận/huyện, thành phố"
                 value={form.address}
-                onChange={e => setForm({ ...form, address: e.target.value })}
+                onChange={e => { setForm({ ...form, address: e.target.value }); setFieldErrors(prev => ({ ...prev, address: undefined })) }}
+                required
               />
             </div>
+            {fieldErrors.address && <p className="text-xs text-[var(--color-danger)] mt-1">{fieldErrors.address}</p>}
           </div>
 
           <div className="h-px bg-[var(--color-border)]" />

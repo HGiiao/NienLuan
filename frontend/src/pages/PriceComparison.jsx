@@ -46,10 +46,14 @@ const TrendTooltip = ({ active, payload, label }) => {
   )
 }
 
-function LiveIndicator({ connected = true, lastUpdated, isConnecting, reconnectError, nextUpdateIn }) {
+function LiveIndicator({ connected = true, lastUpdated, isConnecting, waiting, reconnectError, nextUpdateIn }) {
   const timeText = lastUpdated
     ? `Cập nhật: ${lastUpdated.toLocaleTimeString('vi-VN', { hour12: false })}`
     : ''
+  // Chưa có tuyến tìm kiếm (hoặc đang bắt tay SignalR) → hiển thị "Đang kết nối..."
+  // thay vì "Mất kết nối" để phản ánh đúng vòng đời kết nối
+  const connecting = Boolean(isConnecting || (!connected && !reconnectError && waiting))
+  const label = connected ? 'Thời gian thực' : connecting ? 'Đang kết nối...' : 'Mất kết nối'
 
   return (
     <div className="flex items-center gap-3">
@@ -59,7 +63,7 @@ function LiveIndicator({ connected = true, lastUpdated, isConnecting, reconnectE
           : reconnectError ? 'bg-red-500/10 border-red-500/20' : 'bg-amber-500/10 border-amber-500/20'
       }`} title={`${timeText}${nextUpdateIn ? ` · Cập nhật trong ${nextUpdateIn}s` : ''}`}>
         <span className="relative flex h-2 w-2">
-          {isConnecting ? (
+          {connecting ? (
             <RefreshCcw className="w-3 h-3 text-amber-500 animate-spin" />
           ) : (
             <>
@@ -75,7 +79,7 @@ function LiveIndicator({ connected = true, lastUpdated, isConnecting, reconnectE
         <span className={`text-[11px] font-semibold ${
           connected ? 'text-emerald-500' : reconnectError ? 'text-red-500' : 'text-amber-500'
         }`}>
-          {isConnecting ? 'Đang kết nối...' : connected ? 'Thời gian thực' : 'Mất kết nối'}
+          {label}
         </span>
       </div>
 
@@ -656,6 +660,7 @@ export default function PriceComparison() {
             connected={connected}
             lastUpdated={lastUpdated}
             isConnecting={isConnecting}
+            waiting={realtimeEnabled && !(query.from && query.to)}
             reconnectError={reconnectError}
             nextUpdateIn={realtimeEnabled ? nextTick : null}
           />

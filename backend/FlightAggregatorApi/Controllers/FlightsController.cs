@@ -34,11 +34,14 @@ public class FlightsController : ControllerBase
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20)
     {
+        var now = DateTime.Now;
+
         if (tripType == "round-trip" && returnDate.HasValue
             && !string.IsNullOrEmpty(from) && !string.IsNullOrEmpty(to))
         {
             var outboundQuery = _db.Flights.AsNoTracking()
-                .Where(f => f.DepartureLocation == from && f.ArrivalLocation == to);
+                .Where(f => f.DepartureLocation == from && f.ArrivalLocation == to)
+                .Where(f => f.DepartureTime > now);
             if (date.HasValue)
                 outboundQuery = outboundQuery.Where(f => f.FlightDate == date.Value);
 
@@ -50,6 +53,7 @@ public class FlightsController : ControllerBase
 
             var returnQuery = _db.Flights.AsNoTracking()
                 .Where(f => f.DepartureLocation == to && f.ArrivalLocation == from)
+                .Where(f => f.DepartureTime > now)
                 .Where(f => f.FlightDate == returnDate.Value);
 
             returnQuery = ApplyPriceFilter(returnQuery, minPrice, maxPrice);
@@ -65,7 +69,8 @@ public class FlightsController : ControllerBase
             });
         }
 
-        var query = _db.Flights.AsNoTracking();
+        var query = _db.Flights.AsNoTracking()
+            .Where(f => f.DepartureTime > now);
 
         if (!string.IsNullOrEmpty(from))
             query = query.Where(f => f.DepartureLocation == from);

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Bell, BellRing, CheckCheck, Trash2, X, AlertCircle, Clock, DollarSign, CloudSun, Plane } from 'lucide-react'
+import { Bell, BellRing, CheckCheck, CheckCircle, Trash2, X, AlertCircle, Clock, DollarSign, CloudSun, Plane } from 'lucide-react'
 import { getNotifications, getUnreadCount, markNotificationRead, markAllNotificationsRead, deleteNotification } from '../services/api'
 import { formatDistanceToNow } from '../utils/formatters'
 
@@ -10,6 +10,7 @@ const typeIcons = {
   low_seats: [AlertCircle, '#EF4444'],
   weather: [CloudSun, '#3B82F6'],
   visa: [Plane, '#F59E0B'],
+  booking_success: [CheckCircle, '#059669'],
 }
 
 // Điều hướng mặc định theo loại thông báo khi bấm vào
@@ -21,6 +22,11 @@ const typeRoutes = {
   maintenance: '/',
   weather: '/',
   visa: '/',
+  booking_success: '/bookings',
+}
+
+const readUserEmail = () => {
+  try { return JSON.parse(sessionStorage.getItem('user'))?.email || null } catch { return null }
 }
 
 export default function NotificationBell() {
@@ -28,11 +34,21 @@ export default function NotificationBell() {
   const [notifications, setNotifications] = useState([])
   const [unread, setUnread] = useState(0)
   const [loading, setLoading] = useState(false)
+  const [email, setEmail] = useState(readUserEmail)
   const ref = useRef(null)
   const navigate = useNavigate()
 
-  const user = JSON.parse(sessionStorage.getItem('user') || 'null')
-  const email = user?.email
+  // 'user' trong sessionStorage được ghi bất đồng bộ sau khi mount (vd: clerk-sync) —
+  // nghe event + poll nhẹ để chuông hiện ngay mà không cần chuyển trang
+  useEffect(() => {
+    const sync = () => {
+      const next = readUserEmail()
+      setEmail(prev => (prev === next ? prev : next))
+    }
+    window.addEventListener('ve247-auth-changed', sync)
+    const iv = setInterval(sync, 1000)
+    return () => { window.removeEventListener('ve247-auth-changed', sync); clearInterval(iv) }
+  }, [])
 
   const fetchUnread = useCallback(async () => {
     if (!email) return

@@ -139,14 +139,20 @@ function ClerkSync() {
         }),
       })
         .then(r => r.json())
-        .then(d => sessionStorage.setItem('user', JSON.stringify({ ...d, loginMethod: 'clerk' })))
+        .then(d => {
+          sessionStorage.setItem('user', JSON.stringify({ ...d, loginMethod: 'clerk' }))
+          window.dispatchEvent(new Event('ve247-auth-changed'))
+        })
         .catch(() => {})
     } else {
       const stored = sessionStorage.getItem('user')
       if (stored) {
         try {
           const u = JSON.parse(stored)
-          if (u?.loginMethod === 'clerk') sessionStorage.removeItem('user')
+          if (u?.loginMethod === 'clerk') {
+            sessionStorage.removeItem('user')
+            window.dispatchEvent(new Event('ve247-auth-changed'))
+          }
         } catch {}
       }
     }

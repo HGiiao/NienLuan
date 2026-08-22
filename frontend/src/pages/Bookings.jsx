@@ -5,6 +5,7 @@ import { getBookings, cancelBooking, getRefundInfo } from '../services/api'
 import { formatCurrencyVnd } from '../utils/formatters'
 import { PageHeader, SearchForm, SkeletonList, EmptyState } from '../ui'
 import TicketDetailModal from '../components/TicketDetailModal'
+import MultiLegTicketDetailModal from '../components/MultiLegTicketDetailModal'
 import ReviewSection from '../components/ReviewSection'
 
 const statusConfig = {
@@ -157,6 +158,7 @@ export default function Bookings() {
 
   const renderActions = (b) => {
     const item = bookingItem(b)
+    const isMultiLeg = (b.segments?.length || 0) > 0
     return (
       <div className="flex flex-wrap items-center justify-end gap-2">
         {/* Đã xác nhận + qua giờ khởi hành → chuyển sang nút đánh giá */}
@@ -176,7 +178,7 @@ export default function Bookings() {
             <RotateCcw className="w-3.5 h-3.5" /> Hủy đặt chỗ
           </button>
         )}
-        {item && (
+        {(item || isMultiLeg) && (
           <button
             onClick={() => setDetailBooking(b)}
             className="flex items-center gap-1.5 text-xs font-semibold text-primary-500 bg-primary-500/10 border border-primary-500/20 px-3.5 py-2 rounded-xl hover:bg-primary-500/20 transition-colors"
@@ -437,13 +439,20 @@ export default function Bookings() {
 
       {/* Modal chi tiết vé (chính sách hoàn & đổi khách đã xem khi đặt) */}
       <AnimatePresence>
-        {detailBooking && bookingItem(detailBooking) && (
+        {detailBooking && (bookingItem(detailBooking) ? (
           <TicketDetailModal
+            key={`single-${detailBooking.id}`}
             item={bookingItem(detailBooking)}
             type={bookingType(detailBooking)}
             onClose={() => setDetailBooking(null)}
           />
-        )}
+        ) : (
+          <MultiLegTicketDetailModal
+            key={`multi-${detailBooking.id}`}
+            booking={detailBooking}
+            onClose={() => setDetailBooking(null)}
+          />
+        ))}
       </AnimatePresence>
     </motion.div>
   )

@@ -4,10 +4,10 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   Route as RouteIcon, Plane, Train, Bus, MapPin, CalendarDays,
   DollarSign, TrendingUp, TrendingDown, Lightbulb, Bell, BellOff, Plus,
-  Trash2, Target, ArrowRight, AlertCircle, Check, Loader, Ticket,
+  Trash2, Target, ArrowRight, AlertCircle, Check, Loader, Ticket, Clock,
 } from 'lucide-react'
 import LocationInput from '../components/LocationInput'
-import { getOptimalRoute, getOptimalRoundTrip, getPriceAlerts, createPriceAlert, deletePriceAlert, togglePriceAlert, checkPriceAlerts } from '../services/api'
+import { getOptimalRoute, getOptimalRoundTrip, getPriceAlerts, createPriceAlert, deletePriceAlert, togglePriceAlert, checkPriceAlerts, getCurrentPrices } from '../services/api'
 import useRefetchOnTabVisible from '../hooks/useRefetchOnTabVisible'
 import { formatCurrencyVnd } from '../utils/formatters'
 import { useUser } from '@clerk/clerk-react'
@@ -325,10 +325,30 @@ function AlertsTab() {
   const [submitting, setSubmitting] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ routeFrom: '', routeTo: '', targetPrice: '' })
+  // Giá vé hiện tại của tuyến đang chọn — giúp khách chọn mức giá mục tiêu hợp lý
+  const [routePricing, setRoutePricing] = useState(null)
+  const [pricingLoading, setPricingLoading] = useState(false)
 
   const stored = (() => { try { return JSON.parse(sessionStorage.getItem('user')) } catch { return null } })()
   const email = stored?.email || clerkUser?.primaryEmailAddress?.emailAddress || ''
   const isAuthed = !!email
+
+  useEffect(() => {
+    if (!showForm || !form.routeFrom || !form.routeTo) { setRoutePricing(null); return }
+    let cancelled = false
+    setPricingLoading(true)
+    getCurrentPrices({ from: form.routeFrom, to: form.routeTo })
+      .then(res => { if (!cancelled) setRoutePricing(res.data) })
+      .catch(() => { if (!cancelled) setRoutePricing(null) })
+      .finally(() => { if (!cancelled) setPricingLoading(false) })
+    return () => { cancelled = true }
+  }, [showForm, form.routeFrom, form.routeTo])
+
+  const formatTargetInput = (v) => {
+    const digits = String(v).replace(/\D/g, '').replace(/^0+(?=\d)/, '').slice(0, 12)
+    return digits ? Number(digits).toLocaleString('vi-VN') : ''
+  }
+  const targetValue = Number(form.targetPrice.replace(/\D/g, '')) || 0
 
   const loadAlerts = useCallback(async () => {
     if (!email) { setLoading(false); return }
@@ -349,10 +369,10 @@ function AlertsTab() {
 
   const handleCreate = async (e) => {
     e.preventDefault()
-    if (!form.routeFrom || !form.routeTo || !form.targetPrice) return
+    if (!form.routeFrom || !form.routeTo || !targetValue) return
     setSubmitting(true)
     try {
-      await createPriceAlert({ email, routeFrom: form.routeFrom, routeTo: form.routeTo, targetPrice: Number(form.targetPrice) })
+      await createPriceAlert({ email, routeFrom: form.routeFrom, routeTo: form.routeTo, targetPrice: targetValue })
       setForm({ routeFrom: '', routeTo: '', targetPrice: '' })
       setShowForm(false)
       loadAlerts()
@@ -360,6 +380,8 @@ function AlertsTab() {
       setError(err.response?.data?.message || 'Tạo cảnh báo thất bại')
     } finally { setSubmitting(false) }
   }
+
+  const fillTarget = (value) => setForm(p => ({ ...p, targetPrice: formatTargetInput(String(Math.max(0, Math.floor(value)))) }))
 
   const handleDelete = async (id) => {
     try {
@@ -389,7 +411,7 @@ function AlertsTab() {
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}>
       <div className="flex items-center justify-between mb-6">
-        <p className="text-sm text-[var(--color-text-secondary)]">Theo dõi giá vé — nhận thông báo khi giá đúng mục tiêu</p>
+        <p className="text-sm text-[var(--color-text-secondary)]">Chọn tuyến và mức giá mong muốn — nhận thông báo ngay khi có vé rẻ hơn</p>
         <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }} onClick={() => setShowForm(s => !s)}
           className="flex items-center gap-2 bg-gradient-to-r from-primary-500 to-primary-600 text-white px-4 h-[42px] rounded-xl font-semibold hover:shadow-lg hover:shadow-primary-500/20 transition-all shadow-md shadow-primary-500/20 text-sm">
           {showForm ? 'Đóng' : <><Plus className="w-4 h-4" /> Thêm mới</>}
@@ -420,50 +442,123 @@ function AlertsTab() {
       <AnimatePresence>
         {showForm && (
           <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden mb-6">
-            <form onSubmit={handleCreate} className="bg-[var(--color-bg-card)] rounded-2xl border border-[var(--color-border)] p-5 md:p-6 space-y-4 shadow-sm">
-              <div className="flex items-center gap-2">
-                <Target className="w-4 h-4 text-primary-500" />
-                <h3 className="font-semibold text-[var(--color-text-primary)] text-sm">Tạo cảnh báo giá mới</h3>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-[var(--color-text-tertiary)] mb-1.5 uppercase tracking-wider">Điểm đi</label>
-                  <select value={form.routeFrom} onChange={e => setForm(p => ({ ...p, routeFrom: e.target.value }))}
-                    className="w-full border border-[var(--color-border)] rounded-xl px-3.5 py-3 text-sm text-[var(--color-text-primary)] focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none bg-[var(--color-bg)]" required>
-                    <option value="">Chọn điểm đi</option>
-                    {[...new Set(alertRoutes.map(r => r.from))].map(code => (
-                      <option key={code} value={code}>{cityName(code)}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-[var(--color-text-tertiary)] mb-1.5 uppercase tracking-wider">Điểm đến</label>
-                  <select value={form.routeTo} onChange={e => setForm(p => ({ ...p, routeTo: e.target.value }))}
-                    className="w-full border border-[var(--color-border)] rounded-xl px-3.5 py-3 text-sm text-[var(--color-text-primary)] focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none bg-[var(--color-bg)]" required>
-                    <option value="">Chọn điểm đến</option>
-                    {[...new Set(alertRoutes.map(r => r.to))].filter(c => c !== form.routeFrom).map(code => (
-                      <option key={code} value={code}>{cityName(code)}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
+            <form onSubmit={handleCreate} className="bg-[var(--color-bg-card)] rounded-2xl border border-[var(--color-border)] p-5 md:p-6 space-y-5 shadow-sm">
+              {/* Mô tả ngắn: cảnh báo giá hoạt động thế nào */}
               <div>
-                <label className="block text-xs font-semibold text-[var(--color-text-tertiary)] mb-1.5 uppercase tracking-wider">Giá mục tiêu (VND)</label>
-                <div className="relative">
-                  <Target className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-text-tertiary)]" />
-                  <input type="number" value={form.targetPrice} onChange={e => setForm(p => ({ ...p, targetPrice: e.target.value }))}
-                    className="w-full border border-[var(--color-border)] rounded-xl pl-10 pr-3.5 py-3 text-sm text-[var(--color-text-primary)] focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none bg-[var(--color-bg)]"
-                    placeholder="Ví dụ: 2000000" min="1" required />
+                <div className="flex items-center gap-2 mb-1.5">
+                  <Target className="w-4 h-4 text-primary-500" />
+                  <h3 className="font-semibold text-[var(--color-text-primary)] text-sm">Tạo cảnh báo giá mới</h3>
+                </div>
+                <p className="text-xs text-[var(--color-text-secondary)] leading-relaxed">
+                  Hệ thống sẽ tự động theo dõi giá vé trên tuyến bạn chọn và gửi thông báo cho bạn ngay khi có vé với giá bằng hoặc thấp hơn mức bạn mong muốn.
+                </p>
+              </div>
+
+              {/* Bước 1 — chọn tuyến */}
+              <div className="space-y-3">
+                <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-primary-500">
+                  <span className="w-5 h-5 rounded-full bg-primary-500 text-white flex items-center justify-center text-[10px] font-black shrink-0">1</span>
+                  Chọn tuyến đường bạn quan tâm
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:pl-7">
+                  <div>
+                    <label className="block text-xs font-semibold text-[var(--color-text-primary)] mb-1.5">Bạn đi từ đâu? <span className="text-[var(--color-danger)]">*</span></label>
+                    <select value={form.routeFrom} onChange={e => setForm(p => ({ ...p, routeFrom: e.target.value, routeTo: '' }))}
+                      className="w-full border border-[var(--color-border)] rounded-xl px-3.5 py-3 text-sm text-[var(--color-text-primary)] focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none bg-[var(--color-bg)]" required>
+                      <option value="">— Chọn thành phố đi —</option>
+                      {[...new Set(alertRoutes.map(r => r.from))].map(code => (
+                        <option key={code} value={code}>{cityName(code)} ({code})</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-[var(--color-text-primary)] mb-1.5">Bạn muốn đến đâu? <span className="text-[var(--color-danger)]">*</span></label>
+                    <select value={form.routeTo} onChange={e => setForm(p => ({ ...p, routeTo: e.target.value }))}
+                      disabled={!form.routeFrom}
+                      className="w-full border border-[var(--color-border)] rounded-xl px-3.5 py-3 text-sm text-[var(--color-text-primary)] focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none bg-[var(--color-bg)] disabled:opacity-50" required>
+                      <option value="">{form.routeFrom ? '— Chọn thành phố đến —' : 'Hãy chọn điểm đi trước'}</option>
+                      {[...new Set(alertRoutes.map(r => r.to))].filter(c => c !== form.routeFrom).map(code => (
+                        <option key={code} value={code}>{cityName(code)} ({code})</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <p className="text-[11px] text-[var(--color-text-tertiary)] md:pl-7">Hiện hỗ trợ các tuyến nội địa phổ biến: Hà Nội, TP. HCM, Đà Nẵng, Nha Trang, Phú Quốc.</p>
+              </div>
+
+              {/* Bảng giá hiện tại của tuyến + gợi ý nhanh */}
+              {form.routeFrom && form.routeTo && (
+                pricingLoading ? (
+                  <div className="flex items-center gap-2 text-xs text-[var(--color-text-tertiary)] bg-[var(--color-bg)] px-4 py-3 rounded-xl md:ml-7">
+                    <Loader className="w-3.5 h-3.5 animate-spin" /> Đang tra giá vé hiện tại của tuyến này...
+                  </div>
+                ) : routePricing?.minPrice ? (
+                  <div className="rounded-xl border border-primary-500/20 bg-primary-500/5 p-4 space-y-2.5 md:ml-7">
+                    <p className="text-xs text-[var(--color-text-secondary)] leading-relaxed">
+                      Giá vé <strong className="text-[var(--color-text-primary)]">{cityName(form.routeFrom)} → {cityName(form.routeTo)}</strong> hiện tại:
+                      rẻ nhất <strong className="text-[var(--color-success)]">{formatCurrencyVnd(routePricing.minPrice)}</strong>
+                      {routePricing.avgPrice && <> · trung bình <strong className="text-[var(--color-text-primary)]">{formatCurrencyVnd(routePricing.avgPrice)}</strong></>}
+                      {routePricing.count > 0 && <> ({routePricing.count} chuyến)</>}
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      <button type="button" onClick={() => fillTarget(routePricing.minPrice)}
+                        className="text-[11px] font-semibold px-3 py-1.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-card)] hover:border-primary-500/40 hover:text-primary-500 transition-all">
+                        Chờ giá rẻ nhất hiện tại
+                      </button>
+                      {routePricing.minPrice > 0 && (
+                        <button type="button" onClick={() => fillTarget(Number(routePricing.minPrice) * 0.9)}
+                          className="text-[11px] font-semibold px-3 py-1.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-card)] hover:border-primary-500/40 hover:text-primary-500 transition-all">
+                          Rẻ hơn giá rẻ nhất 10%
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 text-xs text-amber-600 dark:text-amber-400 bg-amber-500/10 px-4 py-3 rounded-xl md:ml-7">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                    Tuyến này hiện chưa có dữ liệu giá — bạn vẫn có thể tạo cảnh báo để nhận thông báo khi có vé.
+                  </div>
+                )
+              )}
+
+              {/* Bước 2 — mức giá mong muốn */}
+              <div className="space-y-3">
+                <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-primary-500">
+                  <span className="w-5 h-5 rounded-full bg-primary-500 text-white flex items-center justify-center text-[10px] font-black shrink-0">2</span>
+                  Chọn mức giá bạn muốn chờ
+                </p>
+                <div className="md:pl-7">
+                  <label className="block text-xs font-semibold text-[var(--color-text-primary)] mb-1.5">Giá mục tiêu <span className="text-[var(--color-danger)]">*</span></label>
+                  <div className="relative">
+                    <DollarSign className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-text-tertiary)]" />
+                    <input type="text" inputMode="numeric" value={form.targetPrice}
+                      onChange={e => setForm(p => ({ ...p, targetPrice: formatTargetInput(e.target.value) }))}
+                      className="w-full border border-[var(--color-border)] rounded-xl pl-10 pr-14 py-3 text-sm font-semibold text-[var(--color-text-primary)] focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none bg-[var(--color-bg)]"
+                      placeholder="Ví dụ: 1.500.000" required />
+                    <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-[var(--color-text-tertiary)]">VNĐ</span>
+                  </div>
+                  <p className="text-[11px] text-[var(--color-text-tertiary)] mt-1.5 leading-relaxed">
+                    Bạn chỉ nhận thông báo khi giá vé giảm xuống <strong>bằng hoặc thấp hơn</strong> mức này. Gợi ý: đặt thấp hơn giá hiện tại một chút để cảnh báo thực sự hữu ích.
+                  </p>
                 </div>
               </div>
-              <div className="flex items-center gap-2 text-xs text-[var(--color-text-tertiary)] bg-primary-500/5 px-3.5 py-2.5 rounded-xl">
-                <Bell className="w-3.5 h-3.5 text-primary-500" />
-                Bạn sẽ nhận được thông báo qua email khi giá vé giảm xuống mức mục tiêu
-              </div>
+
+              {/* Xem trước nội dung cảnh báo */}
+              {form.routeFrom && form.routeTo && targetValue > 0 && (
+                <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
+                  className="flex items-start gap-2.5 text-xs text-[var(--color-text-primary)] bg-emerald-500/5 border border-emerald-500/20 px-4 py-3 rounded-xl md:ml-7">
+                  <Bell className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+                  <span className="leading-relaxed">
+                    Tóm tắt: thông báo cho tôi khi có vé <strong>{cityName(form.routeFrom)} → {cityName(form.routeTo)}</strong> với giá{' '}
+                    <strong className="text-emerald-500">≤ {formatCurrencyVnd(targetValue)}</strong>.
+                  </span>
+                </motion.div>
+              )}
+
               <motion.button whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.98 }} type="submit"
-                className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-primary-500 to-primary-600 text-white px-6 h-[42px] rounded-xl font-semibold hover:shadow-lg hover:shadow-primary-500/20 transition-all shadow-md shadow-primary-500/20"
-                disabled={submitting}>
-                {submitting ? <><Loader className="w-4 h-4 animate-spin" /> Đang tạo...</> : 'Tạo cảnh báo'}
+                className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-primary-500 to-primary-600 text-white px-6 h-[42px] rounded-xl font-semibold hover:shadow-lg hover:shadow-primary-500/20 transition-all shadow-md shadow-primary-500/20 disabled:opacity-50 disabled:pointer-events-none"
+                disabled={submitting || !form.routeFrom || !form.routeTo || !targetValue}>
+                {submitting ? <><Loader className="w-4 h-4 animate-spin" /> Đang tạo...</> : <><Bell className="w-4 h-4" /> Tạo cảnh báo giá</>}
               </motion.button>
             </form>
           </motion.div>
@@ -495,52 +590,90 @@ function AlertsTab() {
         </motion.div>
       ) : (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-3">
-          {alerts.map((alert) => (
-            <motion.div key={alert.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}
-              className="bg-[var(--color-bg-card)] rounded-2xl border border-[var(--color-border)] px-5 py-4 hover:shadow-md transition-all">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex items-start gap-4 min-w-0">
-                  <div className={`w-12 h-12 rounded-xl shrink-0 flex items-center justify-center ${
-                    alert.notifiedAt
-                      ? 'bg-[var(--color-success)]/10 text-[var(--color-success)]'
-                      : alert.isActive
-                        ? 'bg-primary-500/10 text-primary-500'
-                        : 'bg-[var(--color-bg)] text-[var(--color-text-tertiary)]'
-                  }`}>
-                    {alert.notifiedAt ? <Check className="w-5 h-5" /> : alert.isActive ? <Bell className="w-5 h-5" /> : <BellOff className="w-5 h-5" />}
-                  </div>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-semibold text-[var(--color-text-primary)] text-sm">{cityName(alert.routeFrom)}</span>
-                      <ArrowRight className="w-3 h-3 text-[var(--color-text-tertiary)]" />
-                      <span className="font-semibold text-[var(--color-text-primary)] text-sm">{cityName(alert.routeTo)}</span>
+          {alerts.map((alert) => {
+            const reached = alert.currentPrice != null && Number(alert.currentPrice) <= Number(alert.targetPrice)
+            const delta = alert.currentPrice != null && Number(alert.targetPrice) > 0
+              ? ((Number(alert.currentPrice) - Number(alert.targetPrice)) / Number(alert.targetPrice)) * 100 : null
+            return (
+              <motion.div key={alert.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}
+                className="bg-[var(--color-bg-card)] rounded-2xl border border-[var(--color-border)] px-5 py-4 hover:shadow-md transition-all">
+                <div className="flex flex-col md:flex-row md:items-center gap-4">
+                  {/* Icon + tuyến + trạng thái */}
+                  <div className="flex items-start gap-3 flex-1 min-w-0">
+                    <div className={`w-11 h-11 rounded-xl shrink-0 flex items-center justify-center ${
+                      alert.notifiedAt
+                        ? 'bg-[var(--color-success)]/10 text-[var(--color-success)]'
+                        : alert.isActive
+                          ? 'bg-primary-500/10 text-primary-500'
+                          : 'bg-[var(--color-bg)] text-[var(--color-text-tertiary)]'
+                    }`}>
+                      {alert.notifiedAt ? <Check className="w-5 h-5" /> : alert.isActive ? <Bell className="w-5 h-5" /> : <BellOff className="w-5 h-5" />}
                     </div>
-                    <div className="flex items-center gap-3 mt-1.5 flex-wrap">
-                      <span className="text-xs text-[var(--color-text-tertiary)]">Mục tiêu: <strong className="text-primary-500">{formatCurrencyVnd(alert.targetPrice)}</strong></span>
-                      {alert.currentPrice && (
-                        <span className="text-xs text-[var(--color-text-tertiary)]">Hiện tại: <strong className={alert.currentPrice <= alert.targetPrice ? 'text-[var(--color-success)]' : 'text-[var(--color-text-primary)]'}>{formatCurrencyVnd(alert.currentPrice)}</strong></span>
-                      )}
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-semibold text-[var(--color-text-primary)] text-sm">
+                          {cityName(alert.routeFrom)} → {cityName(alert.routeTo)}
+                        </p>
+                        {!alert.notifiedAt && (
+                          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${alert.isActive ? 'bg-[var(--color-success)]/10 text-[var(--color-success)]' : 'bg-[var(--color-border)]/40 text-[var(--color-text-tertiary)]'}`}>
+                            {alert.isActive ? 'Đang bật' : 'Tạm tắt'}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-[var(--color-text-tertiary)] mt-1 flex items-center gap-3 flex-wrap">
+                        <span className="inline-flex items-center gap-1"><Clock className="w-3 h-3" />Tạo lúc {new Date(alert.createdAt).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })}</span>
+                        <span>Thông báo khi giá ≤ <strong className="text-primary-500">{formatCurrencyVnd(alert.targetPrice)}</strong></span>
+                      </p>
                       {alert.notifiedAt && (
-                        <span className="text-[11px] font-semibold text-white bg-[var(--color-success)] px-2 py-0.5 rounded-lg">Đã kích hoạt</span>
+                        <p className="text-xs text-[var(--color-success)] mt-1 flex items-center gap-1.5">
+                          <Check className="w-3.5 h-3.5" />
+                          Giá đã đạt mục tiêu lúc {new Date(alert.notifiedAt).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })}
+                        </p>
                       )}
                     </div>
                   </div>
-                </div>
-                <div className="flex items-center gap-1 shrink-0">
-                  {!alert.notifiedAt && (
-                    <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => handleToggle(alert.id)}
-                      className="p-2 rounded-xl text-[var(--color-text-tertiary)] hover:text-primary-400 hover:bg-primary-500/10 transition-colors" title={alert.isActive ? 'Tắt cảnh báo' : 'Bật cảnh báo'}>
-                      {alert.isActive ? <BellOff className="w-4 h-4" /> : <Bell className="w-4 h-4" />}
+
+                  {/* Thống kê: mục tiêu / hiện tại / chênh lệch — giống trang Hồ sơ */}
+                  <div className="grid grid-cols-3 gap-2 md:gap-3 shrink-0 md:w-auto md:min-w-[250px]">
+                    <div className="text-left md:text-right">
+                      <p className="text-[10px] uppercase font-semibold text-[var(--color-text-tertiary)] flex items-center gap-1 md:justify-end"><Target className="w-3 h-3" />Mục tiêu</p>
+                      <p className="text-sm font-bold text-primary-500">{formatCurrencyVnd(alert.targetPrice)}</p>
+                    </div>
+                    <div className="text-left md:text-right">
+                      <p className="text-[10px] uppercase font-semibold text-[var(--color-text-tertiary)]">Giá hiện tại</p>
+                      {alert.currentPrice != null ? (
+                        <p className={`text-sm font-bold ${reached ? 'text-[var(--color-success)]' : 'text-[var(--color-text-primary)]'}`}>{formatCurrencyVnd(alert.currentPrice)}</p>
+                      ) : (
+                        <p className="text-sm text-[var(--color-text-tertiary)]">—</p>
+                      )}
+                    </div>
+                    <div className="text-left md:text-right">
+                      <p className="text-[10px] uppercase font-semibold text-[var(--color-text-tertiary)]">Chênh lệch</p>
+                      {delta != null ? (
+                        <p className={`text-sm font-bold ${reached ? 'text-[var(--color-success)]' : 'text-[var(--color-danger)]'}`}>
+                          {reached ? 'Đạt mục tiêu' : `+${delta.toFixed(1)}%`}
+                        </p>
+                      ) : <p className="text-sm text-[var(--color-text-tertiary)]">—</p>}
+                    </div>
+                  </div>
+
+                  {/* Hành động */}
+                  <div className="flex items-center gap-1 shrink-0 self-end md:self-center">
+                    {!alert.notifiedAt && (
+                      <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => handleToggle(alert.id)}
+                        className="p-2 rounded-xl text-[var(--color-text-tertiary)] hover:text-primary-400 hover:bg-primary-500/10 transition-colors" title={alert.isActive ? 'Tạm dừng theo dõi tuyến này' : 'Tiếp tục theo dõi tuyến này'}>
+                        {alert.isActive ? <BellOff className="w-4 h-4" /> : <Bell className="w-4 h-4" />}
+                      </motion.button>
+                    )}
+                    <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => handleDelete(alert.id)}
+                      className="p-2 rounded-xl text-[var(--color-text-tertiary)] hover:text-[var(--color-danger)] hover:bg-[var(--color-danger)]/10 transition-colors" title="Xóa cảnh báo">
+                      <Trash2 className="w-4 h-4" />
                     </motion.button>
-                  )}
-                  <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => handleDelete(alert.id)}
-                    className="p-2 rounded-xl text-[var(--color-text-tertiary)] hover:text-[var(--color-danger)] hover:bg-[var(--color-danger)]/10 transition-colors" title="Xóa">
-                    <Trash2 className="w-4 h-4" />
-                  </motion.button>
+                  </div>
                 </div>
-              </div>
-            </motion.div>
-          ))}
+              </motion.div>
+            )
+          })}
         </motion.div>
       )}
 

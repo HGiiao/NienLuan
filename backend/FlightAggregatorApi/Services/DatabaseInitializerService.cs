@@ -102,6 +102,9 @@ CREATE TABLE BookingPassengers (Id BIGINT PRIMARY KEY IDENTITY(1,1), BookingId B
 CREATE INDEX IX_BookingPassengers_BookingId ON BookingPassengers (BookingId);
 END
 
+IF COL_LENGTH('BookingPassengers', 'Email') IS NULL ALTER TABLE BookingPassengers ADD Email NVARCHAR(255) NULL;
+IF COL_LENGTH('BookingPassengers', 'Phone') IS NULL ALTER TABLE BookingPassengers ADD Phone NVARCHAR(20) NULL;
+
 IF OBJECT_ID('LuckyWheelSpins', 'U') IS NULL
 BEGIN
 CREATE TABLE LuckyWheelSpins (Id BIGINT PRIMARY KEY IDENTITY(1,1), Email NVARCHAR(255) NOT NULL, Won BIT NOT NULL DEFAULT 0, Code NVARCHAR(50) NULL, CreatedAt DATETIME2 NOT NULL DEFAULT GETUTCDATE());

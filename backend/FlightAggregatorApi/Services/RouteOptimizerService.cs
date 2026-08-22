@@ -36,8 +36,11 @@ public class RouteOptimizerService
             return cached!;
         }
 
+        var now = DateTime.Now;
+
         var flights = await _db.Flights.AsNoTracking()
             .Where(f => f.FlightDate >= startDate && f.FlightDate <= endDate
+                && f.DepartureTime > now
                 && ((f.DepartureLocation == origin && f.ArrivalLocation == destination)
                  || (f.DepartureLocation == origin && Hubs.Contains(f.ArrivalLocation))
                  || (Hubs.Contains(f.DepartureLocation) && f.ArrivalLocation == destination)
@@ -46,6 +49,7 @@ public class RouteOptimizerService
 
         var trains = await _db.Trains.AsNoTracking()
             .Where(t => t.TrainDate >= startDate && t.TrainDate <= endDate
+                && t.DepartureTime > now
                 && ((t.DepartureLocation == origin && t.ArrivalLocation == destination)
                  || (t.DepartureLocation == origin && Hubs.Contains(t.ArrivalLocation))
                  || (Hubs.Contains(t.DepartureLocation) && t.ArrivalLocation == destination)
@@ -54,6 +58,7 @@ public class RouteOptimizerService
 
         var buses = await _db.Buses.AsNoTracking()
             .Where(b => b.BusDate >= startDate && b.BusDate <= endDate
+                && b.DepartureTime > now
                 && ((b.DepartureLocation == origin && b.ArrivalLocation == destination)
                  || (b.DepartureLocation == origin && Hubs.Contains(b.ArrivalLocation))
                  || (Hubs.Contains(b.DepartureLocation) && b.ArrivalLocation == destination)

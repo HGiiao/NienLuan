@@ -195,6 +195,53 @@ public class BookingsController : ControllerBase
         if (request.PassengerDetails is { Count: > 0 } && request.PassengerDetails.Any(p => string.IsNullOrWhiteSpace(p.FullName)))
             return BadRequest(new { message = "Vui lòng nhập họ tên cho tất cả hành khách" });
 
+        // Bắt buộc nhập đủ thông tin từng hành khách (email, SĐT, CCCD...)
+        if (request.PassengerDetails is { Count: > 0 })
+        {
+            for (var i = 0; i < request.PassengerDetails.Count; i++)
+            {
+                var p = request.PassengerDetails[i];
+                var label = i == 0 ? "người đặt vé" : $"hành khách {i + 1}";
+                if (string.IsNullOrWhiteSpace(p.Email))
+                    return BadRequest(new { message = $"Vui lòng nhập email cho {label}" });
+                if (string.IsNullOrWhiteSpace(p.Phone))
+                    return BadRequest(new { message = $"Vui lòng nhập số điện thoại cho {label}" });
+                if (string.IsNullOrWhiteSpace(p.IdNumber))
+                    return BadRequest(new { message = $"Vui lòng nhập số CMND/CCCD/Hộ chiếu cho {label}" });
+                if (p.DateOfBirth == null)
+                    return BadRequest(new { message = $"Vui lòng chọn ngày sinh cho {label}" });
+            }
+
+            // Chặn trùng email / SĐT / CCCD giữa các hành khách và với thông tin người đặt vé
+            string Norm(string? v) => (v ?? "").Trim().Replace(" ", "").ToUpperInvariant();
+            var details = request.PassengerDetails;
+            var dupFields = new (Func<CreatePassengerRequest, string?> Get, string NormValue, string Label)[]
+            {
+                (p => p.Email, Norm(request.Email), "Email"),
+                (p => p.Phone, Norm(request.Phone), "Số điện thoại"),
+                (p => p.IdNumber, "", "CMND/CCCD/Hộ chiếu"),
+            };
+            foreach (var (get, bookerNorm, label) in dupFields)
+            {
+                var seen = new Dictionary<string, int>();
+                foreach (var (p, i) in details.Select((p, i) => (p, i)))
+                {
+                    var key = Norm(get(p));
+                    if (key.Length == 0) continue;
+                    if (i > 0)
+                    {
+                        // Trùng giữa các hành khách
+                        if (seen.TryGetValue(key, out var firstIdx))
+                            return BadRequest(new { message = $"{label} của hành khách {i + 1} bị trùng với {(firstIdx == 0 ? "người đặt vé" : $"hành khách {firstIdx + 1}")}. Vui lòng kiểm tra lại." });
+                        // Trùng với email/SĐT của người đặt vé
+                        if (bookerNorm.Length > 0 && key == bookerNorm)
+                            return BadRequest(new { message = $"{label} của hành khách {i + 1} bị trùng với người đặt vé. Vui lòng kiểm tra lại." });
+                    }
+                    seen[key] = i;
+                }
+            }
+        }
+
         // Chặn đặt trùng: cùng email + cùng chuyến bay/tàu/xe (không tính vé đã hủy)
         var bookingEmailKey = request.Email?.Trim().ToUpperInvariant() ?? "";
         if (bookingEmailKey.Length > 0)
@@ -408,6 +455,8 @@ public class BookingsController : ControllerBase
                 Gender = p.Gender,
                 Nationality = p.Nationality,
                 IdNumber = p.IdNumber,
+                Email = p.Email,
+                Phone = p.Phone,
             }).ToList();
         }
 
@@ -434,6 +483,86 @@ public class BookingsController : ControllerBase
             };
             _db.BookingInsurances.Add(insurance);
             await _db.SaveChangesAsync();
+        }
+
+        // Thông báo đặt vé thành công cho khách hàng
+        var customerEmail = booking.User?.Email ?? request.Email;
+        var customerName = booking.User?.FullName ?? request.FullName;
+        if (!string.IsNullOrWhiteSpace(customerEmail))
+        {
+            var routeSummary = isMultiLeg
+                ? string.Join(" → ", segments.Select(s => s.DepartureLocation))
+                  + " → " + segments.Last().ArrivalLocation
+                : (flight != null
+                    ? $"{flight.DepartureLocation} → {flight.ArrivalLocation}"
+                    : train != null
+                        ? $"{train.DepartureLocation} → {train.ArrivalLocation}"
+                        : bus != null
+                            ? $"{bus.DepartureLocation} → {bus.ArrivalLocation}"
+                            : "Chuyến");
+
+            var transportLabel = isMultiLeg
+                ? $"Lộ trình {segments.Count} chặng"
+                : flight != null
+                    ? $"Chuyến bay {flight.AirlineCode}"
+                    : train != null
+                        ? $"Tàu {train.TrainCode}"
+                        : bus != null
+                            ? $"Xe {bus.BusCode}"
+                            : "Đặt chỗ";
+
+            _db.Notifications.Add(new Notification
+            {
+                Email = customerEmail,
+                Type = "booking_success",
+                Title = $"Đặt vé thành công #{booking.Id}",
+                Message = $"Xin chào {customerName}, bạn đã đặt {transportLabel} ({routeSummary}) thành công. Mã đặt chỗ: #{booking.Id}. Tổng tiền: {totalPrice:N0}đ.",
+                Link = "/bookings",
+                CreatedAt = DateTime.UtcNow,
+            });
+            await _db.SaveChangesAsync();
+        }
+
+        // Gửi email xác nhận đặt chỗ
+        if (!string.IsNullOrWhiteSpace(customerEmail) && !string.IsNullOrWhiteSpace(customerName))
+        {
+            var depTime = flight?.DepartureTime ?? train?.DepartureTime ?? bus?.DepartureTime ?? segments.FirstOrDefault()?.DepartureTime ?? DateTime.UtcNow;
+            var arrTime = flight?.ArrivalTime ?? train?.ArrivalTime ?? bus?.ArrivalTime ?? segments.LastOrDefault()?.ArrivalTime ?? DateTime.UtcNow;
+            var fromCode = flight?.DepartureLocation ?? train?.DepartureLocation ?? bus?.DepartureLocation ?? segments.FirstOrDefault()?.DepartureLocation ?? "";
+            var toCode = flight?.ArrivalLocation ?? train?.ArrivalLocation ?? bus?.ArrivalLocation ?? segments.LastOrDefault()?.ArrivalLocation ?? "";
+            var transportType = flight != null ? "flight" : train != null ? "train" : "bus";
+            var transportCode = flight != null ? flight.AirlineCode : train != null ? train.TrainCode : bus != null ? bus.BusCode : "";
+            var transportName = flight != null ? flight.AirlineName : train != null ? train.TrainName : bus != null ? bus.BusCompany : "";
+            var itemPrice = flight?.Price ?? train?.Price ?? bus?.Price ?? segments.FirstOrDefault()?.Price ?? 0m;
+            var paymentLabel = booking.PaymentMethod switch
+            {
+                "credit_card" => "Thẻ tín dụng",
+                "e_wallet" => "Ví điện tử",
+                "bank_transfer" => "Chuyển khoản",
+                _ => booking.PaymentMethod ?? "Test (sandbox)"
+            };
+
+            _ = _email.SendBookingConfirmationAsync(
+                toEmail: customerEmail,
+                customerName: customerName,
+                customerPhone: booking.User?.Phone ?? request.Phone ?? "",
+                customerAddress: booking.Address ?? "",
+                type: isMultiLeg ? "multi" : transportType,
+                code: transportCode,
+                airlineName: transportType == "flight" ? transportName : null,
+                trainName: transportType == "train" ? transportName : null,
+                busCompany: transportType == "bus" ? transportName : null,
+                fromCode: fromCode,
+                toCode: toCode,
+                departureTime: depTime,
+                arrivalTime: arrTime,
+                itemPrice: itemPrice,
+                passengers: booking.Passengers,
+                totalPrice: totalPrice,
+                paymentMethod: paymentLabel,
+                transactionId: booking.TransactionId ?? booking.Id.ToString(),
+                bookingId: booking.Id
+            );
         }
 
         return CreatedAtAction(nameof(GetBooking), new { id = booking.Id }, booking);
@@ -778,6 +907,8 @@ public class CreatePassengerRequest
     public string? Gender { get; set; }
     public string? Nationality { get; set; }
     public string? IdNumber { get; set; }
+    public string? Email { get; set; }
+    public string? Phone { get; set; }
 }
 
 public class PayRequest
