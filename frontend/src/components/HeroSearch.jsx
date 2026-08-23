@@ -6,6 +6,7 @@ import {
   Calendar, MapPin,
 } from 'lucide-react'
 import LocationInput from './LocationInput'
+import { saveLastSearch } from '../utils/searchHistory'
 
 const popularRoutes = [
   { from: 'HAN', to: 'SGN', fromName: 'Hà Nội', toName: 'TP. Hồ Chí Minh' },
@@ -61,21 +62,23 @@ export default function HeroSearch() {
   const [error, setError] = useState('')
   const navigate = useNavigate()
 
+  const buildNav = (fromCity, toCity) => {
+    saveLastSearch({ from: fromCity, to: toCity, date, tripType, returnDate })
+    const prefix = mode === 'flights' ? '/flights' : mode === 'buses' ? '/buses' : '/trains'
+    const params = new URLSearchParams({ from: fromCity, to: toCity, date, tripType })
+    if (returnDate) params.set('returnDate', returnDate)
+    return `${prefix}?${params}`
+  }
+
   const handleSearch = () => {
     if (!from || !to || !date) return
-    const prefix = mode === 'flights' ? '/flights' : mode === 'buses' ? '/buses' : '/trains'
-    const params = new URLSearchParams({ from, to, date, tripType })
-    if (returnDate) params.set('returnDate', returnDate)
-    navigate(`${prefix}?${params}`)
+    navigate(buildNav(from, to))
   }
 
   const handleSwap = () => { setFrom(to); setTo(from) }
 
   const handleQuickRoute = (r) => {
-    const prefix = mode === 'flights' ? '/flights' : mode === 'buses' ? '/buses' : '/trains'
-    const params = new URLSearchParams({ from: r.from, to: r.to, date, tripType })
-    if (returnDate) params.set('returnDate', returnDate)
-    navigate(`${prefix}?${params}`)
+    navigate(buildNav(r.from, r.to))
   }
 
   return (

@@ -207,6 +207,120 @@ public class PricesController : ControllerBase
         return flights.Where(f => f.AirlineCode == cheapestAirline).ToList();
     }
 
+    /// <summary>
+    /// So sánh ngày lân cận (Flexible Dates): giá thấp nhất + số chuyến theo từng ngày
+    /// trong khoảng [date - days .. date + days], tách riêng máy bay / tàu hỏa / xe khách.
+    /// Ngày nào không có chuyến thì trả null để frontend tô xám.
+    /// </summary>
+    [HttpGet("compare/flexible")]
+    public async Task<IActionResult> CompareFlexible(
+        [FromQuery] string from,
+        [FromQuery] string to,
+        [FromQuery] DateOnly? date,
+        [FromQuery] int days = 3)
+    {
+        if (string.IsNullOrWhiteSpace(from) || string.IsNullOrWhiteSpace(to))
+            return BadRequest(new { message = "Thiếu điểm đi/đến" });
+
+        days = days switch { <= 1 => 1, >= 7 => 7, _ => days };
+        var f = from.Trim().ToUpperInvariant();
+        var t = to.Trim().ToUpperInvariant();
+        var baseDate = date ?? DateOnly.FromDateTime(DateTime.UtcNow);
+        var start = baseDate.AddDays(-days);
+        var end = baseDate.AddDays(days);
+
+        var flightMins = await _db.Flights
+            .AsNoTracking()
+            .Where(x => x.DepartureLocation == f && x.ArrivalLocation == t && x.FlightDate >= start && x.FlightDate <= end)
+            .GroupBy(x => x.FlightDate)
+            .Select(g => new { Date = g.Key, MinPrice = g.Min(x => x.Price), Count = g.Count() })
+            .ToDictionaryAsync(x => x.Date);
+
+        var trainMins = await _db.Trains
+            .AsNoTracking()
+            .Where(x => x.DepartureLocation == f && x.ArrivalLocation == t && x.TrainDate >= start && x.TrainDate <= end)
+            .GroupBy(x => x.TrainDate)
+            .Select(g => new { Date = g.Key, MinPrice = g.Min(x => x.Price), Count = g.Count() })
+            .ToDictionaryAsync(x => x.Date);
+
+        var busMins = await _db.Buses
+            .AsNoTracking()
+            .Where(x => x.DepartureLocation == f && x.ArrivalLocation == t && x.BusDate >= start && x.BusDate <= end)
+            .GroupBy(x => x.BusDate)
+            .Select(g => new { Date = g.Key, MinPrice = g.Min(x => x.Price), Count = g.Count() })
+            .ToDictionaryAsync(x => x.Date);
+
+        var results = Enumerable.Range(0, (end.DayNumber - start.DayNumber) + 1)
+            .Select(offset =>
+            {
+                var d = start.AddDays(offset);
+                flightMins.TryGetValue(d, out var fl);
+                trainMins.TryGetValue(d, out var tr);
+                busMins.TryGetValue(d, out var bu);
+                return new
+                {
+                    date = d,
+                    flights = fl == null ? null : new { minPrice = fl.MinPrice, count = fl.Count },
+                    trains = tr == null ? null : new { minPrice = tr.MinPrice, count = tr.Count },
+                    buses = bu == null ? null : new { minPrice = bu.MinPrice, count = bu.Count },
+                };
+            })
+            .ToList();
+
+        _logger.LogInformation("Compare flexible {F}->{T} around {Date} ±{Days}d", f, t, baseDate, days);
+        return Ok(new { from = f, to = t, baseDate, days, results });
+    }
+
+    /// <summary>
+    /// Điểm đánh giá trung bình theo từng chuyến của tuyến+ngày đang so sánh,
+    /// trả về map {"flight_5": {avg, count}, "train_2": {...}, ...} để frontend
+    /// tra cứu O(1) khi hiển thị ⭐ và tính Best Value.
+    /// </summary>
+    [HttpGet("compare/ratings")]
+    public async Task<IActionResult> CompareRatings(
+        [FromQuery] string from,
+        [FromQuery] string to,
+        [FromQuery] DateOnly? date)
+    {
+        if (string.IsNullOrWhiteSpace(from) || string.IsNullOrWhiteSpace(to))
+            return BadRequest(new { message = "Thiếu điểm đi/đến" });
+
+        var f = from.Trim().ToUpperInvariant();
+        var t = to.Trim().ToUpperInvariant();
+        var dateVal = date ?? DateOnly.FromDateTime(DateTime.UtcNow);
+
+        var flightRatings = await (
+            from r in _db.Reviews.AsNoTracking()
+            join fl in _db.Flights.AsNoTracking() on r.FlightId equals fl.Id
+            where fl.DepartureLocation == f && fl.ArrivalLocation == t && fl.FlightDate == dateVal
+            group r by r.FlightId into g
+            select new { Id = g.Key!.Value, Avg = g.Average(x => (double)x.Rating), Count = g.Count() }
+        ).ToListAsync();
+
+        var trainRatings = await (
+            from r in _db.Reviews.AsNoTracking()
+            join tn in _db.Trains.AsNoTracking() on r.TrainId equals tn.Id
+            where tn.DepartureLocation == f && tn.ArrivalLocation == t && tn.TrainDate == dateVal
+            group r by r.TrainId into g
+            select new { Id = g.Key!.Value, Avg = g.Average(x => (double)x.Rating), Count = g.Count() }
+        ).ToListAsync();
+
+        var busRatings = await (
+            from r in _db.Reviews.AsNoTracking()
+            join b in _db.Buses.AsNoTracking() on r.BusId equals b.Id
+            where b.DepartureLocation == f && b.ArrivalLocation == t && b.BusDate == dateVal
+            group r by r.BusId into g
+            select new { Id = g.Key!.Value, Avg = g.Average(x => (double)x.Rating), Count = g.Count() }
+        ).ToListAsync();
+
+        var map = new Dictionary<string, object>();
+        foreach (var x in flightRatings) map[$"flight_{x.Id}"] = new { avg = Math.Round(x.Avg, 1), count = x.Count };
+        foreach (var x in trainRatings) map[$"train_{x.Id}"] = new { avg = Math.Round(x.Avg, 1), count = x.Count };
+        foreach (var x in busRatings) map[$"bus_{x.Id}"] = new { avg = Math.Round(x.Avg, 1), count = x.Count };
+
+        return Ok(map);
+    }
+
     [HttpGet("predict")]
     public async Task<IActionResult> Predict(
         [FromQuery] string from,

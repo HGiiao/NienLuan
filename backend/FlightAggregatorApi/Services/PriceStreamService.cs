@@ -15,6 +15,11 @@ public class PriceStreamService : BackgroundService
     private static readonly Random _rng = new();
     private static readonly ConcurrentDictionary<long, decimal> _basePrices = new();
 
+    // Thời gian ân hạn: chuyến bay admin vừa tạo/cập nhật giá được giữ nguyên giá
+    // (không tham gia dao động) trong khoảng này để giá hiển thị đúng như admin đặt.
+    private static readonly TimeSpan AdminGracePeriod = TimeSpan.FromMinutes(5);
+    private static readonly ConcurrentDictionary<long, DateTime> _adminSetAt = new();
+
     private static readonly (string From, string To)[] PopularRoutes =
     [
         ("HAN", "SGN"), ("HAN", "DAD"), ("SGN", "DAD"),
@@ -33,12 +38,21 @@ public class PriceStreamService : BackgroundService
     /// Đồng bộ base price khi admin tạo/cập nhật giá chuyến bay. Nếu không gọi,
     /// vòng dao động 30s sẽ ghi đè giá mới bằng base price cũ trong bộ nhớ
     /// → giá admin vừa đặt bị "quay ngược" phía user.
+    /// Giá vừa đặt cũng được miễn dao động trong AdminGracePeriod (5 phút).
     /// Truyền null price để xoá khoá (dùng khi xoá chuyến bay).
     /// </summary>
     public static void UpdateBasePrice(long flightId, decimal? price)
     {
-        if (price.HasValue) _basePrices[flightId] = price.Value;
-        else _basePrices.TryRemove(flightId, out _);
+        if (price.HasValue)
+        {
+            _basePrices[flightId] = price.Value;
+            _adminSetAt[flightId] = DateTime.UtcNow;
+        }
+        else
+        {
+            _basePrices.TryRemove(flightId, out _);
+            _adminSetAt.TryRemove(flightId, out _);
+        }
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -83,6 +97,14 @@ public class PriceStreamService : BackgroundService
 
             foreach (var flight in flights)
             {
+                // Chuyến admin vừa đặt giá → giữ nguyên trong thời gian ân hạn,
+                // hết hạn thì gỡ khoá và quay lại dao động bình thường
+                if (_adminSetAt.TryGetValue(flight.Id, out var adminSetAt))
+                {
+                    if (DateTime.UtcNow - adminSetAt < AdminGracePeriod) continue;
+                    _adminSetAt.TryRemove(flight.Id, out _);
+                }
+
                 if (!_basePrices.ContainsKey(flight.Id))
                 {
                     _basePrices[flight.Id] = flight.Price;

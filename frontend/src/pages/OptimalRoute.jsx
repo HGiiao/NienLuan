@@ -1,15 +1,16 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Route as RouteIcon, Plane, Train, Bus, MapPin, CalendarDays,
-  DollarSign, TrendingUp, TrendingDown, Lightbulb, Bell, BellOff, Plus,
+  DollarSign, TrendingUp, TrendingDown, Lightbulb, Bell, BellOff,
   Trash2, Target, ArrowRight, AlertCircle, Check, Loader, Ticket, Clock,
 } from 'lucide-react'
 import LocationInput from '../components/LocationInput'
-import { getOptimalRoute, getOptimalRoundTrip, getPriceAlerts, createPriceAlert, deletePriceAlert, togglePriceAlert, checkPriceAlerts, getCurrentPrices } from '../services/api'
+import { getOptimalRoute, getOptimalRoundTrip, getPriceAlerts, deletePriceAlert, togglePriceAlert, checkPriceAlerts } from '../services/api'
 import useRefetchOnTabVisible from '../hooks/useRefetchOnTabVisible'
 import { formatCurrencyVnd } from '../utils/formatters'
+import { getLastSearch } from '../utils/searchHistory'
 import { useUser } from '@clerk/clerk-react'
 
 const formatDuration = (minutes) => {
@@ -29,13 +30,6 @@ const popularRoutes = [
   { origin: 'HAN', dest: 'SGN' }, { origin: 'HAN', dest: 'DAD' },
   { origin: 'SGN', dest: 'HAN' }, { origin: 'SGN', dest: 'DAD' },
   { origin: 'HAN', dest: 'CXR' }, { origin: 'DAD', dest: 'SGN' },
-]
-
-const alertRoutes = [
-  { from: 'HAN', to: 'SGN' }, { from: 'SGN', to: 'HAN' },
-  { from: 'HAN', to: 'DAD' }, { from: 'DAD', to: 'HAN' },
-  { from: 'SGN', to: 'DAD' }, { from: 'DAD', to: 'SGN' },
-  { from: 'HAN', to: 'CXR' }, { from: 'SGN', to: 'PQC' },
 ]
 
 const cityNames = {
@@ -322,33 +316,10 @@ function AlertsTab() {
   const [error, setError] = useState('')
   const [checkedResult, setCheckedResult] = useState(null)
   const [checking, setChecking] = useState(false)
-  const [submitting, setSubmitting] = useState(false)
-  const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({ routeFrom: '', routeTo: '', targetPrice: '' })
-  // Giá vé hiện tại của tuyến đang chọn — giúp khách chọn mức giá mục tiêu hợp lý
-  const [routePricing, setRoutePricing] = useState(null)
-  const [pricingLoading, setPricingLoading] = useState(false)
 
   const stored = (() => { try { return JSON.parse(sessionStorage.getItem('user')) } catch { return null } })()
   const email = stored?.email || clerkUser?.primaryEmailAddress?.emailAddress || ''
   const isAuthed = !!email
-
-  useEffect(() => {
-    if (!showForm || !form.routeFrom || !form.routeTo) { setRoutePricing(null); return }
-    let cancelled = false
-    setPricingLoading(true)
-    getCurrentPrices({ from: form.routeFrom, to: form.routeTo })
-      .then(res => { if (!cancelled) setRoutePricing(res.data) })
-      .catch(() => { if (!cancelled) setRoutePricing(null) })
-      .finally(() => { if (!cancelled) setPricingLoading(false) })
-    return () => { cancelled = true }
-  }, [showForm, form.routeFrom, form.routeTo])
-
-  const formatTargetInput = (v) => {
-    const digits = String(v).replace(/\D/g, '').replace(/^0+(?=\d)/, '').slice(0, 12)
-    return digits ? Number(digits).toLocaleString('vi-VN') : ''
-  }
-  const targetValue = Number(form.targetPrice.replace(/\D/g, '')) || 0
 
   const loadAlerts = useCallback(async () => {
     if (!email) { setLoading(false); return }
@@ -366,22 +337,6 @@ function AlertsTab() {
 
   // Reload danh sách cảnh báo khi tab được mở/chuyển tới
   useRefetchOnTabVisible(loadAlerts)
-
-  const handleCreate = async (e) => {
-    e.preventDefault()
-    if (!form.routeFrom || !form.routeTo || !targetValue) return
-    setSubmitting(true)
-    try {
-      await createPriceAlert({ email, routeFrom: form.routeFrom, routeTo: form.routeTo, targetPrice: targetValue })
-      setForm({ routeFrom: '', routeTo: '', targetPrice: '' })
-      setShowForm(false)
-      loadAlerts()
-    } catch (err) {
-      setError(err.response?.data?.message || 'Tạo cảnh báo thất bại')
-    } finally { setSubmitting(false) }
-  }
-
-  const fillTarget = (value) => setForm(p => ({ ...p, targetPrice: formatTargetInput(String(Math.max(0, Math.floor(value)))) }))
 
   const handleDelete = async (id) => {
     try {
@@ -411,11 +366,9 @@ function AlertsTab() {
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}>
       <div className="flex items-center justify-between mb-6">
-        <p className="text-sm text-[var(--color-text-secondary)]">Chọn tuyến và mức giá mong muốn — nhận thông báo ngay khi có vé rẻ hơn</p>
-        <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }} onClick={() => setShowForm(s => !s)}
-          className="flex items-center gap-2 bg-gradient-to-r from-primary-500 to-primary-600 text-white px-4 h-[42px] rounded-xl font-semibold hover:shadow-lg hover:shadow-primary-500/20 transition-all shadow-md shadow-primary-500/20 text-sm">
-          {showForm ? 'Đóng' : <><Plus className="w-4 h-4" /> Thêm mới</>}
-        </motion.button>
+        <p className="text-sm text-[var(--color-text-secondary)]">
+          Các vé bạn bấm <Bell className="w-3.5 h-3.5 inline text-primary-500" /> <span className="font-semibold">Theo dõi</span> ở trang tìm kiếm sẽ hiện tại đây — nhận thông báo ngay khi giá giảm xuống mức mong muốn
+        </p>
       </div>
 
       {error && (
@@ -439,131 +392,6 @@ function AlertsTab() {
         </motion.div>
       )}
 
-      <AnimatePresence>
-        {showForm && (
-          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden mb-6">
-            <form onSubmit={handleCreate} className="bg-[var(--color-bg-card)] rounded-2xl border border-[var(--color-border)] p-5 md:p-6 space-y-5 shadow-sm">
-              {/* Mô tả ngắn: cảnh báo giá hoạt động thế nào */}
-              <div>
-                <div className="flex items-center gap-2 mb-1.5">
-                  <Target className="w-4 h-4 text-primary-500" />
-                  <h3 className="font-semibold text-[var(--color-text-primary)] text-sm">Tạo cảnh báo giá mới</h3>
-                </div>
-                <p className="text-xs text-[var(--color-text-secondary)] leading-relaxed">
-                  Hệ thống sẽ tự động theo dõi giá vé trên tuyến bạn chọn và gửi thông báo cho bạn ngay khi có vé với giá bằng hoặc thấp hơn mức bạn mong muốn.
-                </p>
-              </div>
-
-              {/* Bước 1 — chọn tuyến */}
-              <div className="space-y-3">
-                <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-primary-500">
-                  <span className="w-5 h-5 rounded-full bg-primary-500 text-white flex items-center justify-center text-[10px] font-black shrink-0">1</span>
-                  Chọn tuyến đường bạn quan tâm
-                </p>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:pl-7">
-                  <div>
-                    <label className="block text-xs font-semibold text-[var(--color-text-primary)] mb-1.5">Bạn đi từ đâu? <span className="text-[var(--color-danger)]">*</span></label>
-                    <select value={form.routeFrom} onChange={e => setForm(p => ({ ...p, routeFrom: e.target.value, routeTo: '' }))}
-                      className="w-full border border-[var(--color-border)] rounded-xl px-3.5 py-3 text-sm text-[var(--color-text-primary)] focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none bg-[var(--color-bg)]" required>
-                      <option value="">— Chọn thành phố đi —</option>
-                      {[...new Set(alertRoutes.map(r => r.from))].map(code => (
-                        <option key={code} value={code}>{cityName(code)} ({code})</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-[var(--color-text-primary)] mb-1.5">Bạn muốn đến đâu? <span className="text-[var(--color-danger)]">*</span></label>
-                    <select value={form.routeTo} onChange={e => setForm(p => ({ ...p, routeTo: e.target.value }))}
-                      disabled={!form.routeFrom}
-                      className="w-full border border-[var(--color-border)] rounded-xl px-3.5 py-3 text-sm text-[var(--color-text-primary)] focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none bg-[var(--color-bg)] disabled:opacity-50" required>
-                      <option value="">{form.routeFrom ? '— Chọn thành phố đến —' : 'Hãy chọn điểm đi trước'}</option>
-                      {[...new Set(alertRoutes.map(r => r.to))].filter(c => c !== form.routeFrom).map(code => (
-                        <option key={code} value={code}>{cityName(code)} ({code})</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-                <p className="text-[11px] text-[var(--color-text-tertiary)] md:pl-7">Hiện hỗ trợ các tuyến nội địa phổ biến: Hà Nội, TP. HCM, Đà Nẵng, Nha Trang, Phú Quốc.</p>
-              </div>
-
-              {/* Bảng giá hiện tại của tuyến + gợi ý nhanh */}
-              {form.routeFrom && form.routeTo && (
-                pricingLoading ? (
-                  <div className="flex items-center gap-2 text-xs text-[var(--color-text-tertiary)] bg-[var(--color-bg)] px-4 py-3 rounded-xl md:ml-7">
-                    <Loader className="w-3.5 h-3.5 animate-spin" /> Đang tra giá vé hiện tại của tuyến này...
-                  </div>
-                ) : routePricing?.minPrice ? (
-                  <div className="rounded-xl border border-primary-500/20 bg-primary-500/5 p-4 space-y-2.5 md:ml-7">
-                    <p className="text-xs text-[var(--color-text-secondary)] leading-relaxed">
-                      Giá vé <strong className="text-[var(--color-text-primary)]">{cityName(form.routeFrom)} → {cityName(form.routeTo)}</strong> hiện tại:
-                      rẻ nhất <strong className="text-[var(--color-success)]">{formatCurrencyVnd(routePricing.minPrice)}</strong>
-                      {routePricing.avgPrice && <> · trung bình <strong className="text-[var(--color-text-primary)]">{formatCurrencyVnd(routePricing.avgPrice)}</strong></>}
-                      {routePricing.count > 0 && <> ({routePricing.count} chuyến)</>}
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      <button type="button" onClick={() => fillTarget(routePricing.minPrice)}
-                        className="text-[11px] font-semibold px-3 py-1.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-card)] hover:border-primary-500/40 hover:text-primary-500 transition-all">
-                        Chờ giá rẻ nhất hiện tại
-                      </button>
-                      {routePricing.minPrice > 0 && (
-                        <button type="button" onClick={() => fillTarget(Number(routePricing.minPrice) * 0.9)}
-                          className="text-[11px] font-semibold px-3 py-1.5 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-card)] hover:border-primary-500/40 hover:text-primary-500 transition-all">
-                          Rẻ hơn giá rẻ nhất 10%
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2 text-xs text-amber-600 dark:text-amber-400 bg-amber-500/10 px-4 py-3 rounded-xl md:ml-7">
-                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                    Tuyến này hiện chưa có dữ liệu giá — bạn vẫn có thể tạo cảnh báo để nhận thông báo khi có vé.
-                  </div>
-                )
-              )}
-
-              {/* Bước 2 — mức giá mong muốn */}
-              <div className="space-y-3">
-                <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-primary-500">
-                  <span className="w-5 h-5 rounded-full bg-primary-500 text-white flex items-center justify-center text-[10px] font-black shrink-0">2</span>
-                  Chọn mức giá bạn muốn chờ
-                </p>
-                <div className="md:pl-7">
-                  <label className="block text-xs font-semibold text-[var(--color-text-primary)] mb-1.5">Giá mục tiêu <span className="text-[var(--color-danger)]">*</span></label>
-                  <div className="relative">
-                    <DollarSign className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--color-text-tertiary)]" />
-                    <input type="text" inputMode="numeric" value={form.targetPrice}
-                      onChange={e => setForm(p => ({ ...p, targetPrice: formatTargetInput(e.target.value) }))}
-                      className="w-full border border-[var(--color-border)] rounded-xl pl-10 pr-14 py-3 text-sm font-semibold text-[var(--color-text-primary)] focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none bg-[var(--color-bg)]"
-                      placeholder="Ví dụ: 1.500.000" required />
-                    <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-[var(--color-text-tertiary)]">VNĐ</span>
-                  </div>
-                  <p className="text-[11px] text-[var(--color-text-tertiary)] mt-1.5 leading-relaxed">
-                    Bạn chỉ nhận thông báo khi giá vé giảm xuống <strong>bằng hoặc thấp hơn</strong> mức này. Gợi ý: đặt thấp hơn giá hiện tại một chút để cảnh báo thực sự hữu ích.
-                  </p>
-                </div>
-              </div>
-
-              {/* Xem trước nội dung cảnh báo */}
-              {form.routeFrom && form.routeTo && targetValue > 0 && (
-                <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
-                  className="flex items-start gap-2.5 text-xs text-[var(--color-text-primary)] bg-emerald-500/5 border border-emerald-500/20 px-4 py-3 rounded-xl md:ml-7">
-                  <Bell className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
-                  <span className="leading-relaxed">
-                    Tóm tắt: thông báo cho tôi khi có vé <strong>{cityName(form.routeFrom)} → {cityName(form.routeTo)}</strong> với giá{' '}
-                    <strong className="text-emerald-500">≤ {formatCurrencyVnd(targetValue)}</strong>.
-                  </span>
-                </motion.div>
-              )}
-
-              <motion.button whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.98 }} type="submit"
-                className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-primary-500 to-primary-600 text-white px-6 h-[42px] rounded-xl font-semibold hover:shadow-lg hover:shadow-primary-500/20 transition-all shadow-md shadow-primary-500/20 disabled:opacity-50 disabled:pointer-events-none"
-                disabled={submitting || !form.routeFrom || !form.routeTo || !targetValue}>
-                {submitting ? <><Loader className="w-4 h-4 animate-spin" /> Đang tạo...</> : <><Bell className="w-4 h-4" /> Tạo cảnh báo giá</>}
-              </motion.button>
-            </form>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       {alerts.length > 0 && (
         <div className="flex items-center justify-between mb-4">
@@ -586,7 +414,7 @@ function AlertsTab() {
             <Bell className="w-7 h-7 text-[var(--color-text-tertiary)]" />
           </div>
           <p className="text-sm font-semibold text-[var(--color-text-secondary)] mb-1">Chưa có cảnh báo nào</p>
-          <p className="text-xs text-[var(--color-text-tertiary)]">Tạo cảnh báo giá để không bỏ lỡ vé rẻ</p>
+          <p className="text-xs text-[var(--color-text-tertiary)]">Bấm nút Theo dõi trên bất kỳ vé nào ở trang tìm kiếm để theo dõi giá tại đây</p>
         </motion.div>
       ) : (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-3">
@@ -693,9 +521,33 @@ export default function OptimalRoute() {
   const navigate = useNavigate()
   const { isSignedIn } = useUser()
   const [tab, setTab] = useState('route')
-  // Form trống khi mở trang — không pre-fill tuyến mặc định
-  const [form, setForm] = useState({
-    originCity: '', destinationCity: '', startDate: '', endDate: '', preferences: 'cheapest', tripType: 'one-way',
+  const [searchParams] = useSearchParams()
+  // Điền sẵn từ URL params (liên kết mang theo from/to/date) → fallback lần tra cứu
+  // gần nhất trên trang chủ/trang tìm kiếm → form trống nếu không có gì
+  const [form, setForm] = useState(() => {
+    const urlFrom = searchParams.get('from')
+    const urlTo = searchParams.get('to')
+    let src = null
+    if (urlFrom && urlTo) {
+      src = {
+        from: urlFrom, to: urlTo,
+        date: searchParams.get('date') || '',
+        returnDate: searchParams.get('returnDate') || '',
+        tripType: searchParams.get('tripType'),
+      }
+    } else {
+      const s = getLastSearch()
+      if (s) src = { from: s.from, to: s.to, date: s.date, returnDate: s.returnDate, tripType: s.tripType }
+    }
+    const tripType = src?.tripType === 'round-trip' ? 'round-trip' : 'one-way'
+    return {
+      originCity: src?.from || '',
+      destinationCity: src?.to || '',
+      startDate: src?.date || '',
+      endDate: tripType === 'round-trip' ? (src.returnDate || '') : '',
+      preferences: 'cheapest',
+      tripType,
+    }
   })
   const [routes, setRoutes] = useState([])
   const [combos, setCombos] = useState([])
@@ -741,6 +593,16 @@ export default function OptimalRoute() {
       setRouteError('Không thể tìm lộ trình. Vui lòng thử lại sau.')
     } finally { setLoading(false) }
   }, [form])
+
+  // Tự chạy tìm kiếm đúng 1 lần khi mở trang đã có sẵn dữ liệu điền đủ
+  // (từ liên kết URL params hoặc lần tra cứu gần nhất trên trang chủ)
+  useEffect(() => {
+    if (!form.originCity || !form.destinationCity || !form.startDate) return
+    if (form.tripType === 'round-trip' && !form.endDate) return
+    searchedRef.current = true
+    handleSearch()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Reload lộ trình đã tìm khi tab được mở/chuyển tới (chỉ khi đã từng tìm kiếm)
   useRefetchOnTabVisible(() => {

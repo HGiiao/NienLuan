@@ -9,6 +9,7 @@ import BookingOptionsModal from '../components/BookingOptionsModal'
 import PriceWatchModal from '../components/PriceWatchModal'
 
 import LocationInput from '../components/LocationInput'
+import CrossToolLinks from '../components/CrossToolLinks'
 import { getTrains, predictPrice, createPriceAlert, getPriceAlerts } from '../services/api'
 import { formatCurrencyVnd } from '../utils/formatters'
 import { PageHeader, SearchForm, SkeletonList, EmptyState, Pagination } from '../ui'
@@ -295,6 +296,8 @@ export default function SearchTrains() {
           </div>
         </div>
       </SearchForm>
+
+      <CrossToolLinks query={query} />
 
       <div className="flex items-center justify-between gap-3 mt-4 mb-4">
         <PriceFilter type="train" onChange={setFilters} />
