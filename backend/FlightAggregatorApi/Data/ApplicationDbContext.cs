@@ -27,6 +27,13 @@ public class ApplicationDbContext : DbContext
     public DbSet<PromoCode> PromoCodes => Set<PromoCode>();
     public DbSet<LuckyWheelSpin> LuckyWheelSpins => Set<LuckyWheelSpin>();
 
+    protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
+    {
+        // Mặc định mọi decimal là decimal(18,2) — khớp DDL trong DatabaseInitializerService,
+        // đồng thời loại bỏ cảnh báo "No store type was specified for the decimal property" khi startup
+        configurationBuilder.Properties<decimal>().HavePrecision(18, 2);
+    }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Flight>(entity =>
@@ -119,6 +126,17 @@ public class ApplicationDbContext : DbContext
         {
             entity.HasIndex(e => e.UserId);
             entity.HasOne(e => e.Plan).WithMany().HasForeignKey(e => e.PlanId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // Cột percent/hệ số trong DB là DECIMAL(5,2) — ghi đè mặc định 18,2 để khớp DDL
+        modelBuilder.Entity<PriceConfig>(entity =>
+        {
+            entity.Property(e => e.Multiplier).HasPrecision(5, 2);
+        });
+
+        modelBuilder.Entity<PromoCode>(entity =>
+        {
+            entity.Property(e => e.DiscountPercent).HasPrecision(5, 2);
         });
 
     }

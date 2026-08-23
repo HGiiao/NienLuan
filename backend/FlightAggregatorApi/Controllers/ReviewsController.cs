@@ -103,7 +103,7 @@ public class ReviewsController : ControllerBase
             TrainId = request.TrainId,
             BusId = request.BusId,
             BookingId = request.BookingId,
-            Email = request.Email,
+            Email = request.Email ?? "",
             AuthorName = request.AuthorName,
             Rating = request.Rating,
             Comment = request.Comment

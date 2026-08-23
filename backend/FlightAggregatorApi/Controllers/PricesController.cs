@@ -109,7 +109,7 @@ public class PricesController : ControllerBase
         bool limitAirline = !plan.MultiAirlineCompare;
 
         bool isRoundTrip = string.Equals(tripType, "round-trip", StringComparison.OrdinalIgnoreCase) && returnDate.HasValue;
-        if (isRoundTrip && returnDate.Value < dateVal)
+        if (isRoundTrip && returnDate.HasValue && returnDate.Value < dateVal)
         {
             return BadRequest(new { message = "returnDate phải sau hoặc bằng date" });
         }

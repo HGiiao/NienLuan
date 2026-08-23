@@ -410,7 +410,7 @@ public class BookingsController : ControllerBase
         {
             user = new User
             {
-                Email = request.Email,
+                Email = request.Email ?? "",
                 FullName = request.FullName,
                 Phone = request.Phone ?? "",
                 PasswordHash = "",

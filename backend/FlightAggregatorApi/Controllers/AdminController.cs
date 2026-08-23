@@ -627,7 +627,7 @@ public class AdminController : ControllerBase
 
         var providedNumbers = requests
             .Where(r => !string.IsNullOrWhiteSpace(r.FlightNumber))
-            .Select(r => r.FlightNumber.Trim())
+            .Select(r => r.FlightNumber!.Trim())
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
