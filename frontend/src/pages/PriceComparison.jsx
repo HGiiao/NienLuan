@@ -39,17 +39,33 @@ const fmtDurShort = (ms) => {
   return h > 0 ? `${h}h${m > 0 ? ` ${m}p` : ''}` : `${m}p`
 }
 
-function SortSelect({ value, onChange }) {
+// Nhóm 3 nút sắp xếp — luôn hiển thị ở cả 3 cột (kể khi chưa có dữ liệu)
+// để khách dễ chọn cách so sánh ngay từ đầu
+const SORT_OPTIONS = [
+  { id: 'price', label: 'Giá ↑' },
+  { id: 'time', label: 'Giờ đi' },
+  { id: 'duration', label: 'Nhanh nhất' },
+]
+
+function SortTabs({ value, onChange }) {
   return (
-    <select
-      value={value}
-      onChange={e => onChange(e.target.value)}
-      className="shrink-0 text-[10px] font-semibold rounded-md border border-[var(--color-border)] bg-[var(--color-bg-card)] text-[var(--color-text-secondary)] px-1.5 py-1 outline-none hover:border-primary-500/40 cursor-pointer"
-    >
-      <option value="price">Giá ↑</option>
-      <option value="time">Giờ đi</option>
-      <option value="duration">Ngắn nhất</option>
-    </select>
+    <div className="flex items-center gap-0.5 bg-[var(--color-border)]/30 rounded-lg p-0.5 w-fit" role="group" aria-label="Sắp xếp kết quả">
+      {SORT_OPTIONS.map(o => (
+        <button
+          key={o.id}
+          type="button"
+          aria-pressed={value === o.id}
+          onClick={() => onChange(o.id)}
+          className={`px-2 py-1 text-[10px] font-semibold rounded-md transition-all whitespace-nowrap ${
+            value === o.id
+              ? 'bg-primary-500 text-white shadow-sm'
+              : 'text-[var(--color-text-tertiary)] hover:text-[var(--color-text-primary)]'
+          }`}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
   )
 }
 
@@ -180,7 +196,7 @@ function CompareSection({
   liveCountdown, highlightedIds, searchParams, ratingsMap,
 }) {
   const navigate = useNavigate()
-  const [sorts, setSorts] = useState({ flight: 'price', train: 'price' })
+  const [sorts, setSorts] = useState({ flight: 'price', train: 'price', bus: 'price' })
   const durMs = (dep, arr) => new Date(arr).getTime() - new Date(dep).getTime()
   const flightList = flights?.map(f => ({
     ...f, type: 'flight', typeLabel: 'Máy bay', code: f.airlineCode, key: `flight_${f.id}`,
@@ -238,6 +254,7 @@ function CompareSection({
         : a.price - b.price)
   const sortedFlights = useMemo(() => sortBy(flightList, sorts.flight), [flightList, sorts])
   const sortedTrains = useMemo(() => sortBy(trainList, sorts.train), [trainList, sorts])
+  const sortedBuses = useMemo(() => sortBy(busList, sorts.bus), [busList, sorts])
 
   // Ma trận tổng hợp: giá thấp nhất / nhanh nhất / số chuyến / tiết kiệm so với đắt nhất
   const modeRows = [
@@ -411,13 +428,11 @@ function CompareSection({
 
         <div className="grid md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-[var(--color-border)]">
           <div>
-            <div className="px-5 py-2 flex items-center gap-2 bg-[var(--color-bg)]">
+            <div className="px-5 py-2 flex flex-wrap items-center gap-x-2 gap-y-1.5 bg-[var(--color-bg)]">
               <Plane className="w-3.5 h-3.5 text-primary-500 shrink-0" />
               <span className="text-xs font-medium text-[var(--color-text-secondary)]">Máy bay ({flights?.length || 0})</span>
               {cheapestF && <span className="text-[10px] font-semibold text-[var(--color-success)] ml-auto">Từ {formatCurrencyVnd(cheapestF.price)}</span>}
-              {flightList.length > 1 && (
-                <SortSelect value={sorts.flight} onChange={v => setSorts(s => ({ ...s, flight: v }))} />
-              )}
+              <SortTabs value={sorts.flight} onChange={v => setSorts(s => ({ ...s, flight: v }))} />
             </div>
             <div className="max-h-[220px] overflow-y-auto scrollbar-thin">
               {flights?.length > 0 ? sortedFlights.map(f => {
@@ -457,13 +472,14 @@ function CompareSection({
           </div>
 
           <div>
-            <div className="px-5 py-2 flex items-center gap-2 bg-[var(--color-bg)]">
+            <div className="px-5 py-2 flex flex-wrap items-center gap-x-2 gap-y-1.5 bg-[var(--color-bg)]">
               <Bus className="w-3.5 h-3.5 text-primary-500 shrink-0" />
               <span className="text-xs font-medium text-[var(--color-text-secondary)]">Xe khách ({buses?.length || 0})</span>
               {cheapestB && <span className="text-[10px] font-semibold text-[var(--color-success)] ml-auto">Từ {formatCurrencyVnd(cheapestB.price)}</span>}
+              <SortTabs value={sorts.bus} onChange={v => setSorts(s => ({ ...s, bus: v }))} />
             </div>
             <div className="max-h-[220px] overflow-y-auto scrollbar-thin">
-              {buses?.length > 0 ? busList.map(b => {
+              {buses?.length > 0 ? sortedBuses.map(b => {
                 const isHighlighted = highlightedIds?.has(`bus_${b.id}`)
                 return (
                   <div key={b.id} onClick={() => goToBus(b)}
@@ -500,13 +516,11 @@ function CompareSection({
           </div>
 
           <div>
-            <div className="px-5 py-2 flex items-center gap-2 bg-[var(--color-bg)]">
+            <div className="px-5 py-2 flex flex-wrap items-center gap-x-2 gap-y-1.5 bg-[var(--color-bg)]">
               <Train className="w-3.5 h-3.5 text-primary-500 shrink-0" />
               <span className="text-xs font-medium text-[var(--color-text-secondary)]">Tàu hỏa ({trains?.length || 0})</span>
               {cheapestT && <span className="text-[10px] font-semibold text-[var(--color-success)] ml-auto">Từ {formatCurrencyVnd(cheapestT.price)}</span>}
-              {trainList.length > 1 && (
-                <SortSelect value={sorts.train} onChange={v => setSorts(s => ({ ...s, train: v }))} />
-              )}
+              <SortTabs value={sorts.train} onChange={v => setSorts(s => ({ ...s, train: v }))} />
             </div>
             <div className="max-h-[220px] overflow-y-auto scrollbar-thin">
               {trains?.length > 0 ? sortedTrains.map(t => {
