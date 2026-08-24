@@ -111,12 +111,20 @@ export default function FlightsPage() {
     }))
   }
 
-  const generateFlightCode = () => {
+  const generateFlightCode = async () => {
     const prefix = form.airlineCode && !/\d/.test(form.airlineCode) ? form.airlineCode : (airlineOptions[0]?.code || '')
+    const used = new Set()
+    used.add(form.flightNumber.trim())
+    try {
+      const all = await getAdminFlights({ page: 1, pageSize: 1000 })
+      const items = all.data?.items || all.data || []
+      for (const r of items) if (r.id !== editing?.id) used.add((r.flightNumber || r.airlineCode || '').trim())
+    } catch {}
     let code = ''
-    for (let i = 0; i < 20; i++) {
-      code = `${prefix}${Math.floor(100 + Math.random() * 900)}`
-      if (!data.some(r => r.id !== editing?.id && (r.flightNumber || r.airlineCode) === code)) break
+    for (let i = 0; i < 200; i++) {
+      code = `${prefix}${String(Math.floor(100 + Math.random() * 900)).padStart(3, '0')}`
+      if (!used.has(code)) break
+      if (i === 199) code = `${prefix}${Date.now().toString().slice(-3)}`
     }
     setForm(p => ({ ...p, flightNumber: code }))
   }

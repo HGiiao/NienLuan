@@ -124,12 +124,20 @@ export default function BusesPage() {
     setForm(p => ({ ...p, busCompany: name, busCode: p.busCode || (company ? company.code : '') }))
   }
 
-  const generateBusCode = () => {
+  const generateBusCode = async () => {
     const prefix = companyOptions.find(c => c.name === form.busCompany)?.code || 'XE'
+    const used = new Set()
+    used.add(form.busCode.trim())
+    try {
+      const all = await getAdminBuses({ page: 1, pageSize: 1000 })
+      const items = all.data?.items || all.data || []
+      for (const r of items) if (r.id !== editing?.id) used.add((r.busCode || '').trim())
+    } catch {}
     let code = ''
-    for (let i = 0; i < 20; i++) {
-      code = `${prefix}${String(Math.floor(100 + Math.random() * 900))}`
-      if (!data.some(r => r.id !== editing?.id && r.busCode === code)) break
+    for (let i = 0; i < 200; i++) {
+      code = `${prefix}${String(Math.floor(100 + Math.random() * 900)).padStart(3, '0')}`
+      if (!used.has(code)) break
+      if (i === 199) code = `${prefix}${Date.now().toString().slice(-3)}`
     }
     setForm(p => ({ ...p, busCode: code }))
   }

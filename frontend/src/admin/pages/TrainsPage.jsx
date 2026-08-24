@@ -100,12 +100,20 @@ export default function TrainsPage() {
 
   const trainTypeByPrefix = { SE: 'Reunification Express', TN: 'Fast Train', LP: 'Local Train' }
 
-  const generateTrainCode = () => {
+  const generateTrainCode = async () => {
     const prefixes = ['SE', 'TN', 'LP']
+    const used = new Set()
+    used.add(form.trainCode.trim())
+    try {
+      const all = await getAdminTrains({ page: 1, pageSize: 1000 })
+      const items = all.data?.items || all.data || []
+      for (const r of items) if (r.id !== editing?.id) used.add((r.trainCode || '').trim())
+    } catch {}
     let code = ''
-    for (let i = 0; i < 20; i++) {
-      code = `${prefixes[Math.floor(Math.random() * prefixes.length)]}${Math.floor(1 + Math.random() * 99)}`
-      if (!data.some(r => r.id !== editing?.id && r.trainCode === code)) break
+    for (let i = 0; i < 200; i++) {
+      code = `${prefixes[Math.floor(Math.random() * prefixes.length)]}${String(Math.floor(1 + Math.random() * 99)).padStart(2, '0')}`
+      if (!used.has(code)) break
+      if (i === 199) code = `${prefixes[Math.floor(Math.random() * prefixes.length)]}${String(Date.now().toString().slice(-2))}`
     }
     setForm(p => ({
       ...p,
